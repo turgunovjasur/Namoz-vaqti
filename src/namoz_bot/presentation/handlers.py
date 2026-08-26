@@ -12,7 +12,13 @@ from aiogram.types import CallbackQuery, Message
 from namoz_bot.application.schedules import ScheduleService, format_schedule
 from namoz_bot.application.subscriptions import SubscriptionService
 from namoz_bot.domain.errors import ScheduleValidationError, UnsupportedRegionError
-from namoz_bot.domain.models import PRAYER_KEYS, OffsetAction, PrayerKey, PrayerOffsets
+from namoz_bot.domain.models import (
+    PRAYER_KEYS,
+    OffsetAction,
+    PrayerKey,
+    PrayerOffsets,
+    UserSubscription,
+)
 from namoz_bot.domain.regions import get_region, get_region_group
 from namoz_bot.presentation.keyboards import (
     DISABLE_LABEL,
@@ -48,11 +54,14 @@ def _message_identity(message: Any) -> tuple[int, int]:
     return int(message.from_user.id), int(message.chat.id)
 
 
-async def _send_today(message: Any, services: HandlerServices, region_code: str) -> None:
-    schedule = await services.schedules.get_today(region_code, services.today())
-    subscription = await services.subscriptions.get(_message_identity(message)[0])
+async def _send_today(
+    message: Any,
+    services: HandlerServices,
+    subscription: UserSubscription,
+) -> None:
+    schedule = await services.schedules.get_today(subscription.region_code, services.today())
     await message.answer(
-        format_schedule(schedule, relative_label="Bugun"),
+        format_schedule(schedule, relative_label="Bugun", offsets=subscription.offsets),
         reply_markup=build_main_menu(is_active=subscription.is_active),
     )
 
@@ -60,13 +69,13 @@ async def _send_today(message: Any, services: HandlerServices, region_code: str)
 async def handle_start(message: Message, handler_services: HandlerServices) -> None:
     telegram_user_id, chat_id = _message_identity(message)
     result = await handler_services.subscriptions.start(telegram_user_id, chat_id)
-    await _send_today(message, handler_services, result.subscription.region_code)
+    await _send_today(message, handler_services, result.subscription)
 
 
 async def handle_today(message: Message, handler_services: HandlerServices) -> None:
     telegram_user_id, _ = _message_identity(message)
     subscription = await handler_services.subscriptions.get(telegram_user_id)
-    await _send_today(message, handler_services, subscription.region_code)
+    await _send_today(message, handler_services, subscription)
 
 
 async def handle_settings(message: Message, handler_services: HandlerServices) -> None:
@@ -242,11 +251,13 @@ async def handle_region_selection(
         await callback.answer("Hudud topilmadi", show_alert=True)
         return
 
-    await handler_services.subscriptions.change_region(callback.from_user.id, region.code)
+    subscription = await handler_services.subscriptions.change_region(
+        callback.from_user.id,
+        region.code,
+    )
     schedule = await handler_services.schedules.get_today(region.code, handler_services.today())
-    subscription = await handler_services.subscriptions.get(callback.from_user.id)
     await callback.message.answer(
-        format_schedule(schedule, relative_label="Bugun"),
+        format_schedule(schedule, relative_label="Bugun", offsets=subscription.offsets),
         reply_markup=build_main_menu(is_active=subscription.is_active),
     )
     await callback.answer("Hudud saqlandi")

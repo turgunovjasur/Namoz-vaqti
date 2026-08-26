@@ -14,6 +14,7 @@ from namoz_bot.presentation.handlers import (
     handle_region_selection,
     handle_settings,
     handle_start,
+    handle_today,
     handle_toggle_notifications,
 )
 
@@ -128,19 +129,49 @@ def make_services(repository: InMemorySubscriptions) -> HandlerServices:
 
 
 async def test_start_uses_saved_region_and_shared_schedule_format() -> None:
-    repository = InMemorySubscriptions(UserSubscription(7, 8, "Samarqand", False, id=1))
+    repository = InMemorySubscriptions(
+        UserSubscription(
+            7,
+            8,
+            "Samarqand",
+            False,
+            id=1,
+            offsets=PrayerOffsets(shom=4),
+        )
+    )
     message = FakeMessage()
 
     await handle_start(message, make_services(repository))
 
     assert "📅 Bugun — 27-avgust, Samarqand" in message.answers[0].text
+    assert "Shom — 19:16 (+4 daqiqa)" in message.answers[0].text
     assert repository.item is not None
     assert repository.item.chat_id == 9
     assert repository.item.is_active is True
 
 
+async def test_today_applies_saved_prayer_offsets() -> None:
+    repository = InMemorySubscriptions(
+        UserSubscription(7, 9, "Toshkent", True, id=1, offsets=PrayerOffsets(shom=4))
+    )
+    message = FakeMessage()
+
+    await handle_today(message, make_services(repository))
+
+    assert "Shom — 19:16 (+4 daqiqa)" in message.answers[0].text
+
+
 async def test_region_selection_persists_region_and_sends_today_schedule() -> None:
-    repository = InMemorySubscriptions(UserSubscription(7, 9, "Toshkent", True, id=1))
+    repository = InMemorySubscriptions(
+        UserSubscription(
+            7,
+            9,
+            "Toshkent",
+            True,
+            id=1,
+            offsets=PrayerOffsets(shom=4),
+        )
+    )
     message = FakeMessage()
     callback = FakeCallback(data="region:Samarqand", message=message)
 
@@ -149,7 +180,9 @@ async def test_region_selection_persists_region_and_sends_today_schedule() -> No
     assert callback.answered is True
     assert repository.item is not None
     assert repository.item.region_code == "Samarqand"
+    assert repository.item.offsets == PrayerOffsets()
     assert "Samarqand" in message.answers[0].text
+    assert "(+4 daqiqa)" not in message.answers[0].text
 
 
 async def test_stale_region_button_requests_settings_refresh() -> None:
