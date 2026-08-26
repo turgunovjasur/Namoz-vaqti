@@ -14,8 +14,6 @@ TODAY_LABEL = "📅 Bugungi jadval"
 REGION_LABEL = "📍 Hududni o‘zgartirish"
 HELP_LABEL = "ℹ️ Yordam"
 OFFSETS_LABEL = "⏱ Vaqtlarni sozlash"
-DISABLE_LABEL = "🔕 Xabarlarni o‘chirish"
-ENABLE_LABEL = "🔔 Xabarlarni yoqish"
 
 PRAYER_LABELS: dict[PrayerKey, str] = {
     "bomdod": "Bomdod",
@@ -103,14 +101,13 @@ def build_region_group_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def build_main_menu(*, is_active: bool) -> ReplyKeyboardMarkup:
-    """Build the persistent main menu for current subscription state."""
+def build_main_menu() -> ReplyKeyboardMarkup:
+    """Build the persistent main menu."""
 
-    toggle_label = DISABLE_LABEL if is_active else ENABLE_LABEL
     return ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text=TODAY_LABEL), KeyboardButton(text=REGION_LABEL)],
-            [KeyboardButton(text=OFFSETS_LABEL), KeyboardButton(text=toggle_label)],
+            [KeyboardButton(text=OFFSETS_LABEL)],
             [KeyboardButton(text=HELP_LABEL)],
         ],
         resize_keyboard=True,

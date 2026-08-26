@@ -24,7 +24,6 @@ from namoz_bot.presentation.handlers import (
     handle_settings,
     handle_start,
     handle_today,
-    handle_toggle_notifications,
 )
 
 
@@ -183,7 +182,7 @@ async def test_start_uses_saved_region_and_shared_schedule_format() -> None:
 
     await handle_start(message, make_services(repository))
 
-    assert "📅 Bugun — 27-avgust, Samarqand" in message.answers[0].text
+    assert "📅 27.08.2026 (Samarqand)" in message.answers[0].text
     assert "Shom — 19:16 (+4 daqiqa)" in message.answers[0].text
     assert repository.item is not None
     assert repository.item.chat_id == 9
@@ -287,20 +286,6 @@ async def test_back_to_groups_shows_top_level_selector() -> None:
     assert buttons[0].callback_data == "region-group:toshkent-shahri"
 
 
-async def test_toggle_notifications_updates_state_and_menu() -> None:
-    repository = InMemorySubscriptions(UserSubscription(7, 9, "Toshkent", True, id=1))
-    message = FakeMessage()
-
-    await handle_toggle_notifications(message, make_services(repository))
-
-    assert repository.item is not None
-    assert repository.item.is_active is False
-    labels = [
-        button.text for row in message.answers[0].kwargs["reply_markup"].keyboard for button in row
-    ]
-    assert "🔔 Xabarlarni yoqish" in labels
-
-
 async def test_offsets_message_shows_saved_values_and_six_prayer_buttons() -> None:
     handler = getattr(handlers_module, "handle_offsets", None)
     repository = InMemorySubscriptions(
@@ -402,7 +387,7 @@ async def test_offset_schedule_replaces_settings_with_adjusted_today_schedule() 
     assert callback.answered is True
     assert message.answers == []
     assert len(message.edits) == 1
-    assert "📅 Bugun — 27-avgust, Toshkent" in message.edits[0].text
+    assert "📅 27.08.2026 (Toshkent)" in message.edits[0].text
     assert "Shom — 19:16 (+4 daqiqa)" in message.edits[0].text
     assert message.edits[0].kwargs == {"reply_markup": None}
 
@@ -597,5 +582,5 @@ async def test_region_reset_and_offset_change_share_one_user_lock() -> None:
     assert repository.item is not None
     assert repository.item.region_code == "Samarqand"
     assert repository.item.offsets == PrayerOffsets()
-    assert "📅 Bugun — 27-avgust, Samarqand" in message.edits[-1].text
+    assert "📅 27.08.2026 (Samarqand)" in message.edits[-1].text
     assert "(+1 daqiqa)" not in message.edits[-1].text

@@ -10,21 +10,6 @@ from namoz_bot.domain.errors import (
 )
 from namoz_bot.domain.models import PrayerOffsets, PrayerSchedule, PrayerTimes
 
-_UZBEK_MONTHS = (
-    "yanvar",
-    "fevral",
-    "mart",
-    "aprel",
-    "may",
-    "iyun",
-    "iyul",
-    "avgust",
-    "sentabr",
-    "oktabr",
-    "noyabr",
-    "dekabr",
-)
-
 
 class ScheduleService:
     """Validate schedules returned by an external provider."""
@@ -98,16 +83,14 @@ def _offset_suffix(value: int) -> str:
 
 def format_schedule(
     schedule: PrayerSchedule,
-    relative_label: str,
     offsets: PrayerOffsets | None = None,
 ) -> str:
     """Render an Uzbek daily schedule with optional personal adjustments."""
 
-    month_name = _UZBEK_MONTHS[schedule.date.month - 1]
     configured_offsets = offsets or PrayerOffsets()
     times = apply_offsets(schedule, configured_offsets).times
     return (
-        f"📅 {relative_label} — {schedule.date.day}-{month_name}, {schedule.region_name}\n\n"
+        f"📅 {schedule.date:%d.%m.%Y} ({schedule.region_name})\n\n"
         f"Bomdod — {times.bomdod}{_offset_suffix(configured_offsets.bomdod)}\n"
         f"Quyosh — {times.quyosh}{_offset_suffix(configured_offsets.quyosh)}\n"
         f"Peshin — {times.peshin}{_offset_suffix(configured_offsets.peshin)}\n"

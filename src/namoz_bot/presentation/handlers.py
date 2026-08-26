@@ -23,8 +23,6 @@ from namoz_bot.domain.models import (
 )
 from namoz_bot.domain.regions import get_region, get_region_group
 from namoz_bot.presentation.keyboards import (
-    DISABLE_LABEL,
-    ENABLE_LABEL,
     HELP_LABEL,
     OFFSETS_LABEL,
     PRAYER_LABELS,
@@ -64,8 +62,8 @@ async def _send_today(
 ) -> None:
     schedule = await services.schedules.get_today(subscription.region_code, services.today())
     await message.answer(
-        format_schedule(schedule, relative_label="Bugun", offsets=subscription.offsets),
-        reply_markup=build_main_menu(is_active=subscription.is_active),
+        format_schedule(schedule, offsets=subscription.offsets),
+        reply_markup=build_main_menu(),
     )
 
 
@@ -279,7 +277,7 @@ async def handle_offset_schedule(
         )
         message = cast(Any, callback.message)
         await message.edit_text(
-            format_schedule(schedule, relative_label="Bugun", offsets=subscription.offsets),
+            format_schedule(schedule, offsets=subscription.offsets),
             reply_markup=None,
         )
         await callback.answer()
@@ -348,31 +346,15 @@ async def handle_region_selection(
         )
         message = cast(Any, callback.message)
         await message.edit_text(
-            format_schedule(schedule, relative_label="Bugun", offsets=subscription.offsets),
+            format_schedule(schedule, offsets=subscription.offsets),
         )
         await callback.answer("Hudud saqlandi")
-
-
-async def handle_toggle_notifications(
-    message: Message,
-    handler_services: HandlerServices,
-) -> None:
-    telegram_user_id, _ = _message_identity(message)
-    current = await handler_services.subscriptions.get(telegram_user_id)
-    updated = await handler_services.subscriptions.set_active(
-        telegram_user_id, not current.is_active
-    )
-    status = "yoqildi" if updated.is_active else "o‘chirildi"
-    await message.answer(
-        f"Kunlik xabarlar {status}.",
-        reply_markup=build_main_menu(is_active=updated.is_active),
-    )
 
 
 async def handle_help(message: Message) -> None:
     await message.answer(
         "Bot har kuni soat 21:00 da tanlangan hudud uchun ertangi namoz vaqtlarini "
-        "yuboradi. /today — bugungi jadval, /settings — hudud va xabar sozlamalari, "
+        "yuboradi. /today — bugungi jadval, /settings — hudud sozlamalari, "
         "/offsets — saqlanadigan shaxsiy vaqt farqlari."
     )
 
@@ -385,7 +367,6 @@ router.message.register(handle_help, Command("help"))
 router.message.register(handle_today, F.text == TODAY_LABEL)
 router.message.register(handle_settings, F.text == REGION_LABEL)
 router.message.register(handle_offsets, F.text == OFFSETS_LABEL)
-router.message.register(handle_toggle_notifications, F.text.in_({DISABLE_LABEL, ENABLE_LABEL}))
 router.message.register(handle_help, F.text == HELP_LABEL)
 router.callback_query.register(handle_region_groups, F.data == "region-groups")
 router.callback_query.register(handle_offsets_overview, F.data == "offsets")
