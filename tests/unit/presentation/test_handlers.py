@@ -3,10 +3,12 @@ from datetime import date
 from types import SimpleNamespace
 from typing import Any
 
+import pytest
+
 import namoz_bot.presentation.handlers as handlers_module
 from namoz_bot.application.schedules import ScheduleService
 from namoz_bot.application.subscriptions import SubscriptionService
-from namoz_bot.domain.models import PrayerSchedule, PrayerTimes, UserSubscription
+from namoz_bot.domain.models import PrayerOffsets, PrayerSchedule, PrayerTimes, UserSubscription
 from namoz_bot.presentation.handlers import (
     HandlerServices,
     handle_region_selection,
@@ -17,8 +19,15 @@ from namoz_bot.presentation.handlers import (
 
 
 class InMemorySubscriptions:
-    def __init__(self, existing: UserSubscription | None = None) -> None:
+    def __init__(
+        self,
+        existing: UserSubscription | None = None,
+        *,
+        fail_save: bool = False,
+    ) -> None:
         self.item = existing
+        self.fail_save = fail_save
+        self.save_calls = 0
 
     async def get_by_telegram_user_id(self, telegram_user_id: int) -> UserSubscription | None:
         if self.item is not None and self.item.telegram_user_id == telegram_user_id:
@@ -32,6 +41,7 @@ class InMemorySubscriptions:
             chat_id=subscription.chat_id,
             region_code=subscription.region_code,
             is_active=subscription.is_active,
+            offsets=subscription.offsets,
         )
         return self.item
 
@@ -44,10 +54,14 @@ class InMemorySubscriptions:
             region_code=self.item.region_code,
             is_active=True,
             id=self.item.id,
+            offsets=self.item.offsets,
         )
         return self.item, False
 
     async def save(self, subscription: UserSubscription) -> UserSubscription:
+        self.save_calls += 1
+        if self.fail_save:
+            raise RuntimeError("database unavailable")
         self.item = subscription
         return subscription
 
@@ -81,22 +95,28 @@ class FakeMessage:
         self.from_user = SimpleNamespace(id=user_id)
         self.chat = SimpleNamespace(id=chat_id)
         self.answers: list[Answer] = []
+        self.edits: list[Answer] = []
 
     async def answer(self, text: str, **kwargs: Any) -> None:
         self.answers.append(Answer(text, kwargs))
 
+    async def edit_text(self, text: str, **kwargs: Any) -> None:
+        self.edits.append(Answer(text, kwargs))
+
 
 class FakeCallback:
-    def __init__(self, data: str, message: FakeMessage, user_id: int = 7) -> None:
+    def __init__(self, data: str, message: FakeMessage | None, user_id: int = 7) -> None:
         self.data = data
         self.message = message
         self.from_user = SimpleNamespace(id=user_id)
         self.answered = False
         self.answer_text: str | None = None
+        self.answer_kwargs: dict[str, Any] = {}
 
-    async def answer(self, text: str | None = None, **_kwargs: Any) -> None:
+    async def answer(self, text: str | None = None, **kwargs: Any) -> None:
         self.answered = True
         self.answer_text = text
+        self.answer_kwargs = kwargs
 
 
 def make_services(repository: InMemorySubscriptions) -> HandlerServices:
@@ -204,3 +224,152 @@ async def test_toggle_notifications_updates_state_and_menu() -> None:
         button.text for row in message.answers[0].kwargs["reply_markup"].keyboard for button in row
     ]
     assert "🔔 Xabarlarni yoqish" in labels
+
+
+async def test_offsets_message_shows_saved_values_and_six_prayer_buttons() -> None:
+    handler = getattr(handlers_module, "handle_offsets", None)
+    repository = InMemorySubscriptions(
+        UserSubscription(7, 9, "Toshkent", True, id=1, offsets=PrayerOffsets(shom=4))
+    )
+    message = FakeMessage()
+
+    assert handler is not None
+    await handler(message, make_services(repository))
+
+    assert "Shom: +4 daqiqa" in message.answers[0].text
+    buttons = [
+        button
+        for row in message.answers[0].kwargs["reply_markup"].inline_keyboard
+        for button in row
+    ]
+    assert len(buttons) == 6
+    assert buttons[4].callback_data == "offset:shom"
+
+
+async def test_offsets_callback_edits_existing_message_with_overview() -> None:
+    handler = getattr(handlers_module, "handle_offsets_overview", None)
+    repository = InMemorySubscriptions(UserSubscription(7, 9, "Toshkent", True, id=1))
+    message = FakeMessage()
+    callback = FakeCallback("offsets", message)
+
+    assert handler is not None
+    await handler(callback, make_services(repository))
+
+    assert callback.answered is True
+    assert len(message.edits) == 1
+    assert message.answers == []
+    assert "Shaxsiy vaqt farqlari" in message.edits[0].text
+
+
+async def test_offset_selection_edits_message_with_minute_controls() -> None:
+    handler = getattr(handlers_module, "handle_offset_selection", None)
+    repository = InMemorySubscriptions(
+        UserSubscription(7, 9, "Toshkent", True, id=1, offsets=PrayerOffsets(shom=4))
+    )
+    message = FakeMessage()
+    callback = FakeCallback("offset:shom", message)
+
+    assert handler is not None
+    await handler(callback, make_services(repository))
+
+    assert "Shom" in message.edits[0].text
+    assert "+4 daqiqa" in message.edits[0].text
+    buttons = [
+        button for row in message.edits[0].kwargs["reply_markup"].inline_keyboard for button in row
+    ]
+    assert [button.callback_data for button in buttons[:3]] == [
+        "offset-change:shom:-1",
+        "offset-change:shom:0",
+        "offset-change:shom:1",
+    ]
+
+
+async def test_offset_change_supports_repeated_increment_and_selected_reset() -> None:
+    handler = getattr(handlers_module, "handle_offset_change", None)
+    repository = InMemorySubscriptions(UserSubscription(7, 9, "Toshkent", True, id=1))
+    services = make_services(repository)
+    message = FakeMessage()
+
+    assert handler is not None
+    for _ in range(4):
+        await handler(FakeCallback("offset-change:shom:1", message), services)
+
+    assert repository.item is not None
+    assert repository.item.offsets == PrayerOffsets(shom=4)
+    assert len(message.edits) == 4
+    assert "+4 daqiqa" in message.edits[-1].text
+
+    await handler(FakeCallback("offset-change:shom:0", message), services)
+    assert repository.item.offsets == PrayerOffsets()
+
+
+async def test_offset_change_boundary_alert_does_not_save_or_edit() -> None:
+    handler = getattr(handlers_module, "handle_offset_change", None)
+    repository = InMemorySubscriptions(
+        UserSubscription(7, 9, "Toshkent", True, id=1, offsets=PrayerOffsets(shom=30))
+    )
+    message = FakeMessage()
+    callback = FakeCallback("offset-change:shom:1", message)
+
+    assert handler is not None
+    await handler(callback, make_services(repository))
+
+    assert repository.save_calls == 0
+    assert message.edits == []
+    assert callback.answer_text == "Chegara: \N{MINUS SIGN}30…+30 daqiqa"
+    assert callback.answer_kwargs == {"show_alert": True}
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        "offset:saharlik",
+        "offset:shom:extra",
+        "offset-change:saharlik:1",
+        "offset-change:shom:2",
+        "offset-change:shom:1:extra",
+    ],
+)
+async def test_offset_callbacks_reject_untrusted_payloads(data: str) -> None:
+    repository = InMemorySubscriptions(UserSubscription(7, 9, "Toshkent", True, id=1))
+    message = FakeMessage()
+    callback = FakeCallback(data, message)
+    handler_name = (
+        "handle_offset_change" if data.startswith("offset-change:") else "handle_offset_selection"
+    )
+    handler = getattr(handlers_module, handler_name, None)
+
+    assert handler is not None
+    await handler(callback, make_services(repository))
+
+    assert repository.save_calls == 0
+    assert message.edits == []
+    assert callback.answer_kwargs == {"show_alert": True}
+
+
+async def test_offset_callback_rejects_missing_message() -> None:
+    handler = getattr(handlers_module, "handle_offset_change", None)
+    callback = FakeCallback("offset-change:shom:1", None)
+
+    assert handler is not None
+    await handler(
+        callback,
+        make_services(InMemorySubscriptions(UserSubscription(7, 9, "Toshkent", True, id=1))),
+    )
+
+    assert callback.answer_kwargs == {"show_alert": True}
+
+
+async def test_offset_persistence_failure_is_not_acknowledged() -> None:
+    handler = getattr(handlers_module, "handle_offset_change", None)
+    repository = InMemorySubscriptions(
+        UserSubscription(7, 9, "Toshkent", True, id=1),
+        fail_save=True,
+    )
+    callback = FakeCallback("offset-change:shom:1", FakeMessage())
+
+    assert handler is not None
+    with pytest.raises(RuntimeError, match="database unavailable"):
+        await handler(callback, make_services(repository))
+
+    assert callback.answered is False
