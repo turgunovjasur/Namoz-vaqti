@@ -56,8 +56,9 @@ class Subscriptions:
 
 
 class Deliveries:
-    def __init__(self) -> None:
+    def __init__(self, fail_status_for: set[int] | None = None) -> None:
         self.statuses: dict[tuple[int, date, DeliveryType], DeliveryStatus] = {}
+        self.fail_status_for = fail_status_for or set()
 
     async def claim_batch(
         self,
@@ -82,6 +83,8 @@ class Deliveries:
         *,
         error_code: str | None = None,
     ) -> None:
+        if user_id in self.fail_status_for:
+            raise RuntimeError("database unavailable")
         self.statuses[(user_id, schedule_date, delivery_type)] = status
 
 
@@ -164,6 +167,25 @@ async def test_pending_claim_is_not_retried_after_restart() -> None:
 
     assert report.skipped == 1
     assert sender.messages == []
+
+
+async def test_status_persistence_failure_does_not_stop_later_pages() -> None:
+    subscriptions = Subscriptions([user(1), user(2)])
+    deliveries = Deliveries(fail_status_for={1})
+    sender = Sender()
+
+    report = await BroadcastService(
+        subscriptions,
+        deliveries,
+        ScheduleService(Provider()),
+        sender,
+        batch_size=1,
+    ).send_next_day(date(2026, 8, 27))
+
+    assert report.failed == 1
+    assert report.sent == 1
+    assert [chat_id for chat_id, _ in sender.messages] == [10, 20]
+    assert deliveries.statuses[(2, date(2026, 8, 27), DeliveryType.DAILY)] is DeliveryStatus.SENT
 
 
 async def test_failed_region_does_not_stop_other_regions() -> None:

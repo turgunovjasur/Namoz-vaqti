@@ -48,6 +48,14 @@ async def test_schedule_service_rejects_response_for_wrong_date() -> None:
 
 
 @pytest.mark.asyncio
+async def test_schedule_service_rejects_stale_year_at_new_year_boundary() -> None:
+    service = ScheduleService(StubProvider(make_schedule(schedule_date=date(2026, 1, 1))))
+
+    with pytest.raises(ScheduleDateMismatchError):
+        await service.get_schedule("Toshkent", date(2027, 1, 1))
+
+
+@pytest.mark.asyncio
 async def test_schedule_service_rejects_response_for_wrong_region() -> None:
     service = ScheduleService(
         StubProvider(make_schedule(region_code="Samarqand", region_name="Samarqand"))

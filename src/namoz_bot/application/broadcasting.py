@@ -127,6 +127,22 @@ class BroadcastService:
         target_date: date,
         schedule_cache: dict[str, str | Exception],
     ) -> tuple[str, str]:
+        try:
+            return await self._send_one_workflow(subscription, target_date, schedule_cache)
+        except Exception as exc:
+            logger.exception(
+                "broadcast_workflow_persistence_failed region=%s error=%s",
+                subscription.region_code,
+                type(exc).__name__,
+            )
+            return "failed", subscription.region_code
+
+    async def _send_one_workflow(
+        self,
+        subscription: UserSubscription,
+        target_date: date,
+        schedule_cache: dict[str, str | Exception],
+    ) -> tuple[str, str]:
         region_code = subscription.region_code
         cached = schedule_cache[region_code]
 

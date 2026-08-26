@@ -2,11 +2,16 @@ from typing import Any, cast
 
 import pytest
 from aiogram import Bot
-from aiogram.exceptions import TelegramForbiddenError, TelegramRetryAfter
+from aiogram.exceptions import (
+    TelegramBadRequest,
+    TelegramForbiddenError,
+    TelegramNetworkError,
+    TelegramRetryAfter,
+)
 from aiogram.methods import SendMessage
 
 from namoz_bot.domain.errors import RecipientBlockedError
-from namoz_bot.infrastructure.telegram import TelegramMessageSender
+from namoz_bot.infrastructure.telegram import TelegramMessageSender, TelegramRateLimiter
 
 
 async def no_sleep(_seconds: float) -> None:
@@ -59,3 +64,48 @@ async def test_sender_retries_multiple_rate_limits_with_shared_limiter() -> None
 
     assert bot.calls == [(10, "jadval"), (10, "jadval"), (10, "jadval")]
     assert limiter.calls == 3
+
+
+async def test_sender_retries_transient_network_failure() -> None:
+    method = SendMessage(chat_id=10, text="jadval")
+    bot = FakeBot([TelegramNetworkError(method, "connection reset")])
+
+    await TelegramMessageSender(
+        cast(Bot, bot),
+        sleep=no_sleep,
+        rate_limiter=FakeLimiter(),
+    ).send(10, "jadval")
+
+    assert len(bot.calls) == 2
+
+
+async def test_sender_translates_permanent_missing_chat() -> None:
+    method = SendMessage(chat_id=10, text="jadval")
+    bot = FakeBot([TelegramBadRequest(method, "Bad Request: chat not found")])
+
+    with pytest.raises(RecipientBlockedError):
+        await TelegramMessageSender(
+            cast(Bot, bot),
+            rate_limiter=FakeLimiter(),
+        ).send(10, "jadval")
+
+
+async def test_rate_limiter_spaces_consecutive_permits() -> None:
+    now = 100.0
+    sleeps: list[float] = []
+
+    async def advance(seconds: float) -> None:
+        nonlocal now
+        sleeps.append(seconds)
+        now += seconds
+
+    limiter = TelegramRateLimiter(
+        messages_per_second=25,
+        sleep=advance,
+        clock=lambda: now,
+    )
+
+    await limiter.acquire()
+    await limiter.acquire()
+
+    assert sleeps == [pytest.approx(0.04)]

@@ -51,9 +51,12 @@ cp .env.example .env
 Git’ga commit qilmang.
 
 Ixtiyoriy masshtablash sozlamalari: `BROADCAST_BATCH_SIZE`,
-`TELEGRAM_MAX_CONCURRENCY` va `TELEGRAM_MESSAGES_PER_SECOND`. Bir nechta bot
-replicasini ishga tushirish mumkin: delivery claim PostgreSQL’da atomik bo‘lib,
-bir yozuvni faqat bitta worker oladi.
+`TELEGRAM_MAX_CONCURRENCY` va `TELEGRAM_MESSAGES_PER_SECOND`. Birinchi bosqichda
+aynan bitta bot process/replica ishlatiladi: long polling bir token uchun bir nechta
+pollerga mo‘ljallanmagan va limiter process ichida ishlaydi. PostgreSQL delivery
+claim atomikligi scheduler qayta kirishi yoki keyinchalik alohida broadcast workerlar
+qo‘shilishida dublikatni to‘sadi. Bir nechta bot replica uchun webhook va distributed
+Telegram limiter alohida bosqichda kerak bo‘ladi.
 
 Ma’lumotlar bazasini tayyorlash va botni ishga tushirish:
 

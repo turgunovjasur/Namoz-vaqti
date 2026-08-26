@@ -3,7 +3,7 @@
 from datetime import UTC, date, datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -63,30 +63,19 @@ class SqlAlchemySubscriptionRepository:
         """Create or reactivate a Telegram user without a uniqueness race."""
 
         async with self._session_factory.begin() as session:
-            existed = await session.scalar(
-                select(UserRecord.id).where(
-                    UserRecord.telegram_user_id == subscription.telegram_user_id
-                )
-            )
             values = {
                 "telegram_user_id": subscription.telegram_user_id,
                 "chat_id": subscription.chat_id,
                 "region_code": subscription.region_code,
                 "is_active": True,
             }
-            updates = {
-                "chat_id": subscription.chat_id,
-                "is_active": True,
-                "updated_at": datetime.now(UTC),
-            }
             statement: Any
             if _dialect_name(session) == "postgresql":
                 statement = (
                     postgresql_insert(UserRecord)
                     .values(**values)
-                    .on_conflict_do_update(
+                    .on_conflict_do_nothing(
                         index_elements=[UserRecord.telegram_user_id],
-                        set_=updates,
                     )
                     .returning(UserRecord)
                 )
@@ -94,17 +83,31 @@ class SqlAlchemySubscriptionRepository:
                 statement = (
                     sqlite_insert(UserRecord)
                     .values(**values)
-                    .on_conflict_do_update(
+                    .on_conflict_do_nothing(
                         index_elements=[UserRecord.telegram_user_id],
-                        set_=updates,
                     )
                     .returning(UserRecord)
                 )
             else:
                 raise RuntimeError("Faqat PostgreSQL va test SQLite dialektlari qo‘llanadi")
 
-            record = (await session.execute(statement)).scalar_one()
-            return _to_subscription(record), existed is None
+            inserted = (await session.execute(statement)).scalar_one_or_none()
+            if inserted is not None:
+                return _to_subscription(inserted), True
+
+            reactivated = await session.scalar(
+                update(UserRecord)
+                .where(UserRecord.telegram_user_id == subscription.telegram_user_id)
+                .values(
+                    chat_id=subscription.chat_id,
+                    is_active=True,
+                    updated_at=datetime.now(UTC),
+                )
+                .returning(UserRecord)
+            )
+            if reactivated is None:
+                raise LookupError("Foydalanuvchi upsert natijasi topilmadi")
+            return _to_subscription(reactivated), False
 
     async def save(self, subscription: UserSubscription) -> UserSubscription:
         async with self._session_factory.begin() as session:

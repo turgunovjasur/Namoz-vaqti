@@ -1,23 +1,26 @@
-"""Optional production-dialect checks enabled with NAMOZ_TEST_DATABASE_URL."""
+"""Optional isolated PostgreSQL + Alembic checks."""
 
 import asyncio
 import os
 from datetime import date
+from pathlib import Path
+from uuid import uuid4
 
 import pytest
-from sqlalchemy import delete
-from sqlalchemy.engine import make_url
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from alembic.config import Config
+from sqlalchemy import text
+from sqlalchemy.engine import Connection, make_url
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from alembic import command
 from namoz_bot.domain.models import DeliveryType, UserSubscription
-from namoz_bot.infrastructure.orm import DeliveryRecord, UserRecord
 from namoz_bot.infrastructure.repositories import (
     SqlAlchemyDeliveryRepository,
     SqlAlchemySubscriptionRepository,
 )
 
 
-async def test_postgres_concurrent_delivery_claim_uses_single_winner() -> None:
+async def test_postgres_migration_and_concurrent_claim_are_isolated() -> None:
     database_url = os.getenv("NAMOZ_TEST_DATABASE_URL")
     if database_url is None:
         pytest.skip("NAMOZ_TEST_DATABASE_URL is not configured")
@@ -25,12 +28,30 @@ async def test_postgres_concurrent_delivery_claim_uses_single_winner() -> None:
     if not any(marker in database_name for marker in ("test", "verify")):
         pytest.fail("Refusing to modify a database not explicitly named test/verify")
 
-    engine = create_async_engine(database_url)
-    factory = async_sessionmaker(engine, expire_on_commit=False)
+    schema = f"namoz_verify_{uuid4().hex}"
+    admin_engine = create_async_engine(database_url)
+    schema_engine = create_async_engine(
+        database_url,
+        connect_args={"server_settings": {"search_path": schema}},
+    )
     try:
-        await _clear_test_records(factory)
-        subscriptions = SqlAlchemySubscriptionRepository(factory)
-        user = await subscriptions.add(UserSubscription(991001, 991001, "Toshkent", True))
+        async with admin_engine.begin() as connection:
+            await connection.execute(text(f'CREATE SCHEMA "{schema}"'))
+        async with schema_engine.begin() as connection:
+            await connection.run_sync(_upgrade_to_head)
+
+        factory = async_sessionmaker(schema_engine, expire_on_commit=False)
+        first_start, second_start = await asyncio.gather(
+            SqlAlchemySubscriptionRepository(factory).upsert_start(
+                UserSubscription(991001, 991001, "Toshkent", True)
+            ),
+            SqlAlchemySubscriptionRepository(factory).upsert_start(
+                UserSubscription(991001, 991002, "Toshkent", True)
+            ),
+        )
+        assert sum(created for _, created in (first_start, second_start)) == 1
+        user = await SqlAlchemySubscriptionRepository(factory).get_by_telegram_user_id(991001)
+        assert user is not None
         assert user.id is not None
 
         first, second = await asyncio.gather(
@@ -44,11 +65,15 @@ async def test_postgres_concurrent_delivery_claim_uses_single_winner() -> None:
 
         assert sum(user.id in claimed for claimed in (first, second)) == 1
     finally:
-        await _clear_test_records(factory)
-        await engine.dispose()
+        await schema_engine.dispose()
+        async with admin_engine.begin() as connection:
+            await connection.execute(text(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE'))
+        await admin_engine.dispose()
 
 
-async def _clear_test_records(factory: async_sessionmaker[AsyncSession]) -> None:
-    async with factory.begin() as session:
-        await session.execute(delete(DeliveryRecord))
-        await session.execute(delete(UserRecord))
+def _upgrade_to_head(connection: Connection) -> None:
+    project_root = Path(__file__).resolve().parents[2]
+    config = Config(project_root / "alembic.ini")
+    config.set_main_option("script_location", str(project_root / "alembic"))
+    config.attributes["connection"] = connection
+    command.upgrade(config, "head")
