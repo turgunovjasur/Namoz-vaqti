@@ -1,6 +1,6 @@
 """Immutable business entities shared by all adapters."""
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import date, datetime
 from enum import StrEnum
 from typing import Literal
@@ -132,12 +132,14 @@ class UserSubscription:
     region_code: str
     is_active: bool
     id: int | None = None
+    offsets: PrayerOffsets = field(default_factory=PrayerOffsets)
 
     def with_preferences(
         self,
         *,
         region_code: str | None = None,
         is_active: bool | None = None,
+        offsets: PrayerOffsets | None = None,
     ) -> "UserSubscription":
         """Return an updated copy while keeping identity fields intact."""
 
@@ -145,6 +147,7 @@ class UserSubscription:
             self,
             region_code=self.region_code if region_code is None else region_code,
             is_active=self.is_active if is_active is None else is_active,
+            offsets=self.offsets if offsets is None else offsets,
         )
 
 

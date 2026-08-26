@@ -6,7 +6,12 @@ from pathlib import Path
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from namoz_bot.domain.models import DeliveryStatus, DeliveryType, UserSubscription
+from namoz_bot.domain.models import (
+    DeliveryStatus,
+    DeliveryType,
+    PrayerOffsets,
+    UserSubscription,
+)
 from namoz_bot.infrastructure.orm import Base
 from namoz_bot.infrastructure.repositories import (
     SqlAlchemyDeliveryRepository,
@@ -38,12 +43,44 @@ async def test_subscription_repository_round_trips_domain_entity(
     assert loaded == created
 
 
+async def test_subscription_repository_round_trips_all_prayer_offsets(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    repository = SqlAlchemySubscriptionRepository(session_factory)
+    created = await repository.add(UserSubscription(123, 321, "Toshkent", True))
+
+    saved = await repository.save(
+        created.with_preferences(
+            offsets=PrayerOffsets(
+                bomdod=-3,
+                quyosh=-2,
+                peshin=-1,
+                asr=1,
+                shom=4,
+                xufton=5,
+            )
+        )
+    )
+    loaded = await SqlAlchemySubscriptionRepository(
+        session_factory
+    ).get_by_telegram_user_id(saved.telegram_user_id)
+
+    assert loaded is not None
+    assert loaded.offsets == PrayerOffsets(-3, -2, -1, 1, 4, 5)
+
+
 async def test_start_upsert_preserves_region_and_reactivates_atomically(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     repository = SqlAlchemySubscriptionRepository(session_factory)
     original, created = await repository.upsert_start(UserSubscription(1, 11, "Toshkent", True))
-    await repository.save(original.with_preferences(region_code="Samarqand", is_active=False))
+    await repository.save(
+        original.with_preferences(
+            region_code="Samarqand",
+            is_active=False,
+            offsets=PrayerOffsets(shom=4),
+        )
+    )
 
     reactivated, created_again = await repository.upsert_start(
         UserSubscription(1, 22, "Toshkent", True)
@@ -54,6 +91,7 @@ async def test_start_upsert_preserves_region_and_reactivates_atomically(
     assert reactivated.chat_id == 22
     assert reactivated.region_code == "Samarqand"
     assert reactivated.is_active is True
+    assert reactivated.offsets == PrayerOffsets(shom=4)
 
 
 async def test_subscription_repository_pages_only_active_users(

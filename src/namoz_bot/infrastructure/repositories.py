@@ -12,9 +12,21 @@ from namoz_bot.domain.errors import SubscriptionNotFoundError
 from namoz_bot.domain.models import (
     DeliveryStatus,
     DeliveryType,
+    PrayerOffsets,
     UserSubscription,
 )
 from namoz_bot.infrastructure.orm import DeliveryRecord, UserRecord
+
+
+def _offset_values(offsets: PrayerOffsets) -> dict[str, int]:
+    return {
+        "bomdod_offset": offsets.bomdod,
+        "quyosh_offset": offsets.quyosh,
+        "peshin_offset": offsets.peshin,
+        "asr_offset": offsets.asr,
+        "shom_offset": offsets.shom,
+        "xufton_offset": offsets.xufton,
+    }
 
 
 def _to_subscription(record: UserRecord) -> UserSubscription:
@@ -24,6 +36,14 @@ def _to_subscription(record: UserRecord) -> UserSubscription:
         chat_id=record.chat_id,
         region_code=record.region_code,
         is_active=record.is_active,
+        offsets=PrayerOffsets(
+            bomdod=record.bomdod_offset,
+            quyosh=record.quyosh_offset,
+            peshin=record.peshin_offset,
+            asr=record.asr_offset,
+            shom=record.shom_offset,
+            xufton=record.xufton_offset,
+        ),
     )
 
 
@@ -51,6 +71,7 @@ class SqlAlchemySubscriptionRepository:
                 chat_id=subscription.chat_id,
                 region_code=subscription.region_code,
                 is_active=subscription.is_active,
+                **_offset_values(subscription.offsets),
             )
             session.add(record)
             await session.flush()
@@ -68,6 +89,7 @@ class SqlAlchemySubscriptionRepository:
                 "chat_id": subscription.chat_id,
                 "region_code": subscription.region_code,
                 "is_active": True,
+                **_offset_values(subscription.offsets),
             }
             statement: Any
             if _dialect_name(session) == "postgresql":
@@ -123,6 +145,12 @@ class SqlAlchemySubscriptionRepository:
             record.chat_id = subscription.chat_id
             record.region_code = subscription.region_code
             record.is_active = subscription.is_active
+            record.bomdod_offset = subscription.offsets.bomdod
+            record.quyosh_offset = subscription.offsets.quyosh
+            record.peshin_offset = subscription.offsets.peshin
+            record.asr_offset = subscription.offsets.asr
+            record.shom_offset = subscription.offsets.shom
+            record.xufton_offset = subscription.offsets.xufton
             await session.flush()
             return _to_subscription(record)
 

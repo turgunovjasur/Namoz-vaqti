@@ -10,6 +10,7 @@ import pytest
 from alembic.config import Config
 from sqlalchemy import text
 from sqlalchemy.engine import Connection, make_url
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from alembic import command
@@ -76,8 +77,46 @@ async def test_postgres_migration_and_concurrent_claim_are_isolated() -> None:
                 .scalars()
                 .all()
             )
+            migrated_offsets = (
+                (
+                    await connection.execute(
+                        text(
+                            "SELECT bomdod_offset, quyosh_offset, peshin_offset, "
+                            "asr_offset, shom_offset, xufton_offset FROM users "
+                            "WHERE telegram_user_id = 992000"
+                        )
+                    )
+                )
+                .tuples()
+                .one()
+            )
 
         assert migrated_codes == ["Toshkent"] * len(LEGACY_UNSUPPORTED_REGIONS)
+        assert migrated_offsets == (0, 0, 0, 0, 0, 0)
+
+        with pytest.raises(IntegrityError):
+            async with schema_engine.begin() as connection:
+                await connection.execute(
+                    text("UPDATE users SET shom_offset = 31 WHERE telegram_user_id = 992000")
+                )
+
+        async with schema_engine.begin() as connection:
+            await connection.execute(
+                text("UPDATE users SET shom_offset = -30 WHERE telegram_user_id = 992000")
+            )
+            assert (
+                await connection.scalar(
+                    text("SELECT shom_offset FROM users WHERE telegram_user_id = 992000")
+                )
+            ) == -30
+            await connection.execute(
+                text("UPDATE users SET shom_offset = 30 WHERE telegram_user_id = 992000")
+            )
+            assert (
+                await connection.scalar(
+                    text("SELECT shom_offset FROM users WHERE telegram_user_id = 992000")
+                )
+            ) == 30
 
         factory = async_sessionmaker(schema_engine, expire_on_commit=False)
         first_start, second_start = await asyncio.gather(
