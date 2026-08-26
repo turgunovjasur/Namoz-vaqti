@@ -53,6 +53,7 @@ def test_change_updates_only_selected_prayer_and_zero_resets_it() -> None:
     assert offsets == PrayerOffsets(shom=2)
     assert offsets.change("shom", 0) == PrayerOffsets()
 
+
 @pytest.mark.parametrize("value", [-31, 31])
 def test_offsets_reject_values_outside_supported_range(value: int) -> None:
     with pytest.raises(ScheduleValidationError):
