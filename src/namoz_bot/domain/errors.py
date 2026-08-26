@@ -23,3 +23,7 @@ class ScheduleDateMismatchError(ScheduleValidationError):
 
 class ScheduleRegionMismatchError(ScheduleValidationError):
     """Raised when a provider returns a schedule for another region."""
+
+
+class SubscriptionNotFoundError(NamozBotError, LookupError):
+    """Raised when a Telegram user has not started the bot yet."""

@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass, replace
 from datetime import date, datetime
+from enum import StrEnum
 
 from namoz_bot.domain.errors import ScheduleValidationError
 
@@ -71,3 +72,18 @@ class UserSubscription:
             region_code=self.region_code if region_code is None else region_code,
             is_active=self.is_active if is_active is None else is_active,
         )
+
+
+class DeliveryType(StrEnum):
+    """Kinds of messages protected by idempotent delivery tracking."""
+
+    DAILY = "daily"
+    ONBOARDING = "onboarding"
+
+
+class DeliveryStatus(StrEnum):
+    """Persistent state of one scheduled message."""
+
+    PENDING = "pending"
+    SENT = "sent"
+    FAILED = "failed"
