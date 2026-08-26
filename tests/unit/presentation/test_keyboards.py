@@ -20,24 +20,17 @@ def test_region_group_keyboard_shows_fourteen_groups() -> None:
     assert buttons[-1].text == "Qoraqalpog‘iston Respublikasi"
 
 
-def test_main_menu_reflects_notification_state() -> None:
-    enabled = build_main_menu(is_active=True)
-    disabled = build_main_menu(is_active=False)
+def test_main_menu_has_no_notification_toggle() -> None:
+    menu = build_main_menu()
 
-    enabled_labels = [button.text for row in enabled.keyboard for button in row]
-    disabled_labels = [button.text for row in disabled.keyboard for button in row]
-    assert "🔕 Xabarlarni o‘chirish" in enabled_labels
-    assert "🔔 Xabarlarni yoqish" in disabled_labels
-    assert "⏱ Vaqtlarni sozlash" in enabled_labels
-    assert "⏱ Vaqtlarni sozlash" in disabled_labels
-    assert [button.text for button in enabled.keyboard[1]] == [
+    labels = [button.text for row in menu.keyboard for button in row]
+    assert labels == [
+        "📅 Bugungi jadval",
+        "📍 Hududni o‘zgartirish",
         "⏱ Vaqtlarni sozlash",
-        "🔕 Xabarlarni o‘chirish",
+        "ℹ️ Yordam",
     ]
-    assert [button.text for button in disabled.keyboard[1]] == [
-        "⏱ Vaqtlarni sozlash",
-        "🔔 Xabarlarni yoqish",
-    ]
+    assert [len(row) for row in menu.keyboard] == [2, 1, 1]
 
 
 def test_offsets_keyboard_exposes_all_six_stable_prayer_callbacks() -> None:

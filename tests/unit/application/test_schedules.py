@@ -69,11 +69,11 @@ async def test_schedule_service_rejects_response_for_wrong_region() -> None:
         await service.get_schedule("Toshkent", date(2026, 8, 27))
 
 
-def test_format_schedule_uses_agreed_uzbek_copy() -> None:
-    text = format_schedule(make_schedule(), relative_label="Ertaga")
+def test_format_schedule_uses_numeric_date_and_parenthesized_region() -> None:
+    text = format_schedule(make_schedule())
 
     assert text == (
-        "📅 Ertaga — 27-avgust, Toshkent\n\n"
+        "📅 27.08.2026 (Toshkent)\n\n"
         "Bomdod — 04:17\n"
         "Quyosh — 05:42\n"
         "Peshin — 12:25\n"
@@ -99,7 +99,6 @@ def test_apply_offsets_adjusts_all_six_values_without_mutating_canonical_schedul
 def test_format_schedule_marks_only_adjusted_values() -> None:
     text = format_schedule(
         make_schedule(),
-        "Bugun",
         PrayerOffsets(shom=4, xufton=-2),
     )
 

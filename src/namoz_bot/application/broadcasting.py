@@ -162,7 +162,6 @@ class BroadcastService:
         try:
             text = format_schedule(
                 cached,
-                relative_label="Ertaga",
                 offsets=subscription.offsets,
             )
         except ScheduleValidationError as exc:
