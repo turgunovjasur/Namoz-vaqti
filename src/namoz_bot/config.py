@@ -20,9 +20,9 @@ class Settings(BaseSettings):
     database_url: str = Field(validation_alias="DATABASE_URL")
     timezone: str = Field(default="Asia/Tashkent", validation_alias="TIMEZONE")
     daily_send_time: time = Field(default=time(21, 0), validation_alias="DAILY_SEND_TIME")
-    islom_api_base_url: str = Field(
-        default="https://islomapi.uz",
-        validation_alias="ISLOM_API_BASE_URL",
+    prayer_api_base_url: str = Field(
+        default="https://namoz-vaqti.uz",
+        validation_alias="PRAYER_API_BASE_URL",
     )
     broadcast_batch_size: int = Field(
         default=500,

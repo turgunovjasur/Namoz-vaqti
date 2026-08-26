@@ -4,7 +4,7 @@
 
 **Goal:** Build a production-ready public Telegram bot that sends each subscriber the full next-day prayer schedule for their selected Uzbekistan region every day at 21:00 Asia/Tashkent.
 
-**Architecture:** A single async Python service uses aiogram for Telegram, HTTPX for IslomAPI, SQLAlchemy/PostgreSQL for persistence, and APScheduler for the daily trigger. Domain models and application services remain independent of aiogram, HTTPX, and SQLAlchemy so integrations can change without rewriting business rules.
+**Architecture:** A single async Python service uses aiogram for Telegram, HTTPX for namoz-vaqti.uz, SQLAlchemy/PostgreSQL for persistence, and APScheduler for the daily trigger. Domain models and application services remain independent of aiogram, HTTPX, and SQLAlchemy so integrations can change without rewriting business rules.
 
 **Tech Stack:** Python 3.12, aiogram 3, HTTPX, Pydantic Settings, SQLAlchemy 2 async, asyncpg, Alembic, APScheduler 3, pytest, pytest-asyncio, Ruff, mypy, Docker Compose.
 
@@ -29,7 +29,7 @@ src/namoz_bot/
   config.py                   environment configuration
   domain/                     models, errors, immutable region catalog
   application/                ports and framework-free use cases
-  infrastructure/             IslomAPI and SQLAlchemy adapters
+  infrastructure/             namoz-vaqti.uz and SQLAlchemy adapters
   presentation/               Telegram keyboards, middleware, handlers
   scheduler.py                APScheduler wiring only
   main.py                     composition root and lifecycle
@@ -69,28 +69,28 @@ def test_prayer_times_reject_invalid_clock_value():
 
 - [ ] Write failing tests for Toshkent default, unique codes/labels, and rejection of an unsupported name.
 - [ ] Run `pytest tests/unit/domain/test_regions.py -q`; expect FAIL.
-- [ ] Implement an immutable Uzbekistan-only catalog from IslomAPI’s published `regions.json`, preserving exact API Unicode while normalizing labels.
+- [ ] Implement an immutable Uzbekistan-only catalog with stable stored codes and separate verified `namoz-vaqti.uz` slugs.
 - [ ] Run the focused test; expect PASS.
 - [ ] Commit with `feat: add supported Uzbekistan region catalog`.
 
-### Task 3: IslomAPI adapter and schedule formatting
+### Task 3: namoz-vaqti.uz adapter and schedule formatting
 
-**Files:** Create `src/namoz_bot/application/ports.py`, `src/namoz_bot/application/schedules.py`, `src/namoz_bot/infrastructure/islom_api.py`; test `tests/unit/application/test_schedules.py` and `tests/integration/test_islom_api.py`.
+**Files:** Create `src/namoz_bot/application/ports.py`, `src/namoz_bot/application/schedules.py`, `src/namoz_bot/infrastructure/namoz_vaqti_api.py`; test `tests/unit/application/test_schedules.py` and `tests/integration/test_namoz_vaqti_api.py`.
 
 **Interfaces:** `PrayerScheduleProvider.get_for_date(region_code: str, target_date: date) -> PrayerSchedule`; `ScheduleService.get_schedule(...)`; `format_schedule(schedule, relative_label) -> str`.
 
 - [ ] Write failing tests for wrong-date rejection, exact Uzbek message format, exact endpoint/query parameters, and malformed API payloads.
 - [ ] Run focused tests; expect FAIL.
-- [ ] Implement the port, validation service, shared formatter, and HTTPX adapter. Map `tong_saharlik`, `quyosh`, `peshin`, `asr`, `shom_iftor`, `hufton` once only.
+- [ ] Implement the port, validation service, shared formatter, and HTTPX adapter. Map `bomdod`, `quyosh`, `peshin`, `asr`, `shom`, `xufton` once only.
 - [ ] Retry only timeout/connection/429/5xx with bounded exponential backoff; never retry 400/404.
-- [ ] Run focused tests; expect PASS, then commit `feat: integrate validated IslomAPI schedules`.
+- [ ] Run focused tests; expect PASS, then commit `feat: integrate validated prayer schedules`.
 
 Formatter assertion:
 
 ```python
 text = format_schedule(make_schedule(date(2026, 8, 27)), "Ertaga")
 assert text.startswith("📅 Ertaga — 27-avgust, Toshkent")
-assert text.endswith("Manba: islomapi.uz")
+assert text.endswith("Manba: namoz-vaqti.uz")
 ```
 
 ### Task 4: Persistence and subscription use cases

@@ -19,6 +19,15 @@ from namoz_bot.infrastructure.repositories import (
     SqlAlchemySubscriptionRepository,
 )
 
+LEGACY_UNSUPPORTED_REGIONS = (
+    "O'smat",
+    "Uzunquduq",
+    "Tallimarj\u043en",
+    "O'g'iz",
+    "Gazli",
+    "Burchmulla",
+)
+
 
 async def test_postgres_migration_and_concurrent_claim_are_isolated() -> None:
     database_url = os.getenv("NAMOZ_TEST_DATABASE_URL")
@@ -38,7 +47,37 @@ async def test_postgres_migration_and_concurrent_claim_are_isolated() -> None:
         async with admin_engine.begin() as connection:
             await connection.execute(text(f'CREATE SCHEMA "{schema}"'))
         async with schema_engine.begin() as connection:
-            await connection.run_sync(_upgrade_to_head)
+            await connection.run_sync(_upgrade, "20260826_01")
+            await connection.execute(
+                text(
+                    "INSERT INTO users "
+                    "(telegram_user_id, chat_id, region_code, is_active) "
+                    "VALUES (:telegram_user_id, :chat_id, :region_code, true)"
+                ),
+                [
+                    {
+                        "telegram_user_id": 992000 + index,
+                        "chat_id": 992000 + index,
+                        "region_code": region_code,
+                    }
+                    for index, region_code in enumerate(LEGACY_UNSUPPORTED_REGIONS)
+                ],
+            )
+            await connection.run_sync(_upgrade, "head")
+            migrated_codes = (
+                (
+                    await connection.execute(
+                        text(
+                            "SELECT region_code FROM users "
+                            "WHERE telegram_user_id BETWEEN 992000 AND 992005"
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+
+        assert migrated_codes == ["Toshkent"] * len(LEGACY_UNSUPPORTED_REGIONS)
 
         factory = async_sessionmaker(schema_engine, expire_on_commit=False)
         first_start, second_start = await asyncio.gather(
@@ -71,9 +110,9 @@ async def test_postgres_migration_and_concurrent_claim_are_isolated() -> None:
         await admin_engine.dispose()
 
 
-def _upgrade_to_head(connection: Connection) -> None:
+def _upgrade(connection: Connection, revision: str) -> None:
     project_root = Path(__file__).resolve().parents[2]
     config = Config(project_root / "alembic.ini")
     config.set_main_option("script_location", str(project_root / "alembic"))
     config.attributes["connection"] = connection
-    command.upgrade(config, "head")
+    command.upgrade(config, revision)

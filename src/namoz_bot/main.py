@@ -15,7 +15,7 @@ from namoz_bot.application.broadcasting import BroadcastReport, BroadcastService
 from namoz_bot.application.schedules import ScheduleService
 from namoz_bot.config import Settings
 from namoz_bot.infrastructure.db import create_database
-from namoz_bot.infrastructure.islom_api import IslomApiClient
+from namoz_bot.infrastructure.namoz_vaqti_api import NamozVaqtiApiClient
 from namoz_bot.infrastructure.repositories import (
     SqlAlchemyDeliveryRepository,
     SqlAlchemySubscriptionRepository,
@@ -90,11 +90,11 @@ def create_application(settings: Settings) -> ApplicationResources:
     bot = Bot(token=settings.telegram_bot_token.get_secret_value())
     dispatcher = Dispatcher()
     http_client = httpx.AsyncClient(
-        base_url=settings.islom_api_base_url,
+        base_url=settings.prayer_api_base_url,
         timeout=httpx.Timeout(connect=5.0, read=10.0, write=5.0, pool=5.0),
     )
     engine, session_factory = create_database(settings.database_url)
-    schedule_service = ScheduleService(IslomApiClient(http_client))
+    schedule_service = ScheduleService(NamozVaqtiApiClient(http_client))
     middleware = ServicesMiddleware(
         session_factory,
         schedule_service,

@@ -69,5 +69,5 @@ def format_schedule(schedule: PrayerSchedule, relative_label: str) -> str:
         f"Asr — {times.asr}\n"
         f"Shom — {times.shom}\n"
         f"Xufton — {times.xufton}\n\n"
-        "Manba: islomapi.uz"
+        "Manba: namoz-vaqti.uz"
     )

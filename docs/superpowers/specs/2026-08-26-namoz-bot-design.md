@@ -2,12 +2,12 @@
 
 ## Maqsad
 
-O‘zbekiston hududlari uchun namoz vaqtlarini `islomapi.uz` dan olib, Telegram foydalanuvchilariga kuniga bir marta yuboradigan ommaviy bot yaratish.
+O‘zbekiston hududlari uchun namoz vaqtlarini `namoz-vaqti.uz` dan olib, Telegram foydalanuvchilariga kuniga bir marta yuboradigan ommaviy bot yaratish.
 
 ## Birinchi bosqich doirasi
 
 - Botdan istalgan Telegram foydalanuvchisi foydalanishi mumkin.
-- Faqat `islomapi.uz` qo‘llaydigan O‘zbekiston hududlari ko‘rsatiladi.
+- Faqat `namoz-vaqti.uz` uchun tekshirilgan O‘zbekiston hududlari ko‘rsatiladi.
 - Yangi foydalanuvchining standart hududi — Toshkent.
 - `/start` bosilganda foydalanuvchi bazaga yoziladi va bugungi Toshkent jadvali darhol yuboriladi.
 - Har kuni soat 21:00 da `Asia/Tashkent` vaqt zonasi bo‘yicha ertangi kunning to‘liq jadvali yuboriladi.
@@ -57,7 +57,7 @@ Asr — 17:10
 Shom — 19:12
 Xufton — 20:32
 
-Manba: islomapi.uz
+Manba: namoz-vaqti.uz
 ```
 
 21:00 dagi xabar:
@@ -72,7 +72,7 @@ Asr — 17:07
 Shom — 19:07
 Xufton — 20:27
 
-Manba: islomapi.uz
+Manba: namoz-vaqti.uz
 ```
 
 ## Texnik arxitektura
@@ -83,7 +83,7 @@ Birinchi bosqich bitta Python servisidan iborat bo‘ladi:
 - `PostgreSQL` — foydalanuvchilar, sozlamalar va yuborish holatini saqlash;
 - `SQLAlchemy` va migratsiyalar — ma’lumotlar modeli va sxema boshqaruvi;
 - `APScheduler` — 21:00 dagi kunlik vazifani ishga tushirish;
-- `httpx` — `islomapi.uz` bilan timeout va retry asosida ishlash;
+- `httpx` — `namoz-vaqti.uz` bilan timeout va retry asosida ishlash;
 - konfiguratsiya — environment variable orqali;
 - Docker — lokal va server muhitida bir xil ishga tushirish.
 
@@ -92,7 +92,7 @@ Servis ichidagi mantiqiy qismlar:
 - Telegram handlerlari;
 - foydalanuvchi va obuna servisi;
 - hududlar katalogi va ko‘rinadigan nom/API nomi mappingi;
-- IslomAPI klienti;
+- `namoz-vaqti.uz` API klienti;
 - jadvalni tekshirish va formatlash;
 - kunlik scheduler va ommaviy yuborish servisi;
 - ma’lumotlar bazasi repositorylari.
@@ -121,17 +121,18 @@ Servis ichidagi mantiqiy qismlar:
 
 `user_id + schedule_date + delivery_type` unique bo‘ladi. Bu takroriy yuborishni cheklaydi.
 
-## IslomAPI integratsiyasi
+## namoz-vaqti.uz integratsiyasi
 
-- Bugungi vaqtlar: `/api/present/day?region=<region>`.
-- Ertangi vaqtlar: `/api/daily?region=<region>&month=<month>&day=<day>`.
+- Bugungi vaqtlar: `/?region=<slug>&lang=lotin&period=today&format=json`.
+- Boshqa sanadagi vaqtlar: shu endpointga `period=YYYY-MM` beriladi va
+  `period_table` ichidan aniq `DD.MM.YYYY` satri tanlanadi.
 - API maydonlari quyidagicha akslantiriladi:
-  - `tong_saharlik` → `Bomdod`;
+  - `bomdod` → `Bomdod`;
   - `quyosh` → `Quyosh`;
   - `peshin` → `Peshin`;
   - `asr` → `Asr`;
-  - `shom_iftor` → `Shom`;
-  - `hufton` → `Xufton`.
+  - `shom` → `Shom`;
+  - `xufton` → `Xufton`.
 - Hududlar erkin matn orqali kiritilmaydi. Bot ichidagi tekshirilgan katalogdan tanlanadi.
 - API nomlaridagi apostrof va o‘xshash Unicode harflari sabab ko‘rinadigan nom bilan aniq API qiymati alohida saqlanadi.
 
@@ -181,7 +182,7 @@ Quyidagilar environment variable orqali beriladi:
 - `DATABASE_URL`;
 - `TIMEZONE=Asia/Tashkent`;
 - `DAILY_SEND_TIME=21:00`;
-- `ISLOM_API_BASE_URL=https://islomapi.uz`.
+- `PRAYER_API_BASE_URL=https://namoz-vaqti.uz`.
 
 `.env` Git’ga qo‘shilmaydi; `.env.example` faqat nomsiz namuna qiymatlarni saqlaydi. Bot tokeni loglarda va xato xabarlarida yashiriladi.
 
