@@ -3,8 +3,12 @@
 from datetime import date
 
 from namoz_bot.application.ports import PrayerScheduleProvider
-from namoz_bot.domain.errors import ScheduleDateMismatchError, ScheduleRegionMismatchError
-from namoz_bot.domain.models import PrayerSchedule
+from namoz_bot.domain.errors import (
+    ScheduleDateMismatchError,
+    ScheduleRegionMismatchError,
+    ScheduleValidationError,
+)
+from namoz_bot.domain.models import PrayerOffsets, PrayerSchedule, PrayerTimes
 
 _UZBEK_MONTHS = (
     "yanvar",
@@ -56,18 +60,59 @@ class ScheduleService:
         return schedule
 
 
-def format_schedule(schedule: PrayerSchedule, relative_label: str) -> str:
-    """Render the canonical Uzbek daily schedule message."""
+def _adjust_clock(clock: str, offset: int) -> str:
+    hour, minute = (int(part) for part in clock.split(":"))
+    adjusted = hour * 60 + minute + offset
+    if not 0 <= adjusted < 24 * 60:
+        raise ScheduleValidationError("Sozlangan vaqt kun chegarasidan chiqdi")
+    adjusted_hour, adjusted_minute = divmod(adjusted, 60)
+    return f"{adjusted_hour:02d}:{adjusted_minute:02d}"
+
+
+def apply_offsets(schedule: PrayerSchedule, offsets: PrayerOffsets) -> PrayerSchedule:
+    """Return a newly validated schedule with per-prayer minute offsets applied."""
+
+    times = schedule.times
+    return PrayerSchedule(
+        date=schedule.date,
+        region_code=schedule.region_code,
+        region_name=schedule.region_name,
+        times=PrayerTimes(
+            bomdod=_adjust_clock(times.bomdod, offsets.bomdod),
+            quyosh=_adjust_clock(times.quyosh, offsets.quyosh),
+            peshin=_adjust_clock(times.peshin, offsets.peshin),
+            asr=_adjust_clock(times.asr, offsets.asr),
+            shom=_adjust_clock(times.shom, offsets.shom),
+            xufton=_adjust_clock(times.xufton, offsets.xufton),
+        ),
+    )
+
+
+def _offset_suffix(value: int) -> str:
+    if value > 0:
+        return f" (+{value} daqiqa)"
+    if value < 0:
+        return f" (\N{MINUS SIGN}{abs(value)} daqiqa)"
+    return ""
+
+
+def format_schedule(
+    schedule: PrayerSchedule,
+    relative_label: str,
+    offsets: PrayerOffsets | None = None,
+) -> str:
+    """Render an Uzbek daily schedule with optional personal adjustments."""
 
     month_name = _UZBEK_MONTHS[schedule.date.month - 1]
-    times = schedule.times
+    configured_offsets = offsets or PrayerOffsets()
+    times = apply_offsets(schedule, configured_offsets).times
     return (
         f"📅 {relative_label} — {schedule.date.day}-{month_name}, {schedule.region_name}\n\n"
-        f"Bomdod — {times.bomdod}\n"
-        f"Quyosh — {times.quyosh}\n"
-        f"Peshin — {times.peshin}\n"
-        f"Asr — {times.asr}\n"
-        f"Shom — {times.shom}\n"
-        f"Xufton — {times.xufton}\n\n"
+        f"Bomdod — {times.bomdod}{_offset_suffix(configured_offsets.bomdod)}\n"
+        f"Quyosh — {times.quyosh}{_offset_suffix(configured_offsets.quyosh)}\n"
+        f"Peshin — {times.peshin}{_offset_suffix(configured_offsets.peshin)}\n"
+        f"Asr — {times.asr}{_offset_suffix(configured_offsets.asr)}\n"
+        f"Shom — {times.shom}{_offset_suffix(configured_offsets.shom)}\n"
+        f"Xufton — {times.xufton}{_offset_suffix(configured_offsets.xufton)}\n\n"
         "Manba: namoz-vaqti.uz"
     )
