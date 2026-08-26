@@ -499,6 +499,16 @@ class TrackingTodayProvider(ScheduleProvider):
             self.in_flight -= 1
 
 
+class DayBoundaryProvider(ScheduleProvider):
+    async def get_today(self, region_code: str) -> PrayerSchedule:
+        return PrayerSchedule(
+            date=date(2026, 8, 27),
+            region_code=region_code,
+            region_name="Toshkent",
+            times=PrayerTimes("00:10", "05:42", "12:25", "17:10", "19:12", "20:32"),
+        )
+
+
 async def test_offset_change_does_not_write_when_provider_fails() -> None:
     handler = getattr(handlers_module, "handle_offset_change", None)
     repository = InMemorySubscriptions(UserSubscription(7, 9, "Toshkent", True, id=1))
@@ -545,3 +555,47 @@ async def test_zero_at_zero_is_acknowledged_without_write_or_identical_edit() ->
     assert repository.save_calls == 0
     assert message.edits == []
     assert callback.answered is True
+
+
+async def test_offset_change_validates_adjusted_schedule_before_write() -> None:
+    handler = getattr(handlers_module, "handle_offset_change", None)
+    repository = InMemorySubscriptions(
+        UserSubscription(
+            7,
+            9,
+            "Toshkent",
+            True,
+            id=1,
+            offsets=PrayerOffsets(bomdod=-10),
+        )
+    )
+    callback = FakeCallback("offset-change:bomdod:-1", FakeMessage())
+
+    assert handler is not None
+    await handler(callback, make_services(repository, DayBoundaryProvider()))
+
+    assert repository.item is not None
+    assert repository.item.offsets == PrayerOffsets(bomdod=-10)
+    assert repository.save_calls == 0
+    assert callback.answer_kwargs == {"show_alert": True}
+
+
+async def test_region_reset_and_offset_change_share_one_user_lock() -> None:
+    offset_handler = getattr(handlers_module, "handle_offset_change", None)
+    repository = InMemorySubscriptions(UserSubscription(7, 9, "Toshkent", True, id=1))
+    provider = TrackingTodayProvider()
+    services = make_services(repository, provider)
+    message = FakeMessage()
+
+    assert offset_handler is not None
+    await asyncio.gather(
+        offset_handler(FakeCallback("offset-change:shom:1", message), services),
+        handle_region_selection(FakeCallback("region:Samarqand", message), services),
+    )
+
+    assert provider.max_in_flight == 1
+    assert repository.item is not None
+    assert repository.item.region_code == "Samarqand"
+    assert repository.item.offsets == PrayerOffsets()
+    assert "📅 Bugun — 27-avgust, Samarqand" in message.edits[-1].text
+    assert "(+1 daqiqa)" not in message.edits[-1].text

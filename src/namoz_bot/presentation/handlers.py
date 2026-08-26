@@ -226,6 +226,23 @@ async def handle_offset_change(
             handler_services.today(),
         )
         try:
+            candidate_offsets = current.offsets.change(prayer, action)
+        except ScheduleValidationError:
+            await callback.answer(
+                "Chegara: \N{MINUS SIGN}30…+30 daqiqa",
+                show_alert=True,
+            )
+            return
+        candidate = current.with_preferences(offsets=candidate_offsets)
+        try:
+            _build_offset_detail(schedule, candidate, prayer)
+        except ScheduleValidationError:
+            await callback.answer(
+                "Bu o‘zgarish taqvim vaqtlarini noto‘g‘ri qiladi",
+                show_alert=True,
+            )
+            return
+        try:
             subscription = await handler_services.subscriptions.change_offset(
                 telegram_user_id,
                 prayer,
@@ -319,16 +336,21 @@ async def handle_region_selection(
         await callback.answer("Hudud topilmadi", show_alert=True)
         return
 
-    subscription = await handler_services.subscriptions.change_region(
-        callback.from_user.id,
-        region.code,
-    )
-    schedule = await handler_services.schedules.get_today(region.code, handler_services.today())
-    message = cast(Any, callback.message)
-    await message.edit_text(
-        format_schedule(schedule, relative_label="Bugun", offsets=subscription.offsets),
-    )
-    await callback.answer("Hudud saqlandi")
+    telegram_user_id = callback.from_user.id
+    async with _offset_lock(telegram_user_id):
+        schedule = await handler_services.schedules.get_today(
+            region.code,
+            handler_services.today(),
+        )
+        subscription = await handler_services.subscriptions.change_region(
+            telegram_user_id,
+            region.code,
+        )
+        message = cast(Any, callback.message)
+        await message.edit_text(
+            format_schedule(schedule, relative_label="Bugun", offsets=subscription.offsets),
+        )
+        await callback.answer("Hudud saqlandi")
 
 
 async def handle_toggle_notifications(
