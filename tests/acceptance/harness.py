@@ -11,6 +11,9 @@ from namoz_bot.application.subscriptions import SubscriptionService
 from namoz_bot.domain.models import (
     DeliveryStatus,
     DeliveryType,
+    OffsetAction,
+    PrayerKey,
+    PrayerOffsets,
     PrayerSchedule,
     PrayerTimes,
     UserSubscription,
@@ -18,9 +21,12 @@ from namoz_bot.domain.models import (
 from namoz_bot.domain.regions import get_region, list_regions
 from namoz_bot.presentation.handlers import (
     HandlerServices,
+    handle_offset_change,
+    handle_offset_selection,
     handle_region_group_selection,
     handle_region_selection,
     handle_start,
+    handle_today,
 )
 from namoz_bot.scheduler import calculate_target_date
 
@@ -42,6 +48,7 @@ class InMemorySubscriptionRepository:
             chat_id=subscription.chat_id,
             region_code=subscription.region_code,
             is_active=subscription.is_active,
+            offsets=subscription.offsets,
         )
         self._next_id += 1
         self._by_telegram_id[saved.telegram_user_id] = saved
@@ -57,6 +64,7 @@ class InMemorySubscriptionRepository:
             region_code=existing.region_code,
             is_active=True,
             id=existing.id,
+            offsets=existing.offsets,
         )
         self._by_telegram_id[saved.telegram_user_id] = saved
         return saved, False
@@ -64,6 +72,37 @@ class InMemorySubscriptionRepository:
     async def save(self, subscription: UserSubscription) -> UserSubscription:
         self._by_telegram_id[subscription.telegram_user_id] = subscription
         return subscription
+
+    async def change_offset(
+        self,
+        telegram_user_id: int,
+        prayer: PrayerKey,
+        action: OffsetAction,
+    ) -> UserSubscription:
+        subscription = self._by_telegram_id[telegram_user_id]
+        return await self.save(
+            subscription.with_preferences(
+                offsets=subscription.offsets.change(prayer, action),
+            )
+        )
+
+    async def change_region(
+        self,
+        telegram_user_id: int,
+        region_code: str,
+    ) -> UserSubscription:
+        subscription = self._by_telegram_id[telegram_user_id]
+        return await self.save(
+            subscription.with_preferences(region_code=region_code, offsets=PrayerOffsets())
+        )
+
+    async def set_active(
+        self,
+        telegram_user_id: int,
+        active: bool,
+    ) -> UserSubscription:
+        subscription = self._by_telegram_id[telegram_user_id]
+        return await self.save(subscription.with_preferences(is_active=active))
 
     async def list_active_page(self, *, after_id: int, limit: int) -> list[UserSubscription]:
         items = sorted(
@@ -166,6 +205,10 @@ class FakeMessage:
         del kwargs
         self.messages.setdefault(self.chat_id, []).append(text)
 
+    async def edit_text(self, text: str, **kwargs: Any) -> None:
+        del kwargs
+        self.messages.setdefault(self.chat_id, []).append(text)
+
 
 @dataclass(slots=True)
 class FakeCallback:
@@ -192,6 +235,9 @@ class AppHarness:
         self._subscriptions = InMemorySubscriptionRepository()
         self._deliveries = InMemoryDeliveryRepository()
         self._provider = FakeScheduleProvider()
+        self._compose_application()
+
+    def _compose_application(self) -> None:
         self._schedule_service = ScheduleService(self._provider)
         self._subscription_service = SubscriptionService(self._subscriptions)
         self._handler_services = HandlerServices(
@@ -206,11 +252,46 @@ class AppHarness:
             FakeSender(self._messages),
         )
 
+    def restart_application(self) -> None:
+        """Rebuild services while preserving repository-backed state."""
+
+        self._compose_application()
+
     async def start(self, *, user_id: int, chat_id: int) -> None:
         await handle_start(
             FakeMessage(user_id=user_id, chat_id=chat_id, messages=self._messages),
             self._handler_services,
         )
+
+    async def today_schedule(self, *, user_id: int, chat_id: int) -> None:
+        await handle_today(
+            FakeMessage(user_id=user_id, chat_id=chat_id, messages=self._messages),
+            self._handler_services,
+        )
+
+    async def adjust_offset(
+        self,
+        *,
+        user_id: int,
+        chat_id: int,
+        prayer: PrayerKey,
+        action: OffsetAction,
+        repeat: int = 1,
+    ) -> None:
+        message = FakeMessage(user_id=user_id, chat_id=chat_id, messages=self._messages)
+        await handle_offset_selection(
+            FakeCallback(data=f"offset:{prayer}", message=message, user_id=user_id),
+            self._handler_services,
+        )
+        for _ in range(repeat):
+            await handle_offset_change(
+                FakeCallback(
+                    data=f"offset-change:{prayer}:{action}",
+                    message=message,
+                    user_id=user_id,
+                ),
+                self._handler_services,
+            )
 
     async def select_region(
         self,

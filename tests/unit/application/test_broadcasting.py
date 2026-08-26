@@ -7,6 +7,9 @@ from namoz_bot.domain.errors import ExternalServiceError, RecipientBlockedError
 from namoz_bot.domain.models import (
     DeliveryStatus,
     DeliveryType,
+    OffsetAction,
+    PrayerKey,
+    PrayerOffsets,
     PrayerSchedule,
     PrayerTimes,
     UserSubscription,
@@ -35,6 +38,7 @@ class Subscriptions:
             region_code=existing.region_code,
             is_active=True,
             id=existing.id,
+            offsets=existing.offsets,
         )
         self.users[saved.telegram_user_id] = saved
         return saved, False
@@ -42,6 +46,37 @@ class Subscriptions:
     async def save(self, subscription: UserSubscription) -> UserSubscription:
         self.users[subscription.telegram_user_id] = subscription
         return subscription
+
+    async def change_offset(
+        self,
+        telegram_user_id: int,
+        prayer: PrayerKey,
+        action: OffsetAction,
+    ) -> UserSubscription:
+        subscription = self.users[telegram_user_id]
+        return await self.save(
+            subscription.with_preferences(
+                offsets=subscription.offsets.change(prayer, action),
+            )
+        )
+
+    async def change_region(
+        self,
+        telegram_user_id: int,
+        region_code: str,
+    ) -> UserSubscription:
+        subscription = self.users[telegram_user_id]
+        return await self.save(
+            subscription.with_preferences(region_code=region_code, offsets=PrayerOffsets())
+        )
+
+    async def set_active(
+        self,
+        telegram_user_id: int,
+        active: bool,
+    ) -> UserSubscription:
+        subscription = self.users[telegram_user_id]
+        return await self.save(subscription.with_preferences(is_active=active))
 
     async def list_active_page(self, *, after_id: int, limit: int) -> list[UserSubscription]:
         active = sorted(
@@ -89,8 +124,20 @@ class Deliveries:
 
 
 class Provider:
-    def __init__(self, failed_regions: set[str] | None = None) -> None:
+    def __init__(
+        self,
+        failed_regions: set[str] | None = None,
+        times: PrayerTimes | None = None,
+    ) -> None:
         self.failed_regions = failed_regions or set()
+        self.times = times or PrayerTimes(
+            "04:17",
+            "05:42",
+            "12:25",
+            "17:10",
+            "19:12",
+            "20:32",
+        )
         self.calls: list[tuple[str, date]] = []
 
     async def get_today(self, region_code: str) -> PrayerSchedule:
@@ -105,7 +152,7 @@ class Provider:
             date=target_date,
             region_code=region_code,
             region_name=region_code,
-            times=PrayerTimes("04:17", "05:42", "12:25", "17:10", "19:12", "20:32"),
+            times=self.times,
         )
 
 
@@ -120,13 +167,18 @@ class Sender:
         self.messages.append((chat_id, text))
 
 
-def user(identifier: int, region: str = "Toshkent") -> UserSubscription:
+def user(
+    identifier: int,
+    region: str = "Toshkent",
+    offsets: PrayerOffsets | None = None,
+) -> UserSubscription:
     return UserSubscription(
         id=identifier,
         telegram_user_id=identifier,
         chat_id=identifier * 10,
         region_code=region,
         is_active=True,
+        offsets=offsets or PrayerOffsets(),
     )
 
 
@@ -153,6 +205,53 @@ async def test_broadcast_fetches_each_region_once_and_sends_each_user_once() -> 
     assert len(sender.messages) == 3
     assert first.sent == 3
     assert second.skipped == 3
+
+
+async def test_broadcast_formats_distinct_offsets_after_one_region_fetch() -> None:
+    subscriptions = Subscriptions([user(1), user(2, offsets=PrayerOffsets(shom=4))])
+    deliveries = Deliveries()
+    provider = Provider()
+    sender = Sender()
+
+    report = await BroadcastService(
+        subscriptions,
+        deliveries,
+        ScheduleService(provider),
+        sender,
+    ).send_next_day(date(2026, 8, 27))
+
+    assert provider.calls == [("Toshkent", date(2026, 8, 27))]
+    messages = {chat_id: text for chat_id, text in sender.messages}
+    assert report.sent == 2
+    assert messages[10] != messages[20]
+    assert "(+4 daqiqa)" not in messages[10]
+    assert "Shom — 19:16 (+4 daqiqa)" in messages[20]
+
+
+async def test_invalid_personal_adjustment_fails_only_that_delivery() -> None:
+    subscriptions = Subscriptions(
+        [
+            user(1, offsets=PrayerOffsets(bomdod=-11)),
+            user(2),
+        ]
+    )
+    deliveries = Deliveries()
+    provider = Provider(times=PrayerTimes("00:10", "05:42", "12:25", "17:10", "19:12", "20:32"))
+    sender = Sender()
+    target_date = date(2026, 8, 27)
+
+    report = await BroadcastService(
+        subscriptions,
+        deliveries,
+        ScheduleService(provider),
+        sender,
+    ).send_next_day(target_date)
+
+    assert report.sent == 1
+    assert report.failed == 1
+    assert [chat_id for chat_id, _ in sender.messages] == [20]
+    assert deliveries.statuses[(1, target_date, DeliveryType.DAILY)] is DeliveryStatus.FAILED
+    assert deliveries.statuses[(2, target_date, DeliveryType.DAILY)] is DeliveryStatus.SENT
 
 
 async def test_pending_claim_is_not_retried_after_restart() -> None:

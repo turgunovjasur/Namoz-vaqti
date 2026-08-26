@@ -12,6 +12,9 @@ Telegram foydalanuvchilariga yuboradigan asinxron bot.
   qamrab oladi: 209 ta canonical hudud va provider shaharga yo‘naltiradigan 14 ta alias.
 - Har kuni `21:00` da `Asia/Tashkent` vaqt zonasi bo‘yicha ertangi kunning
   Bomdod, Quyosh, Peshin, Asr, Shom va Xufton vaqtlari yuboriladi.
+- Har bir foydalanuvchi Bomdod, Quyosh, Peshin, Asr, Shom va Xufton vaqtlarini
+  mahalliy masjid jadvaliga moslab `−30…+30` daqiqa oralig‘ida alohida sozlaydi.
+  Saqlangan farqlar bugungi va kunlik jadvallarga qo‘llanadi.
 - Yuborish urinishlari Telegram chaqiruvidan oldin bazada atomik qayd qilinadi;
   shu sabab servis qayta ishga tushsa ham bir foydalanuvchiga bir sana uchun ikki
   marta jadval yuborilmaydi.
@@ -84,11 +87,24 @@ boshlaydi.
 - `/start` — ro‘yxatdan o‘tish va bugungi jadval;
 - `/today` — tanlangan hududning bugungi jadvali;
 - `/settings` — hudud va xabar holatini o‘zgartirish;
+- `/offsets` — shaxsiy namoz va Quyosh vaqti farqlarini sozlash;
 - `/help` — qisqa yordam.
 
 Hudud tanlash ikki bosqichli: viloyat/hudud guruhi → viloyat, shahar yoki tuman.
 Har bir guruhdagi birinchi tanlov shu viloyatning umumiy jadvalidir; ro‘yxat
 oxiridagi `⬅️ Viloyatlar` tugmasi guruhlar menyusiga qaytaradi.
+
+### Shaxsiy vaqt farqlari
+
+Asosiy menyudagi `⏱ Vaqtlarni sozlash` yoki `/offsets` orqali oltita vaqtdan biri
+tanlanadi. `−1` va `+1` har bosishda bir daqiqa ayiradi yoki qo‘shadi; tugmani
+takroran bosish mumkin. `0` faqat tanlangan vaqtni provider bergan standart
+qiymatga qaytaradi. Har bir farq `−30…+30` daqiqa chegarasida saqlanadi.
+
+Noldan farqli sozlama jadvalda ham ko‘rsatiladi, masalan
+`Shom — 19:14 (+4 daqiqa)`. Sozlamalar PostgreSQL’da saqlanib, bot qayta ishga
+tushgandan keyin ham davom etadi. Foydalanuvchi hududini o‘zgartirsa, eski hudud
+uchun kiritilgan barcha olti farq avtomatik ravishda nolga qaytadi.
 
 ## Sifat tekshiruvlari
 
@@ -102,7 +118,8 @@ Alohida buyruqlar: `make test`, `make lint`, `make typecheck`, `make format`.
 
 Bot tokeni faqat environment variable’dan olinadi. Loglarga token, request headerlari
 yoki foydalanuvchining keraksiz shaxsiy ma’lumoti yozilmaydi. Saqlanadigan minimal
-ma’lumot: Telegram user/chat identifikatori, tanlangan hudud va obuna holati.
+ma’lumot: Telegram user/chat identifikatori, tanlangan hudud, olti vaqt farqi va
+obuna holati.
 
 ## Delivery kafolati
 

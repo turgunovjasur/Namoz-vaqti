@@ -5,10 +5,12 @@ from datetime import date, datetime
 from sqlalchemy import (
     BigInteger,
     Boolean,
+    CheckConstraint,
     Date,
     DateTime,
     ForeignKey,
     Integer,
+    SmallInteger,
     String,
     UniqueConstraint,
     func,
@@ -24,12 +26,25 @@ class Base(DeclarativeBase):
 
 class UserRecord(Base):
     __tablename__ = "users"
+    __table_args__ = tuple(
+        CheckConstraint(
+            f"{prayer}_offset BETWEEN -30 AND 30",
+            name=f"ck_users_{prayer}_offset_range",
+        )
+        for prayer in ("bomdod", "quyosh", "peshin", "asr", "shom", "xufton")
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     telegram_user_id: Mapped[int] = mapped_column(BigInteger, unique=True, index=True)
     chat_id: Mapped[int] = mapped_column(BigInteger)
     region_code: Mapped[str] = mapped_column(String(100), default="Toshkent")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    bomdod_offset: Mapped[int] = mapped_column(SmallInteger, default=0, server_default="0")
+    quyosh_offset: Mapped[int] = mapped_column(SmallInteger, default=0, server_default="0")
+    peshin_offset: Mapped[int] = mapped_column(SmallInteger, default=0, server_default="0")
+    asr_offset: Mapped[int] = mapped_column(SmallInteger, default=0, server_default="0")
+    shom_offset: Mapped[int] = mapped_column(SmallInteger, default=0, server_default="0")
+    xufton_offset: Mapped[int] = mapped_column(SmallInteger, default=0, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

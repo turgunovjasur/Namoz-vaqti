@@ -2,9 +2,13 @@ from datetime import date
 
 import pytest
 
-from namoz_bot.application.schedules import ScheduleService, format_schedule
-from namoz_bot.domain.errors import ScheduleDateMismatchError, ScheduleRegionMismatchError
-from namoz_bot.domain.models import PrayerSchedule, PrayerTimes
+from namoz_bot.application.schedules import ScheduleService, apply_offsets, format_schedule
+from namoz_bot.domain.errors import (
+    ScheduleDateMismatchError,
+    ScheduleRegionMismatchError,
+    ScheduleValidationError,
+)
+from namoz_bot.domain.models import PrayerOffsets, PrayerSchedule, PrayerTimes
 
 
 def make_schedule(
@@ -78,3 +82,52 @@ def test_format_schedule_uses_agreed_uzbek_copy() -> None:
         "Xufton — 20:32\n\n"
         "Manba: namoz-vaqti.uz"
     )
+
+
+def test_apply_offsets_adjusts_all_six_values_without_mutating_canonical_schedule() -> None:
+    schedule = make_schedule()
+
+    adjusted = apply_offsets(
+        schedule,
+        PrayerOffsets(bomdod=-2, quyosh=-1, peshin=1, asr=2, shom=3, xufton=4),
+    )
+
+    assert adjusted.times == PrayerTimes("04:15", "05:41", "12:26", "17:12", "19:15", "20:36")
+    assert schedule.times == PrayerTimes("04:17", "05:42", "12:25", "17:10", "19:12", "20:32")
+
+
+def test_format_schedule_marks_only_adjusted_values() -> None:
+    text = format_schedule(
+        make_schedule(),
+        "Bugun",
+        PrayerOffsets(shom=4, xufton=-2),
+    )
+
+    assert "Shom — 19:16 (+4 daqiqa)" in text
+    assert "Xufton — 20:30 (\N{MINUS SIGN}2 daqiqa)" in text
+    assert "Asr — 17:10\n" in text
+    assert "Asr — 17:10 (" not in text
+
+
+def test_apply_offsets_rejects_crossing_day_boundary() -> None:
+    schedule = PrayerSchedule(
+        date=date(2026, 8, 27),
+        region_code="Toshkent",
+        region_name="Toshkent",
+        times=PrayerTimes("00:10", "05:42", "12:25", "17:10", "19:12", "23:45"),
+    )
+
+    with pytest.raises(ScheduleValidationError):
+        apply_offsets(schedule, PrayerOffsets(bomdod=-11))
+
+
+def test_apply_offsets_rejects_broken_prayer_order() -> None:
+    schedule = PrayerSchedule(
+        date=date(2026, 8, 27),
+        region_code="Toshkent",
+        region_name="Toshkent",
+        times=PrayerTimes("04:17", "05:42", "12:25", "17:10", "19:12", "19:30"),
+    )
+
+    with pytest.raises(ScheduleValidationError):
+        apply_offsets(schedule, PrayerOffsets(shom=19))

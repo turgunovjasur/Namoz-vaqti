@@ -10,10 +10,12 @@ import pytest
 from alembic.config import Config
 from sqlalchemy import text
 from sqlalchemy.engine import Connection, make_url
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from alembic import command
-from namoz_bot.domain.models import DeliveryType, UserSubscription
+from namoz_bot.application.subscriptions import SubscriptionService
+from namoz_bot.domain.models import DeliveryType, PrayerOffsets, UserSubscription
 from namoz_bot.infrastructure.repositories import (
     SqlAlchemyDeliveryRepository,
     SqlAlchemySubscriptionRepository,
@@ -76,8 +78,46 @@ async def test_postgres_migration_and_concurrent_claim_are_isolated() -> None:
                 .scalars()
                 .all()
             )
+            migrated_offsets = (
+                (
+                    await connection.execute(
+                        text(
+                            "SELECT bomdod_offset, quyosh_offset, peshin_offset, "
+                            "asr_offset, shom_offset, xufton_offset FROM users "
+                            "WHERE telegram_user_id = 992000"
+                        )
+                    )
+                )
+                .tuples()
+                .one()
+            )
 
         assert migrated_codes == ["Toshkent"] * len(LEGACY_UNSUPPORTED_REGIONS)
+        assert migrated_offsets == (0, 0, 0, 0, 0, 0)
+
+        with pytest.raises(IntegrityError):
+            async with schema_engine.begin() as connection:
+                await connection.execute(
+                    text("UPDATE users SET shom_offset = 31 WHERE telegram_user_id = 992000")
+                )
+
+        async with schema_engine.begin() as connection:
+            await connection.execute(
+                text("UPDATE users SET shom_offset = -30 WHERE telegram_user_id = 992000")
+            )
+            assert (
+                await connection.scalar(
+                    text("SELECT shom_offset FROM users WHERE telegram_user_id = 992000")
+                )
+            ) == -30
+            await connection.execute(
+                text("UPDATE users SET shom_offset = 30 WHERE telegram_user_id = 992000")
+            )
+            assert (
+                await connection.scalar(
+                    text("SELECT shom_offset FROM users WHERE telegram_user_id = 992000")
+                )
+            ) == 30
 
         factory = async_sessionmaker(schema_engine, expire_on_commit=False)
         first_start, second_start = await asyncio.gather(
@@ -92,6 +132,38 @@ async def test_postgres_migration_and_concurrent_claim_are_isolated() -> None:
         user = await SqlAlchemySubscriptionRepository(factory).get_by_telegram_user_id(991001)
         assert user is not None
         assert user.id is not None
+
+        concurrent_repository = SqlAlchemySubscriptionRepository(factory)
+        await concurrent_repository.add(UserSubscription(991003, 991003, "Toshkent", True))
+        await asyncio.gather(
+            *(
+                SubscriptionService(SqlAlchemySubscriptionRepository(factory)).change_offset(
+                    991003,
+                    "shom",
+                    1,
+                )
+                for _ in range(4)
+            )
+        )
+        incremented = await concurrent_repository.get_by_telegram_user_id(991003)
+        assert incremented is not None
+        assert incremented.offsets == PrayerOffsets(shom=4)
+
+        await asyncio.gather(
+            SubscriptionService(SqlAlchemySubscriptionRepository(factory)).change_region(
+                991003,
+                "Samarqand",
+            ),
+            SubscriptionService(SqlAlchemySubscriptionRepository(factory)).change_offset(
+                991003,
+                "shom",
+                1,
+            ),
+        )
+        raced = await concurrent_repository.get_by_telegram_user_id(991003)
+        assert raced is not None
+        assert raced.region_code == "Samarqand"
+        assert raced.offsets in (PrayerOffsets(), PrayerOffsets(shom=1))
 
         first, second = await asyncio.gather(
             SqlAlchemyDeliveryRepository(factory).claim_batch(
