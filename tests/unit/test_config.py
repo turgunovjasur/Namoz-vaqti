@@ -11,7 +11,7 @@ def test_settings_use_tashkent_schedule_defaults() -> None:
 
     assert settings.timezone == "Asia/Tashkent"
     assert settings.daily_send_time == time(21, 0)
-    assert settings.islom_api_base_url == "https://islomapi.uz"
+    assert settings.prayer_api_base_url == "https://namoz-vaqti.uz"
     assert settings.broadcast_batch_size == 500
     assert settings.telegram_max_concurrency == 10
     assert settings.telegram_messages_per_second == 25.0

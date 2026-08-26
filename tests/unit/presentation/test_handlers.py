@@ -6,6 +6,7 @@ from typing import Any
 from namoz_bot.application.schedules import ScheduleService
 from namoz_bot.application.subscriptions import SubscriptionService
 from namoz_bot.domain.models import PrayerSchedule, PrayerTimes, UserSubscription
+from namoz_bot.domain.regions import list_regions
 from namoz_bot.presentation.handlers import (
     HandlerServices,
     handle_region_selection,
@@ -118,7 +119,10 @@ async def test_start_uses_saved_region_and_shared_schedule_format() -> None:
 async def test_region_selection_persists_region_and_sends_today_schedule() -> None:
     repository = InMemorySubscriptions(UserSubscription(7, 9, "Toshkent", True, id=1))
     message = FakeMessage()
-    callback = FakeCallback(data="region:0:34", message=message)
+    samarqand_index = next(
+        index for index, region in enumerate(list_regions()) if region.code == "Samarqand"
+    )
+    callback = FakeCallback(data=f"region:0:{samarqand_index}", message=message)
 
     await handle_region_selection(callback, make_services(repository))
 

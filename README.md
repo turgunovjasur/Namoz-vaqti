@@ -1,13 +1,13 @@
 # Namoz vaqti Telegram boti
 
-O‘zbekiston hududlari uchun namoz vaqtlarini `islomapi.uz` dan olib, ommaviy
+O‘zbekiston hududlari uchun namoz vaqtlarini `namoz-vaqti.uz` dan olib, ommaviy
 Telegram foydalanuvchilariga yuboradigan asinxron bot.
 
 ## Ishlash tartibi
 
 - `/start` yangi foydalanuvchini standart **Toshkent** hududi bilan ro‘yxatdan o‘tkazadi
   va bugungi to‘liq jadvalni darhol yuboradi.
-- Foydalanuvchi sozlamalarda `islomapi.uz` qo‘llaydigan O‘zbekiston hududlaridan
+- Foydalanuvchi sozlamalarda `namoz-vaqti.uz` uchun tekshirilgan O‘zbekiston hududlaridan
   birini tanlaydi.
 - Har kuni `21:00` da `Asia/Tashkent` vaqt zonasi bo‘yicha ertangi kunning
   Bomdod, Quyosh, Peshin, Asr, Shom va Xufton vaqtlari yuboriladi.
@@ -47,7 +47,8 @@ pip install -e '.[dev]'
 cp .env.example .env
 ```
 
-`.env` ichida `TELEGRAM_BOT_TOKEN` va `DATABASE_URL` qiymatlarini kiriting. Tokenni
+`.env` ichida `TELEGRAM_BOT_TOKEN` va `DATABASE_URL` qiymatlarini kiriting. API
+manzilini o‘zgartirish kerak bo‘lsa, `PRAYER_API_BASE_URL` dan foydalaning. Tokenni
 Git’ga commit qilmang.
 
 Ixtiyoriy masshtablash sozlamalari: `BROADCAST_BATCH_SIZE`,

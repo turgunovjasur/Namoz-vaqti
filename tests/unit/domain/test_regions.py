@@ -9,6 +9,7 @@ def test_default_region_is_supported_tashkent() -> None:
 
     assert region.code == "Toshkent"
     assert region.display_name == "Toshkent"
+    assert region.provider_key == "toshkent-shahri"
 
 
 def test_catalog_has_unique_api_codes_and_display_names() -> None:
@@ -27,10 +28,17 @@ def test_catalog_excludes_non_uzbekistan_locations() -> None:
     )
 
 
-def test_display_name_maps_to_exact_islomapi_code() -> None:
+def test_stable_region_code_maps_to_exact_provider_slug() -> None:
     region = next(item for item in list_regions() if item.display_name == "Farg‘ona")
 
     assert region.code == "Farg'\u043ena"
+    assert region.provider_key == "fargona-shahri"
+
+
+def test_catalog_has_unique_provider_keys() -> None:
+    regions = list_regions()
+
+    assert len({region.provider_key for region in regions}) == len(regions)
 
 
 def test_unknown_region_is_rejected() -> None:

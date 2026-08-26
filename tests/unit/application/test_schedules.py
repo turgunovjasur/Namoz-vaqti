@@ -76,5 +76,5 @@ def test_format_schedule_uses_agreed_uzbek_copy() -> None:
         "Asr — 17:10\n"
         "Shom — 19:12\n"
         "Xufton — 20:32\n\n"
-        "Manba: islomapi.uz"
+        "Manba: namoz-vaqti.uz"
     )
