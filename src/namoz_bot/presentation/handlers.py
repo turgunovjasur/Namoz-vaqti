@@ -109,8 +109,15 @@ async def handle_region_selection(
     if callback.data is None or callback.message is None:
         await callback.answer("So‘rov noto‘g‘ri", show_alert=True)
         return
+    region_code = callback.data.removeprefix("region:")
+    if ":" in region_code:
+        await callback.answer(
+            "Menyu yangilangan. /settings ni qayta oching",
+            show_alert=True,
+        )
+        return
     try:
-        region = get_region(callback.data.removeprefix("region:"))
+        region = get_region(region_code)
     except UnsupportedRegionError:
         await callback.answer("Hudud topilmadi", show_alert=True)
         return

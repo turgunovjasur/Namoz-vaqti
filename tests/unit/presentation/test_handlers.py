@@ -92,9 +92,11 @@ class FakeCallback:
         self.message = message
         self.from_user = SimpleNamespace(id=user_id)
         self.answered = False
+        self.answer_text: str | None = None
 
-    async def answer(self, *_args: Any, **_kwargs: Any) -> None:
+    async def answer(self, text: str | None = None, **_kwargs: Any) -> None:
         self.answered = True
+        self.answer_text = text
 
 
 def make_services(repository: InMemorySubscriptions) -> HandlerServices:
@@ -128,6 +130,15 @@ async def test_region_selection_persists_region_and_sends_today_schedule() -> No
     assert repository.item is not None
     assert repository.item.region_code == "Samarqand"
     assert "Samarqand" in message.answers[0].text
+
+
+async def test_stale_region_button_requests_settings_refresh() -> None:
+    repository = InMemorySubscriptions(UserSubscription(7, 9, "Toshkent", True, id=1))
+    callback = FakeCallback(data="region:0:34", message=FakeMessage())
+
+    await handle_region_selection(callback, make_services(repository))
+
+    assert callback.answer_text == "Menyu yangilangan. /settings ni qayta oching"
 
 
 async def test_settings_starts_with_geographic_groups() -> None:
