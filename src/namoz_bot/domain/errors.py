@@ -27,3 +27,11 @@ class ScheduleRegionMismatchError(ScheduleValidationError):
 
 class SubscriptionNotFoundError(NamozBotError, LookupError):
     """Raised when a Telegram user has not started the bot yet."""
+
+
+class MessageSendError(NamozBotError):
+    """Raised when Telegram cannot deliver a message."""
+
+
+class RecipientBlockedError(MessageSendError):
+    """Raised when a recipient blocked or deactivated the bot."""

@@ -50,3 +50,9 @@ class DeliveryRepository(Protocol):
         *,
         error_code: str | None = None,
     ) -> None: ...
+
+
+class MessageSender(Protocol):
+    """Send plain Telegram messages without exposing aiogram."""
+
+    async def send(self, chat_id: int, text: str) -> None: ...
