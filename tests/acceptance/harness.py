@@ -13,6 +13,7 @@ from namoz_bot.domain.models import (
     DeliveryType,
     OffsetAction,
     PrayerKey,
+    PrayerOffsets,
     PrayerSchedule,
     PrayerTimes,
     UserSubscription,
@@ -71,6 +72,37 @@ class InMemorySubscriptionRepository:
     async def save(self, subscription: UserSubscription) -> UserSubscription:
         self._by_telegram_id[subscription.telegram_user_id] = subscription
         return subscription
+
+    async def change_offset(
+        self,
+        telegram_user_id: int,
+        prayer: PrayerKey,
+        action: OffsetAction,
+    ) -> UserSubscription:
+        subscription = self._by_telegram_id[telegram_user_id]
+        return await self.save(
+            subscription.with_preferences(
+                offsets=subscription.offsets.change(prayer, action),
+            )
+        )
+
+    async def change_region(
+        self,
+        telegram_user_id: int,
+        region_code: str,
+    ) -> UserSubscription:
+        subscription = self._by_telegram_id[telegram_user_id]
+        return await self.save(
+            subscription.with_preferences(region_code=region_code, offsets=PrayerOffsets())
+        )
+
+    async def set_active(
+        self,
+        telegram_user_id: int,
+        active: bool,
+    ) -> UserSubscription:
+        subscription = self._by_telegram_id[telegram_user_id]
+        return await self.save(subscription.with_preferences(is_active=active))
 
     async def list_active_page(self, *, after_id: int, limit: int) -> list[UserSubscription]:
         items = sorted(

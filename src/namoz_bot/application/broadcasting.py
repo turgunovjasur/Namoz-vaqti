@@ -179,7 +179,7 @@ class BroadcastService:
                 await self._sender.send(subscription.chat_id, text)
             except RecipientBlockedError:
                 logger.info("broadcast_recipient_deactivated region=%s", region_code)
-                await self._subscriptions.save(subscription.with_preferences(is_active=False))
+                await self._subscriptions.set_active(subscription.telegram_user_id, False)
                 await self._mark_failed(subscription, target_date, "recipient_blocked")
                 return "deactivated", region_code
             except Exception as exc:

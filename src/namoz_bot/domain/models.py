@@ -60,7 +60,7 @@ class PrayerOffsets:
     def change(self, prayer: PrayerKey, action: OffsetAction) -> "PrayerOffsets":
         """Increment, decrement, or reset exactly one prayer offset."""
 
-        if action not in (-1, 0, 1):
+        if isinstance(action, bool) or action not in (-1, 0, 1):
             raise ScheduleValidationError("Offset amali noto‘g‘ri")
         current = self.value_for(prayer)
         value = 0 if action == 0 else current + action

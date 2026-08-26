@@ -2,7 +2,7 @@ import pytest
 
 from namoz_bot.application.subscriptions import SubscriptionService
 from namoz_bot.domain.errors import ScheduleValidationError, SubscriptionNotFoundError
-from namoz_bot.domain.models import PrayerOffsets, UserSubscription
+from namoz_bot.domain.models import OffsetAction, PrayerKey, PrayerOffsets, UserSubscription
 
 
 class InMemorySubscriptionRepository:
@@ -46,6 +46,36 @@ class InMemorySubscriptionRepository:
         self.saved.append(subscription)
         self.items[subscription.telegram_user_id] = subscription
         return subscription
+
+    async def change_offset(
+        self,
+        telegram_user_id: int,
+        prayer: PrayerKey,
+        action: OffsetAction,
+    ) -> UserSubscription:
+        subscription = self.items.get(telegram_user_id)
+        if subscription is None:
+            raise SubscriptionNotFoundError("Foydalanuvchi topilmadi")
+        offsets = subscription.offsets.change(prayer, action)
+        return await self.save(subscription.with_preferences(offsets=offsets))
+
+    async def change_region(
+        self,
+        telegram_user_id: int,
+        region_code: str,
+    ) -> UserSubscription:
+        subscription = self.items[telegram_user_id]
+        return await self.save(
+            subscription.with_preferences(region_code=region_code, offsets=PrayerOffsets())
+        )
+
+    async def set_active(
+        self,
+        telegram_user_id: int,
+        active: bool,
+    ) -> UserSubscription:
+        subscription = self.items[telegram_user_id]
+        return await self.save(subscription.with_preferences(is_active=active))
 
     async def list_active_page(self, *, after_id: int, limit: int) -> list[UserSubscription]:
         return [

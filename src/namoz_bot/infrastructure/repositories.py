@@ -8,14 +8,34 @@ from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from namoz_bot.domain.errors import SubscriptionNotFoundError
+from namoz_bot.domain.errors import ScheduleValidationError, SubscriptionNotFoundError
 from namoz_bot.domain.models import (
     DeliveryStatus,
     DeliveryType,
+    OffsetAction,
+    PrayerKey,
     PrayerOffsets,
     UserSubscription,
 )
 from namoz_bot.infrastructure.orm import DeliveryRecord, UserRecord
+
+
+def _offset_column_name(prayer: PrayerKey) -> str:
+    match prayer:
+        case "bomdod":
+            return "bomdod_offset"
+        case "quyosh":
+            return "quyosh_offset"
+        case "peshin":
+            return "peshin_offset"
+        case "asr":
+            return "asr_offset"
+        case "shom":
+            return "shom_offset"
+        case "xufton":
+            return "xufton_offset"
+        case _:
+            raise ScheduleValidationError("Sozlanadigan vaqt topilmadi")
 
 
 def _offset_values(offsets: PrayerOffsets) -> dict[str, int]:
@@ -152,6 +172,93 @@ class SqlAlchemySubscriptionRepository:
             record.shom_offset = subscription.offsets.shom
             record.xufton_offset = subscription.offsets.xufton
             await session.flush()
+            return _to_subscription(record)
+
+    async def change_offset(
+        self,
+        telegram_user_id: int,
+        prayer: PrayerKey,
+        action: OffsetAction,
+    ) -> UserSubscription:
+        """Atomically update one offset without overwriting other preferences."""
+
+        if isinstance(action, bool) or action not in (-1, 0, 1):
+            raise ScheduleValidationError("Offset amali noto‘g‘ri")
+        column_name = _offset_column_name(prayer)
+        column = getattr(UserRecord, column_name)
+        value = 0 if action == 0 else column + action
+        statement = update(UserRecord).where(UserRecord.telegram_user_id == telegram_user_id)
+        if action > 0:
+            statement = statement.where(column < 30)
+        elif action < 0:
+            statement = statement.where(column > -30)
+        statement = statement.values(
+            **{
+                column_name: value,
+                "updated_at": datetime.now(UTC),
+            }
+        ).returning(UserRecord)
+
+        async with self._session_factory.begin() as session:
+            record = await session.scalar(statement)
+            if record is not None:
+                return _to_subscription(record)
+            exists = await session.scalar(
+                select(UserRecord.id).where(UserRecord.telegram_user_id == telegram_user_id)
+            )
+            if exists is None:
+                raise SubscriptionNotFoundError(
+                    f"Telegram foydalanuvchisi topilmadi: {telegram_user_id}"
+                )
+            raise ScheduleValidationError("Offset farqi chegaraga yetgan")
+
+    async def change_region(
+        self,
+        telegram_user_id: int,
+        region_code: str,
+    ) -> UserSubscription:
+        """Atomically replace the region and reset every old-region offset."""
+
+        async with self._session_factory.begin() as session:
+            record = await session.scalar(
+                update(UserRecord)
+                .where(UserRecord.telegram_user_id == telegram_user_id)
+                .values(
+                    region_code=region_code,
+                    bomdod_offset=0,
+                    quyosh_offset=0,
+                    peshin_offset=0,
+                    asr_offset=0,
+                    shom_offset=0,
+                    xufton_offset=0,
+                    updated_at=datetime.now(UTC),
+                )
+                .returning(UserRecord)
+            )
+            if record is None:
+                raise SubscriptionNotFoundError(
+                    f"Telegram foydalanuvchisi topilmadi: {telegram_user_id}"
+                )
+            return _to_subscription(record)
+
+    async def set_active(
+        self,
+        telegram_user_id: int,
+        active: bool,
+    ) -> UserSubscription:
+        """Update notification state without touching region or offsets."""
+
+        async with self._session_factory.begin() as session:
+            record = await session.scalar(
+                update(UserRecord)
+                .where(UserRecord.telegram_user_id == telegram_user_id)
+                .values(is_active=active, updated_at=datetime.now(UTC))
+                .returning(UserRecord)
+            )
+            if record is None:
+                raise SubscriptionNotFoundError(
+                    f"Telegram foydalanuvchisi topilmadi: {telegram_user_id}"
+                )
             return _to_subscription(record)
 
     async def list_active_page(

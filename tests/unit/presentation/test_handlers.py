@@ -8,7 +8,14 @@ import pytest
 import namoz_bot.presentation.handlers as handlers_module
 from namoz_bot.application.schedules import ScheduleService
 from namoz_bot.application.subscriptions import SubscriptionService
-from namoz_bot.domain.models import PrayerOffsets, PrayerSchedule, PrayerTimes, UserSubscription
+from namoz_bot.domain.models import (
+    OffsetAction,
+    PrayerKey,
+    PrayerOffsets,
+    PrayerSchedule,
+    PrayerTimes,
+    UserSubscription,
+)
 from namoz_bot.presentation.handlers import (
     HandlerServices,
     handle_region_selection,
@@ -65,6 +72,34 @@ class InMemorySubscriptions:
             raise RuntimeError("database unavailable")
         self.item = subscription
         return subscription
+
+    async def change_offset(
+        self,
+        telegram_user_id: int,
+        prayer: PrayerKey,
+        action: OffsetAction,
+    ) -> UserSubscription:
+        assert self.item is not None and self.item.telegram_user_id == telegram_user_id
+        offsets = self.item.offsets.change(prayer, action)
+        return await self.save(self.item.with_preferences(offsets=offsets))
+
+    async def change_region(
+        self,
+        telegram_user_id: int,
+        region_code: str,
+    ) -> UserSubscription:
+        assert self.item is not None and self.item.telegram_user_id == telegram_user_id
+        return await self.save(
+            self.item.with_preferences(region_code=region_code, offsets=PrayerOffsets())
+        )
+
+    async def set_active(
+        self,
+        telegram_user_id: int,
+        active: bool,
+    ) -> UserSubscription:
+        assert self.item is not None and self.item.telegram_user_id == telegram_user_id
+        return await self.save(self.item.with_preferences(is_active=active))
 
     async def list_active_page(self, *, after_id: int, limit: int) -> list[UserSubscription]:
         del after_id, limit

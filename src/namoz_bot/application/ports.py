@@ -6,6 +6,8 @@ from typing import Protocol
 from namoz_bot.domain.models import (
     DeliveryStatus,
     DeliveryType,
+    OffsetAction,
+    PrayerKey,
     PrayerSchedule,
     UserSubscription,
 )
@@ -35,6 +37,25 @@ class SubscriptionRepository(Protocol):
     ) -> tuple[UserSubscription, bool]: ...
 
     async def save(self, subscription: UserSubscription) -> UserSubscription: ...
+
+    async def change_offset(
+        self,
+        telegram_user_id: int,
+        prayer: PrayerKey,
+        action: OffsetAction,
+    ) -> UserSubscription: ...
+
+    async def change_region(
+        self,
+        telegram_user_id: int,
+        region_code: str,
+    ) -> UserSubscription: ...
+
+    async def set_active(
+        self,
+        telegram_user_id: int,
+        active: bool,
+    ) -> UserSubscription: ...
 
     async def list_active_page(
         self,

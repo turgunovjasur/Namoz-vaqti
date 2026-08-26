@@ -94,6 +94,37 @@ async def test_start_upsert_preserves_region_and_reactivates_atomically(
     assert reactivated.offsets == PrayerOffsets(shom=4)
 
 
+async def test_atomic_offset_updates_do_not_lose_concurrent_increments(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    repository = SqlAlchemySubscriptionRepository(session_factory)
+    await repository.add(UserSubscription(700, 900, "Toshkent", True))
+
+    await asyncio.gather(*(repository.change_offset(700, "shom", 1) for _ in range(4)))
+
+    loaded = await repository.get_by_telegram_user_id(700)
+    assert loaded is not None
+    assert loaded.offsets == PrayerOffsets(shom=4)
+
+
+async def test_targeted_region_and_active_updates_preserve_unrelated_preferences(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    repository = SqlAlchemySubscriptionRepository(session_factory)
+    created = await repository.add(
+        UserSubscription(701, 901, "Toshkent", True, offsets=PrayerOffsets(shom=4))
+    )
+
+    changed_region = await repository.change_region(created.telegram_user_id, "Samarqand")
+    disabled = await repository.set_active(created.telegram_user_id, False)
+
+    assert changed_region.region_code == "Samarqand"
+    assert changed_region.offsets == PrayerOffsets()
+    assert disabled.region_code == "Samarqand"
+    assert disabled.offsets == PrayerOffsets()
+    assert disabled.is_active is False
+
+
 async def test_subscription_repository_pages_only_active_users(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:

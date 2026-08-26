@@ -46,6 +46,12 @@ def test_change_rejects_unsupported_actions(action: int) -> None:
         PrayerOffsets().change("shom", action)  # type: ignore[arg-type]
 
 
+@pytest.mark.parametrize("action", [False, True])
+def test_change_rejects_boolean_actions(action: bool) -> None:
+    with pytest.raises(ScheduleValidationError):
+        PrayerOffsets().change("shom", action)  # type: ignore[arg-type]
+
+
 def test_change_rejects_unsupported_prayer() -> None:
     with pytest.raises(ScheduleValidationError):
         PrayerOffsets().change("saharlik", 1)  # type: ignore[arg-type]
