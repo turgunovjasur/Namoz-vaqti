@@ -1,4 +1,18 @@
+import namoz_bot.presentation.keyboards as keyboards_module
 from namoz_bot.presentation.keyboards import build_main_menu, build_region_keyboard
+
+
+def test_region_group_keyboard_shows_fourteen_groups() -> None:
+    builder = getattr(keyboards_module, "build_region_group_keyboard", None)
+
+    assert builder is not None
+    markup = builder()
+    buttons = [button for row in markup.inline_keyboard for button in row]
+
+    assert len(buttons) == 14
+    assert buttons[0].text == "Toshkent shahri"
+    assert buttons[0].callback_data == "region-group:toshkent-shahri"
+    assert buttons[-1].text == "Qoraqalpog‘iston Respublikasi"
 
 
 def test_main_menu_reflects_notification_state() -> None:
@@ -11,17 +25,24 @@ def test_main_menu_reflects_notification_state() -> None:
     assert "🔔 Xabarlarni yoqish" in disabled_labels
 
 
-def test_region_keyboard_contains_catalog_regions_and_next_page() -> None:
-    markup = build_region_keyboard(page=0, page_size=10)
-    labels = [button.text for row in markup.inline_keyboard for button in row]
+def test_region_keyboard_contains_only_selected_group_and_back_button() -> None:
+    markup = build_region_keyboard(group_code="andijon-viloyati")
+    buttons = [button for row in markup.inline_keyboard for button in row]
+    labels = [button.text for button in buttons]
 
-    assert "Oltiariq" in labels
-    assert "Keyingi ▶️" in labels
+    assert len(buttons) == 18
+    assert labels[0] == "Andijon viloyati"
+    assert "Andijon shahri" in labels
+    assert "Andijon tumani" in labels
+    assert labels[-1] == "⬅️ Viloyatlar"
+    assert buttons[-1].callback_data == "region-groups"
 
 
-def test_last_region_page_has_previous_without_next() -> None:
-    markup = build_region_keyboard(page=100, page_size=10)
-    labels = [button.text for row in markup.inline_keyboard for button in row]
+def test_region_callbacks_use_stable_region_codes() -> None:
+    markup = build_region_keyboard(group_code="andijon-viloyati")
+    callbacks = {
+        button.text: button.callback_data for row in markup.inline_keyboard for button in row
+    }
 
-    assert "◀️ Oldingi" in labels
-    assert "Keyingi ▶️" not in labels
+    assert callbacks["Andijon shahri"] == "region:Andijon"
+    assert callbacks["Andijon tumani"] == "region:andijon"

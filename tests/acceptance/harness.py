@@ -18,6 +18,7 @@ from namoz_bot.domain.models import (
 from namoz_bot.domain.regions import get_region, list_regions
 from namoz_bot.presentation.handlers import (
     HandlerServices,
+    handle_region_group_selection,
     handle_region_selection,
     handle_start,
 )
@@ -110,7 +111,7 @@ class InMemoryDeliveryRepository:
 
 
 class FakeScheduleProvider:
-    """Deterministic IslomAPI boundary used by all acceptance journeys."""
+    """Deterministic prayer API boundary used by all acceptance journeys."""
 
     def __init__(self) -> None:
         self.calls: list[tuple[str, date]] = []
@@ -218,14 +219,18 @@ class AppHarness:
         chat_id: int,
         display_name: str,
     ) -> None:
-        region_index = next(
-            index
-            for index, region in enumerate(list_regions())
-            if region.display_name == display_name
+        region = next(region for region in list_regions() if region.display_name == display_name)
+        message = FakeMessage(user_id=user_id, chat_id=chat_id, messages=self._messages)
+        await handle_region_group_selection(
+            FakeCallback(
+                data=f"region-group:{region.group_code}",
+                message=message,
+                user_id=user_id,
+            )
         )
         callback = FakeCallback(
-            data=f"region:0:{region_index}",
-            message=FakeMessage(user_id=user_id, chat_id=chat_id, messages=self._messages),
+            data=f"region:{region.code}",
+            message=message,
             user_id=user_id,
         )
         await handle_region_selection(callback, self._handler_services)

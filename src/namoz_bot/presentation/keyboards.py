@@ -7,13 +7,31 @@ from aiogram.types import (
     ReplyKeyboardMarkup,
 )
 
-from namoz_bot.domain.regions import list_regions
+from namoz_bot.domain.regions import list_region_groups, list_regions
 
 TODAY_LABEL = "📅 Bugungi jadval"
 REGION_LABEL = "📍 Hududni o‘zgartirish"
 HELP_LABEL = "ℹ️ Yordam"
 DISABLE_LABEL = "🔕 Xabarlarni o‘chirish"
 ENABLE_LABEL = "🔔 Xabarlarni yoqish"
+
+
+def build_region_group_keyboard() -> InlineKeyboardMarkup:
+    """Build the first-level Uzbekistan geographic group selector."""
+
+    groups = list_region_groups()
+    rows: list[list[InlineKeyboardButton]] = []
+    for index in range(0, len(groups), 2):
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text=group.display_name,
+                    callback_data=f"region-group:{group.code}",
+                )
+                for group in groups[index : index + 2]
+            ]
+        )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def build_main_menu(*, is_active: bool) -> ReplyKeyboardMarkup:
@@ -30,37 +48,18 @@ def build_main_menu(*, is_active: bool) -> ReplyKeyboardMarkup:
     )
 
 
-def build_region_keyboard(*, page: int, page_size: int = 10) -> InlineKeyboardMarkup:
-    """Build a bounded, paginated keyboard from the trusted catalog."""
+def build_region_keyboard(*, group_code: str) -> InlineKeyboardMarkup:
+    """Build a clear second-level selector for one geographic group."""
 
-    regions = list_regions()
-    last_page = max(0, (len(regions) - 1) // page_size)
-    current_page = min(max(page, 0), last_page)
-    start = current_page * page_size
-    end = min(start + page_size, len(regions))
-
-    rows: list[list[InlineKeyboardButton]] = []
-    for index in range(start, end, 2):
-        row: list[InlineKeyboardButton] = []
-        for item_index in range(index, min(index + 2, end)):
-            row.append(
-                InlineKeyboardButton(
-                    text=regions[item_index].display_name,
-                    callback_data=f"region:{current_page}:{item_index}",
-                )
+    rows = [
+        [
+            InlineKeyboardButton(
+                text=region.display_name,
+                callback_data=f"region:{region.code}",
             )
-        rows.append(row)
-
-    navigation: list[InlineKeyboardButton] = []
-    if current_page > 0:
-        navigation.append(
-            InlineKeyboardButton(text="◀️ Oldingi", callback_data=f"regions:{current_page - 1}")
-        )
-    if current_page < last_page:
-        navigation.append(
-            InlineKeyboardButton(text="Keyingi ▶️", callback_data=f"regions:{current_page + 1}")
-        )
-    if navigation:
-        rows.append(navigation)
+        ]
+        for region in list_regions(group_code=group_code)
+    ]
+    rows.append([InlineKeyboardButton(text="⬅️ Viloyatlar", callback_data="region-groups")])
 
     return InlineKeyboardMarkup(inline_keyboard=rows)

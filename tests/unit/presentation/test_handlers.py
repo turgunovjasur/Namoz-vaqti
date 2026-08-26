@@ -3,13 +3,14 @@ from datetime import date
 from types import SimpleNamespace
 from typing import Any
 
+import namoz_bot.presentation.handlers as handlers_module
 from namoz_bot.application.schedules import ScheduleService
 from namoz_bot.application.subscriptions import SubscriptionService
 from namoz_bot.domain.models import PrayerSchedule, PrayerTimes, UserSubscription
-from namoz_bot.domain.regions import list_regions
 from namoz_bot.presentation.handlers import (
     HandlerServices,
     handle_region_selection,
+    handle_settings,
     handle_start,
     handle_toggle_notifications,
 )
@@ -91,9 +92,11 @@ class FakeCallback:
         self.message = message
         self.from_user = SimpleNamespace(id=user_id)
         self.answered = False
+        self.answer_text: str | None = None
 
-    async def answer(self, *_args: Any, **_kwargs: Any) -> None:
+    async def answer(self, text: str | None = None, **_kwargs: Any) -> None:
         self.answered = True
+        self.answer_text = text
 
 
 def make_services(repository: InMemorySubscriptions) -> HandlerServices:
@@ -119,10 +122,7 @@ async def test_start_uses_saved_region_and_shared_schedule_format() -> None:
 async def test_region_selection_persists_region_and_sends_today_schedule() -> None:
     repository = InMemorySubscriptions(UserSubscription(7, 9, "Toshkent", True, id=1))
     message = FakeMessage()
-    samarqand_index = next(
-        index for index, region in enumerate(list_regions()) if region.code == "Samarqand"
-    )
-    callback = FakeCallback(data=f"region:0:{samarqand_index}", message=message)
+    callback = FakeCallback(data="region:Samarqand", message=message)
 
     await handle_region_selection(callback, make_services(repository))
 
@@ -130,6 +130,66 @@ async def test_region_selection_persists_region_and_sends_today_schedule() -> No
     assert repository.item is not None
     assert repository.item.region_code == "Samarqand"
     assert "Samarqand" in message.answers[0].text
+
+
+async def test_stale_region_button_requests_settings_refresh() -> None:
+    repository = InMemorySubscriptions(UserSubscription(7, 9, "Toshkent", True, id=1))
+    callback = FakeCallback(data="region:0:34", message=FakeMessage())
+
+    await handle_region_selection(callback, make_services(repository))
+
+    assert callback.answer_text == "Menyu yangilangan. /settings ni qayta oching"
+
+
+async def test_settings_starts_with_geographic_groups() -> None:
+    repository = InMemorySubscriptions(UserSubscription(7, 9, "Toshkent", True, id=1))
+    message = FakeMessage()
+
+    await handle_settings(message, make_services(repository))
+
+    buttons = [
+        button
+        for row in message.answers[0].kwargs["reply_markup"].inline_keyboard
+        for button in row
+    ]
+    assert len(buttons) == 14
+    assert buttons[0].callback_data == "region-group:toshkent-shahri"
+
+
+async def test_group_selection_shows_only_that_groups_locations() -> None:
+    handler = getattr(handlers_module, "handle_region_group_selection", None)
+    message = FakeMessage()
+    callback = FakeCallback(data="region-group:andijon-viloyati", message=message)
+
+    assert handler is not None
+    await handler(callback)
+
+    buttons = [
+        button
+        for row in message.answers[0].kwargs["reply_markup"].inline_keyboard
+        for button in row
+    ]
+    assert callback.answered is True
+    assert buttons[0].text == "Andijon viloyati"
+    assert buttons[-1].callback_data == "region-groups"
+
+
+async def test_back_to_groups_shows_top_level_selector() -> None:
+    handler = getattr(handlers_module, "handle_region_groups", None)
+    message = FakeMessage()
+    callback = FakeCallback(data="region-groups", message=message)
+
+    assert handler is not None
+    await handler(callback)
+
+    buttons = [
+        button
+        for row in message.answers[0].kwargs["reply_markup"].inline_keyboard
+        for button in row
+    ]
+    assert callback.answered is True
+    assert len(buttons) == 14
+    assert buttons[0].callback_data == "region-group:toshkent-shahri"
 
 
 async def test_toggle_notifications_updates_state_and_menu() -> None:
