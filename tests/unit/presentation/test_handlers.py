@@ -216,8 +216,10 @@ async def test_region_selection_persists_region_and_sends_today_schedule() -> No
     assert repository.item is not None
     assert repository.item.region_code == "Samarqand"
     assert repository.item.offsets == PrayerOffsets()
-    assert "Samarqand" in message.answers[0].text
-    assert "(+4 daqiqa)" not in message.answers[0].text
+    assert message.answers == []
+    assert len(message.edits) == 1
+    assert "Samarqand" in message.edits[0].text
+    assert "(+4 daqiqa)" not in message.edits[0].text
 
 
 async def test_stale_region_button_requests_settings_refresh() -> None:
@@ -252,10 +254,10 @@ async def test_group_selection_shows_only_that_groups_locations() -> None:
     assert handler is not None
     await handler(callback)
 
+    assert message.answers == []
+    assert len(message.edits) == 1
     buttons = [
-        button
-        for row in message.answers[0].kwargs["reply_markup"].inline_keyboard
-        for button in row
+        button for row in message.edits[0].kwargs["reply_markup"].inline_keyboard for button in row
     ]
     assert callback.answered is True
     assert buttons[0].text == "Andijon viloyati"
@@ -270,10 +272,10 @@ async def test_back_to_groups_shows_top_level_selector() -> None:
     assert handler is not None
     await handler(callback)
 
+    assert message.answers == []
+    assert len(message.edits) == 1
     buttons = [
-        button
-        for row in message.answers[0].kwargs["reply_markup"].inline_keyboard
-        for button in row
+        button for row in message.edits[0].kwargs["reply_markup"].inline_keyboard for button in row
     ]
     assert callback.answered is True
     assert len(buttons) == 14

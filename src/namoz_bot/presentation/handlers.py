@@ -206,7 +206,8 @@ async def handle_region_groups(callback: CallbackQuery) -> None:
     if callback.message is None:
         await callback.answer("So‘rov noto‘g‘ri", show_alert=True)
         return
-    await callback.message.answer(
+    message = cast(Any, callback.message)
+    await message.edit_text(
         "Viloyat yoki hudud guruhini tanlang:",
         reply_markup=build_region_group_keyboard(),
     )
@@ -224,7 +225,8 @@ async def handle_region_group_selection(callback: CallbackQuery) -> None:
     except UnsupportedRegionError:
         await callback.answer("Hudud guruhi topilmadi", show_alert=True)
         return
-    await callback.message.answer(
+    message = cast(Any, callback.message)
+    await message.edit_text(
         f"{group.display_name}: shahar yoki tumanni tanlang:",
         reply_markup=keyboard,
     )
@@ -256,9 +258,9 @@ async def handle_region_selection(
         region.code,
     )
     schedule = await handler_services.schedules.get_today(region.code, handler_services.today())
-    await callback.message.answer(
+    message = cast(Any, callback.message)
+    await message.edit_text(
         format_schedule(schedule, relative_label="Bugun", offsets=subscription.offsets),
-        reply_markup=build_main_menu(is_active=subscription.is_active),
     )
     await callback.answer("Hudud saqlandi")
 
