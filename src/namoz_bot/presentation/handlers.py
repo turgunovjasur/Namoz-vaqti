@@ -1,9 +1,11 @@
 """Thin aiogram handlers delegating all business rules to services."""
 
+import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
 from typing import Any, cast
+from weakref import WeakValueDictionary
 
 from aiogram import F, Router
 from aiogram.filters import Command, CommandStart
@@ -16,6 +18,7 @@ from namoz_bot.domain.models import (
     PRAYER_KEYS,
     OffsetAction,
     PrayerKey,
+    PrayerSchedule,
     UserSubscription,
 )
 from namoz_bot.domain.regions import get_region, get_region_group
@@ -36,6 +39,7 @@ from namoz_bot.presentation.keyboards import (
 )
 
 router = Router(name="public-bot")
+_offset_locks: WeakValueDictionary[int, asyncio.Lock] = WeakValueDictionary()
 
 
 @dataclass(frozen=True, slots=True)
@@ -106,12 +110,11 @@ def _format_offset_detail(
     )
 
 
-async def _build_offset_detail(
-    services: HandlerServices,
+def _build_offset_detail(
+    schedule: PrayerSchedule,
     subscription: UserSubscription,
     prayer: PrayerKey,
 ) -> tuple[str, Any]:
-    schedule = await services.schedules.get_today(subscription.region_code, services.today())
     adjusted = apply_offsets(schedule, subscription.offsets)
     original_time = cast(str, getattr(schedule.times, prayer))
     adjusted_time = cast(str, getattr(adjusted.times, prayer))
@@ -120,6 +123,14 @@ async def _build_offset_detail(
         _format_offset_detail(prayer, original_time, adjusted_time, value),
         build_offset_adjustment_keyboard(prayer, value),
     )
+
+
+def _offset_lock(telegram_user_id: int) -> asyncio.Lock:
+    lock = _offset_locks.get(telegram_user_id)
+    if lock is None:
+        lock = asyncio.Lock()
+        _offset_locks[telegram_user_id] = lock
+    return lock
 
 
 def _parse_prayer_callback(data: str | None) -> PrayerKey | None:
@@ -179,14 +190,20 @@ async def handle_offset_selection(
     if callback.message is None or prayer is None:
         await callback.answer("So‘rov noto‘g‘ri", show_alert=True)
         return
-    subscription = await handler_services.subscriptions.get(callback.from_user.id)
-    text, keyboard = await _build_offset_detail(handler_services, subscription, prayer)
-    message = cast(Any, callback.message)
-    await message.edit_text(
-        text,
-        reply_markup=keyboard,
-    )
-    await callback.answer()
+    telegram_user_id = callback.from_user.id
+    async with _offset_lock(telegram_user_id):
+        subscription = await handler_services.subscriptions.get(telegram_user_id)
+        schedule = await handler_services.schedules.get_today(
+            subscription.region_code,
+            handler_services.today(),
+        )
+        text, keyboard = _build_offset_detail(schedule, subscription, prayer)
+        message = cast(Any, callback.message)
+        await message.edit_text(
+            text,
+            reply_markup=keyboard,
+        )
+        await callback.answer()
 
 
 async def handle_offset_change(
@@ -198,25 +215,35 @@ async def handle_offset_change(
         await callback.answer("So‘rov noto‘g‘ri", show_alert=True)
         return
     prayer, action = parsed
-    try:
-        subscription = await handler_services.subscriptions.change_offset(
-            callback.from_user.id,
-            prayer,
-            action,
+    telegram_user_id = callback.from_user.id
+    async with _offset_lock(telegram_user_id):
+        current = await handler_services.subscriptions.get(telegram_user_id)
+        if action == 0 and current.offsets.value_for(prayer) == 0:
+            await callback.answer()
+            return
+        schedule = await handler_services.schedules.get_today(
+            current.region_code,
+            handler_services.today(),
         )
-    except ScheduleValidationError:
-        await callback.answer(
-            "Chegara: \N{MINUS SIGN}30…+30 daqiqa",
-            show_alert=True,
+        try:
+            subscription = await handler_services.subscriptions.change_offset(
+                telegram_user_id,
+                prayer,
+                action,
+            )
+        except ScheduleValidationError:
+            await callback.answer(
+                "Chegara: \N{MINUS SIGN}30…+30 daqiqa",
+                show_alert=True,
+            )
+            return
+        text, keyboard = _build_offset_detail(schedule, subscription, prayer)
+        message = cast(Any, callback.message)
+        await message.edit_text(
+            text,
+            reply_markup=keyboard,
         )
-        return
-    text, keyboard = await _build_offset_detail(handler_services, subscription, prayer)
-    message = cast(Any, callback.message)
-    await message.edit_text(
-        text,
-        reply_markup=keyboard,
-    )
-    await callback.answer()
+        await callback.answer()
 
 
 async def handle_offset_schedule(
@@ -226,17 +253,19 @@ async def handle_offset_schedule(
     if callback.message is None:
         await callback.answer("So‘rov noto‘g‘ri", show_alert=True)
         return
-    subscription = await handler_services.subscriptions.get(callback.from_user.id)
-    schedule = await handler_services.schedules.get_today(
-        subscription.region_code,
-        handler_services.today(),
-    )
-    message = cast(Any, callback.message)
-    await message.edit_text(
-        format_schedule(schedule, relative_label="Bugun", offsets=subscription.offsets),
-        reply_markup=None,
-    )
-    await callback.answer()
+    telegram_user_id = callback.from_user.id
+    async with _offset_lock(telegram_user_id):
+        subscription = await handler_services.subscriptions.get(telegram_user_id)
+        schedule = await handler_services.schedules.get_today(
+            subscription.region_code,
+            handler_services.today(),
+        )
+        message = cast(Any, callback.message)
+        await message.edit_text(
+            format_schedule(schedule, relative_label="Bugun", offsets=subscription.offsets),
+            reply_markup=None,
+        )
+        await callback.answer()
 
 
 async def handle_region_groups(callback: CallbackQuery) -> None:

@@ -1,3 +1,4 @@
+import asyncio
 from dataclasses import dataclass
 from datetime import date
 from types import SimpleNamespace
@@ -8,6 +9,7 @@ import pytest
 import namoz_bot.presentation.handlers as handlers_module
 from namoz_bot.application.schedules import ScheduleService
 from namoz_bot.application.subscriptions import SubscriptionService
+from namoz_bot.domain.errors import ExternalServiceError
 from namoz_bot.domain.models import (
     OffsetAction,
     PrayerKey,
@@ -155,10 +157,13 @@ class FakeCallback:
         self.answer_kwargs = kwargs
 
 
-def make_services(repository: InMemorySubscriptions) -> HandlerServices:
+def make_services(
+    repository: InMemorySubscriptions,
+    provider: ScheduleProvider | None = None,
+) -> HandlerServices:
     return HandlerServices(
         subscriptions=SubscriptionService(repository),
-        schedules=ScheduleService(ScheduleProvider()),
+        schedules=ScheduleService(provider or ScheduleProvider()),
         today=lambda: date(2026, 8, 27),
     )
 
@@ -472,3 +477,71 @@ async def test_offset_persistence_failure_is_not_acknowledged() -> None:
         await handler(callback, make_services(repository))
 
     assert callback.answered is False
+
+
+class FailingTodayProvider(ScheduleProvider):
+    async def get_today(self, region_code: str) -> PrayerSchedule:
+        raise ExternalServiceError(f"provider unavailable for {region_code}")
+
+
+class TrackingTodayProvider(ScheduleProvider):
+    def __init__(self) -> None:
+        self.in_flight = 0
+        self.max_in_flight = 0
+
+    async def get_today(self, region_code: str) -> PrayerSchedule:
+        self.in_flight += 1
+        self.max_in_flight = max(self.max_in_flight, self.in_flight)
+        await asyncio.sleep(0)
+        try:
+            return await super().get_today(region_code)
+        finally:
+            self.in_flight -= 1
+
+
+async def test_offset_change_does_not_write_when_provider_fails() -> None:
+    handler = getattr(handlers_module, "handle_offset_change", None)
+    repository = InMemorySubscriptions(UserSubscription(7, 9, "Toshkent", True, id=1))
+    callback = FakeCallback("offset-change:shom:1", FakeMessage())
+
+    assert handler is not None
+    with pytest.raises(ExternalServiceError):
+        await handler(callback, make_services(repository, FailingTodayProvider()))
+
+    assert repository.item is not None
+    assert repository.item.offsets == PrayerOffsets()
+    assert repository.save_calls == 0
+    assert callback.answered is False
+
+
+async def test_offset_changes_are_serialized_per_user() -> None:
+    handler = getattr(handlers_module, "handle_offset_change", None)
+    repository = InMemorySubscriptions(UserSubscription(7, 9, "Toshkent", True, id=1))
+    provider = TrackingTodayProvider()
+    services = make_services(repository, provider)
+    message = FakeMessage()
+
+    assert handler is not None
+    await asyncio.gather(
+        handler(FakeCallback("offset-change:shom:1", message), services),
+        handler(FakeCallback("offset-change:shom:1", message), services),
+    )
+
+    assert repository.item is not None
+    assert repository.item.offsets == PrayerOffsets(shom=2)
+    assert provider.max_in_flight == 1
+    assert "Joriy farq: +2 daqiqa" in message.edits[-1].text
+
+
+async def test_zero_at_zero_is_acknowledged_without_write_or_identical_edit() -> None:
+    handler = getattr(handlers_module, "handle_offset_change", None)
+    repository = InMemorySubscriptions(UserSubscription(7, 9, "Toshkent", True, id=1))
+    message = FakeMessage()
+    callback = FakeCallback("offset-change:shom:0", message)
+
+    assert handler is not None
+    await handler(callback, make_services(repository))
+
+    assert repository.save_calls == 0
+    assert message.edits == []
+    assert callback.answered is True
