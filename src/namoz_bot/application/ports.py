@@ -14,6 +14,10 @@ from namoz_bot.domain.models import (
 class PrayerScheduleProvider(Protocol):
     """Fetch prayer schedules without exposing transport details."""
 
+    async def get_today(self, region_code: str) -> PrayerSchedule:
+        """Return the provider's current-day schedule for a region."""
+        ...
+
     async def get_for_date(self, region_code: str, target_date: date) -> PrayerSchedule:
         """Return the provider schedule for the requested region and date."""
         ...
@@ -26,20 +30,29 @@ class SubscriptionRepository(Protocol):
 
     async def add(self, subscription: UserSubscription) -> UserSubscription: ...
 
+    async def upsert_start(
+        self, subscription: UserSubscription
+    ) -> tuple[UserSubscription, bool]: ...
+
     async def save(self, subscription: UserSubscription) -> UserSubscription: ...
 
-    async def list_active(self) -> list[UserSubscription]: ...
+    async def list_active_page(
+        self,
+        *,
+        after_id: int,
+        limit: int,
+    ) -> list[UserSubscription]: ...
 
 
 class DeliveryRepository(Protocol):
     """Reserve and track idempotent outgoing messages."""
 
-    async def reserve(
+    async def claim_batch(
         self,
-        user_id: int,
+        user_ids: list[int],
         schedule_date: date,
         delivery_type: DeliveryType,
-    ) -> bool: ...
+    ) -> set[int]: ...
 
     async def mark_status(
         self,

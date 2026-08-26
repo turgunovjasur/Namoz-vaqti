@@ -22,12 +22,30 @@ class InMemorySubscriptionRepository:
         self.items[stored.telegram_user_id] = stored
         return stored
 
+    async def upsert_start(self, subscription: UserSubscription) -> tuple[UserSubscription, bool]:
+        existing = self.items.get(subscription.telegram_user_id)
+        if existing is None:
+            return await self.add(subscription), True
+        stored = UserSubscription(
+            id=existing.id,
+            telegram_user_id=existing.telegram_user_id,
+            chat_id=subscription.chat_id,
+            region_code=existing.region_code,
+            is_active=True,
+        )
+        self.items[stored.telegram_user_id] = stored
+        return stored, False
+
     async def save(self, subscription: UserSubscription) -> UserSubscription:
         self.items[subscription.telegram_user_id] = subscription
         return subscription
 
-    async def list_active(self) -> list[UserSubscription]:
-        return [item for item in self.items.values() if item.is_active]
+    async def list_active_page(self, *, after_id: int, limit: int) -> list[UserSubscription]:
+        return [
+            item
+            for item in self.items.values()
+            if item.is_active and item.id is not None and item.id > after_id
+        ][:limit]
 
 
 async def test_start_creates_active_tashkent_subscription_once() -> None:

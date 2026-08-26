@@ -33,15 +33,31 @@ class InMemorySubscriptions:
         )
         return self.item
 
+    async def upsert_start(self, subscription: UserSubscription) -> tuple[UserSubscription, bool]:
+        if self.item is None:
+            return await self.add(subscription), True
+        self.item = UserSubscription(
+            telegram_user_id=self.item.telegram_user_id,
+            chat_id=subscription.chat_id,
+            region_code=self.item.region_code,
+            is_active=True,
+            id=self.item.id,
+        )
+        return self.item, False
+
     async def save(self, subscription: UserSubscription) -> UserSubscription:
         self.item = subscription
         return subscription
 
-    async def list_active(self) -> list[UserSubscription]:
+    async def list_active_page(self, *, after_id: int, limit: int) -> list[UserSubscription]:
+        del after_id, limit
         return [] if self.item is None or not self.item.is_active else [self.item]
 
 
 class ScheduleProvider:
+    async def get_today(self, region_code: str) -> PrayerSchedule:
+        return await self.get_for_date(region_code, date(2026, 8, 27))
+
     async def get_for_date(self, region_code: str, target_date: date) -> PrayerSchedule:
         display_name = "Samarqand" if region_code == "Samarqand" else "Toshkent"
         return PrayerSchedule(

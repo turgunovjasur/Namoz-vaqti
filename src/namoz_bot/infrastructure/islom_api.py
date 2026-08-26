@@ -24,6 +24,16 @@ class IslomApiClient:
         self._http_client = http_client
         self._retry_delays = retry_delays
 
+    async def get_today(self, region_code: str) -> PrayerSchedule:
+        response = await self._get_with_retry(
+            "/api/present/day",
+            params={"region": region_code},
+        )
+        return self._to_schedule(
+            self._read_payload(response),
+            requested_region_code=region_code,
+        )
+
     async def get_for_date(self, region_code: str, target_date: date) -> PrayerSchedule:
         response = await self._get_with_retry(
             "/api/daily",

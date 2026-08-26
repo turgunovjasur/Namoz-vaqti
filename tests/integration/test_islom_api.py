@@ -53,6 +53,41 @@ async def test_client_requests_daily_endpoint_and_maps_complete_payload() -> Non
 
 
 @pytest.mark.asyncio
+async def test_client_requests_present_day_endpoint_for_today() -> None:
+    captured_request: httpx.Request | None = None
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal captured_request
+        captured_request = request
+        return httpx.Response(200, json=valid_payload(schedule_date="2026-08-26"))
+
+    async with httpx.AsyncClient(
+        base_url="https://islomapi.uz",
+        transport=httpx.MockTransport(handler),
+    ) as http_client:
+        schedule = await IslomApiClient(http_client).get_today("Toshkent")
+
+    assert captured_request is not None
+    assert captured_request.url.path == "/api/present/day"
+    assert dict(captured_request.url.params) == {"region": "Toshkent"}
+    assert schedule.date == date(2026, 8, 26)
+
+
+@pytest.mark.asyncio
+async def test_client_validates_new_year_daily_response_date() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=valid_payload(schedule_date="2027-01-01"))
+
+    async with httpx.AsyncClient(
+        base_url="https://islomapi.uz",
+        transport=httpx.MockTransport(handler),
+    ) as http_client:
+        schedule = await IslomApiClient(http_client).get_for_date("Toshkent", date(2027, 1, 1))
+
+    assert schedule.date == date(2027, 1, 1)
+
+
+@pytest.mark.asyncio
 async def test_client_retries_transient_server_error() -> None:
     attempts = 0
 

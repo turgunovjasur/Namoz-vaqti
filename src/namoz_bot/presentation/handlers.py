@@ -41,7 +41,7 @@ def _message_identity(message: Any) -> tuple[int, int]:
 
 
 async def _send_today(message: Any, services: HandlerServices, region_code: str) -> None:
-    schedule = await services.schedules.get_schedule(region_code, services.today())
+    schedule = await services.schedules.get_today(region_code, services.today())
     subscription = await services.subscriptions.get(_message_identity(message)[0])
     await message.answer(
         format_schedule(schedule, relative_label="Bugun"),
@@ -99,7 +99,7 @@ async def handle_region_selection(
         return
 
     await handler_services.subscriptions.change_region(callback.from_user.id, region.code)
-    schedule = await handler_services.schedules.get_schedule(region.code, handler_services.today())
+    schedule = await handler_services.schedules.get_today(region.code, handler_services.today())
     subscription = await handler_services.subscriptions.get(callback.from_user.id)
     await callback.message.answer(
         format_schedule(schedule, relative_label="Bugun"),

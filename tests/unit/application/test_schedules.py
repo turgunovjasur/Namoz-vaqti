@@ -32,6 +32,9 @@ class StubProvider:
     def __init__(self, schedule: PrayerSchedule) -> None:
         self.schedule = schedule
 
+    async def get_today(self, region_code: str) -> PrayerSchedule:
+        return self.schedule
+
     async def get_for_date(self, region_code: str, target_date: date) -> PrayerSchedule:
         return self.schedule
 

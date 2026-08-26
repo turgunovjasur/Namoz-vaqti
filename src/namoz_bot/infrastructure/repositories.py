@@ -1,9 +1,12 @@
-"""SQLAlchemy implementations of application persistence ports."""
+"""Short-transaction SQLAlchemy implementations of persistence ports."""
 
 from datetime import UTC, date, datetime
+from typing import Any
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.dialects.postgresql import insert as postgresql_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from namoz_bot.domain.errors import SubscriptionNotFoundError
 from namoz_bot.domain.models import (
@@ -24,82 +27,177 @@ def _to_subscription(record: UserRecord) -> UserSubscription:
     )
 
 
-class SqlAlchemySubscriptionRepository:
-    """Store subscription entities in one SQLAlchemy session."""
+def _dialect_name(session: AsyncSession) -> str:
+    return session.get_bind().dialect.name
 
-    def __init__(self, session: AsyncSession) -> None:
-        self._session = session
+
+class SqlAlchemySubscriptionRepository:
+    """Persist each subscription operation in its own short transaction."""
+
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
+        self._session_factory = session_factory
 
     async def get_by_telegram_user_id(self, telegram_user_id: int) -> UserSubscription | None:
-        record = await self._session.scalar(
-            select(UserRecord).where(UserRecord.telegram_user_id == telegram_user_id)
-        )
-        return None if record is None else _to_subscription(record)
+        async with self._session_factory() as session:
+            record = await session.scalar(
+                select(UserRecord).where(UserRecord.telegram_user_id == telegram_user_id)
+            )
+            return None if record is None else _to_subscription(record)
 
     async def add(self, subscription: UserSubscription) -> UserSubscription:
-        record = UserRecord(
-            telegram_user_id=subscription.telegram_user_id,
-            chat_id=subscription.chat_id,
-            region_code=subscription.region_code,
-            is_active=subscription.is_active,
-        )
-        self._session.add(record)
-        await self._session.flush()
-        return _to_subscription(record)
+        async with self._session_factory.begin() as session:
+            record = UserRecord(
+                telegram_user_id=subscription.telegram_user_id,
+                chat_id=subscription.chat_id,
+                region_code=subscription.region_code,
+                is_active=subscription.is_active,
+            )
+            session.add(record)
+            await session.flush()
+            return _to_subscription(record)
+
+    async def upsert_start(
+        self,
+        subscription: UserSubscription,
+    ) -> tuple[UserSubscription, bool]:
+        """Create or reactivate a Telegram user without a uniqueness race."""
+
+        async with self._session_factory.begin() as session:
+            existed = await session.scalar(
+                select(UserRecord.id).where(
+                    UserRecord.telegram_user_id == subscription.telegram_user_id
+                )
+            )
+            values = {
+                "telegram_user_id": subscription.telegram_user_id,
+                "chat_id": subscription.chat_id,
+                "region_code": subscription.region_code,
+                "is_active": True,
+            }
+            updates = {
+                "chat_id": subscription.chat_id,
+                "is_active": True,
+                "updated_at": datetime.now(UTC),
+            }
+            statement: Any
+            if _dialect_name(session) == "postgresql":
+                statement = (
+                    postgresql_insert(UserRecord)
+                    .values(**values)
+                    .on_conflict_do_update(
+                        index_elements=[UserRecord.telegram_user_id],
+                        set_=updates,
+                    )
+                    .returning(UserRecord)
+                )
+            elif _dialect_name(session) == "sqlite":
+                statement = (
+                    sqlite_insert(UserRecord)
+                    .values(**values)
+                    .on_conflict_do_update(
+                        index_elements=[UserRecord.telegram_user_id],
+                        set_=updates,
+                    )
+                    .returning(UserRecord)
+                )
+            else:
+                raise RuntimeError("Faqat PostgreSQL va test SQLite dialektlari qo‘llanadi")
+
+            record = (await session.execute(statement)).scalar_one()
+            return _to_subscription(record), existed is None
 
     async def save(self, subscription: UserSubscription) -> UserSubscription:
-        record = await self._session.scalar(
-            select(UserRecord).where(UserRecord.telegram_user_id == subscription.telegram_user_id)
-        )
-        if record is None:
-            raise SubscriptionNotFoundError(
-                f"Telegram foydalanuvchisi topilmadi: {subscription.telegram_user_id}"
+        async with self._session_factory.begin() as session:
+            record = await session.scalar(
+                select(UserRecord).where(
+                    UserRecord.telegram_user_id == subscription.telegram_user_id
+                )
             )
-        record.chat_id = subscription.chat_id
-        record.region_code = subscription.region_code
-        record.is_active = subscription.is_active
-        await self._session.flush()
-        return _to_subscription(record)
+            if record is None:
+                raise SubscriptionNotFoundError(
+                    f"Telegram foydalanuvchisi topilmadi: {subscription.telegram_user_id}"
+                )
+            record.chat_id = subscription.chat_id
+            record.region_code = subscription.region_code
+            record.is_active = subscription.is_active
+            await session.flush()
+            return _to_subscription(record)
 
-    async def list_active(self) -> list[UserSubscription]:
-        records = (
-            await self._session.scalars(
-                select(UserRecord).where(UserRecord.is_active.is_(True)).order_by(UserRecord.id)
-            )
-        ).all()
-        return [_to_subscription(record) for record in records]
+    async def list_active_page(
+        self,
+        *,
+        after_id: int,
+        limit: int,
+    ) -> list[UserSubscription]:
+        async with self._session_factory() as session:
+            records = (
+                await session.scalars(
+                    select(UserRecord)
+                    .where(UserRecord.is_active.is_(True), UserRecord.id > after_id)
+                    .order_by(UserRecord.id)
+                    .limit(limit)
+                )
+            ).all()
+            return [_to_subscription(record) for record in records]
 
 
 class SqlAlchemyDeliveryRepository:
-    """Track daily delivery status in one SQLAlchemy session."""
+    """Atomically claim delivery attempts and persist each result immediately."""
 
-    def __init__(self, session: AsyncSession) -> None:
-        self._session = session
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
+        self._session_factory = session_factory
 
-    async def reserve(
+    async def claim_batch(
         self,
-        user_id: int,
+        user_ids: list[int],
         schedule_date: date,
         delivery_type: DeliveryType,
-    ) -> bool:
-        record = await self._find(user_id, schedule_date, delivery_type)
-        if record is None:
-            self._session.add(
-                DeliveryRecord(
-                    user_id=user_id,
-                    schedule_date=schedule_date,
-                    delivery_type=delivery_type.value,
-                    status=DeliveryStatus.PENDING.value,
+    ) -> set[int]:
+        if not user_ids:
+            return set()
+
+        values = [
+            {
+                "user_id": user_id,
+                "schedule_date": schedule_date,
+                "delivery_type": delivery_type.value,
+                "status": DeliveryStatus.PENDING.value,
+            }
+            for user_id in user_ids
+        ]
+        async with self._session_factory.begin() as session:
+            statement: Any
+            if _dialect_name(session) == "postgresql":
+                statement = (
+                    postgresql_insert(DeliveryRecord)
+                    .values(values)
+                    .on_conflict_do_nothing(
+                        index_elements=[
+                            DeliveryRecord.user_id,
+                            DeliveryRecord.schedule_date,
+                            DeliveryRecord.delivery_type,
+                        ]
+                    )
+                    .returning(DeliveryRecord.user_id)
                 )
-            )
-            await self._session.flush()
-            return True
-        if record.status == DeliveryStatus.SENT.value:
-            return False
-        record.status = DeliveryStatus.PENDING.value
-        record.error_code = None
-        await self._session.flush()
-        return True
+            elif _dialect_name(session) == "sqlite":
+                statement = (
+                    sqlite_insert(DeliveryRecord)
+                    .values(values)
+                    .on_conflict_do_nothing(
+                        index_elements=[
+                            DeliveryRecord.user_id,
+                            DeliveryRecord.schedule_date,
+                            DeliveryRecord.delivery_type,
+                        ]
+                    )
+                    .returning(DeliveryRecord.user_id)
+                )
+            else:
+                raise RuntimeError("Faqat PostgreSQL va test SQLite dialektlari qo‘llanadi")
+
+            claimed = (await session.scalars(statement)).all()
+            return set(claimed)
 
     async def mark_status(
         self,
@@ -110,25 +208,17 @@ class SqlAlchemyDeliveryRepository:
         *,
         error_code: str | None = None,
     ) -> None:
-        record = await self._find(user_id, schedule_date, delivery_type)
-        if record is None:
-            raise LookupError("Yuborish rezervatsiyasi topilmadi")
-        record.status = status.value
-        record.error_code = error_code
-        record.sent_at = datetime.now(UTC) if status is DeliveryStatus.SENT else None
-        await self._session.flush()
-
-    async def _find(
-        self,
-        user_id: int,
-        schedule_date: date,
-        delivery_type: DeliveryType,
-    ) -> DeliveryRecord | None:
-        record: DeliveryRecord | None = await self._session.scalar(
-            select(DeliveryRecord).where(
-                DeliveryRecord.user_id == user_id,
-                DeliveryRecord.schedule_date == schedule_date,
-                DeliveryRecord.delivery_type == delivery_type.value,
+        async with self._session_factory.begin() as session:
+            record = await session.scalar(
+                select(DeliveryRecord).where(
+                    DeliveryRecord.user_id == user_id,
+                    DeliveryRecord.schedule_date == schedule_date,
+                    DeliveryRecord.delivery_type == delivery_type.value,
+                )
             )
-        )
-        return record
+            if record is None:
+                raise LookupError("Yuborish rezervatsiyasi topilmadi")
+            record.status = status.value
+            record.error_code = error_code
+            record.sent_at = datetime.now(UTC) if status is DeliveryStatus.SENT else None
+            await session.flush()

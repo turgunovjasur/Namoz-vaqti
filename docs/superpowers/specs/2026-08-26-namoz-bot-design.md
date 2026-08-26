@@ -36,10 +36,12 @@ O‘zbekiston hududlari uchun namoz vaqtlarini `islomapi.uz` dan olib, Telegram 
 ### Kunlik xabar
 
 1. Scheduler har kuni 21:00 da ishga tushadi.
-2. Faol foydalanuvchilar tanlangan hudud bo‘yicha guruhlanadi.
+2. Faol foydalanuvchilar ID bo‘yicha cheklangan sahifalarda olinadi va tanlangan
+   hudud bo‘yicha guruhlanadi.
 3. Har bir noyob hudud uchun ertangi jadval API’dan bir marta olinadi.
 4. Javob tekshiriladi va shu hududdagi foydalanuvchilarga yuboriladi.
-5. Har foydalanuvchi va sana bo‘yicha muvaffaqiyatli yuborish qayd qilinadi; qayta ishga tushish takroriy xabar bermaydi.
+5. Har foydalanuvchi va sana bo‘yicha urinish Telegram’dan oldin atomik claim
+   qilinadi; qayta ishga tushish takroriy xabar bermaydi.
 
 ## Xabar formati
 
@@ -150,8 +152,15 @@ Vaqtincha xatolarda cheklangan exponential backoff bilan qayta urinish amalga os
 
 - API’ga har foydalanuvchi uchun emas, har noyob hudud uchun bitta so‘rov yuboriladi.
 - Telegram rate limitlariga rioya qilish uchun xabarlar boshqariladigan tezlikda yuboriladi.
+- Faol foydalanuvchilar keyset pagination bilan bounded batchlarda olinadi va
+  yuborishlar bounded worker pool orqali bajariladi.
 - Muvaffaqiyat va xatolar loglanadi, ammo bot tokeni yoki foydalanuvchining keraksiz shaxsiy ma’lumoti logga yozilmaydi.
-- Jarayon qayta ishga tushsa, `deliveries` jadvali orqali yuborilmagan foydalanuvchilardan davom etadi.
+- `deliveries` claim PostgreSQL `ON CONFLICT DO NOTHING` orqali atomik bo‘ladi;
+  parallel replicasidan faqat bittasi foydalanuvchini oladi.
+- Birinchi bosqich dublikatni oldini olishni ustun qo‘yadigan `at-most-once`
+  semantikasidan foydalanadi. Telegram va PostgreSQL o‘rtasida umumiy tranzaksiya
+  bo‘lmagani sabab claimdan keyingi crash oynasida xabar o‘tmay qolishi mumkin,
+  lekin `PENDING`, `SENT` yoki `FAILED` delivery avtomatik qayta claim qilinmaydi.
 
 ## Asosiy menyu va buyruqlar
 

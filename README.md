@@ -11,8 +11,12 @@ Telegram foydalanuvchilariga yuboradigan asinxron bot.
   birini tanlaydi.
 - Har kuni `21:00` da `Asia/Tashkent` vaqt zonasi bo‘yicha ertangi kunning
   Bomdod, Quyosh, Peshin, Asr, Shom va Xufton vaqtlari yuboriladi.
-- Yuborishlar bazada qayd qilinadi, shu sabab servis qayta ishga tushsa ham bir
-  foydalanuvchiga bir sana uchun ikki marta jadval yuborilmaydi.
+- Yuborish urinishlari Telegram chaqiruvidan oldin bazada atomik qayd qilinadi;
+  shu sabab servis qayta ishga tushsa ham bir foydalanuvchiga bir sana uchun ikki
+  marta jadval yuborilmaydi.
+- Ommaviy yuborish keyset sahifalarda va cheklangan parallelizm bilan bajariladi;
+  bitta process Telegram’ga standart holatda soniyasiga ko‘pi bilan 25 ta xabar
+  chiqaradi.
 
 ## Arxitektura
 
@@ -45,6 +49,11 @@ cp .env.example .env
 
 `.env` ichida `TELEGRAM_BOT_TOKEN` va `DATABASE_URL` qiymatlarini kiriting. Tokenni
 Git’ga commit qilmang.
+
+Ixtiyoriy masshtablash sozlamalari: `BROADCAST_BATCH_SIZE`,
+`TELEGRAM_MAX_CONCURRENCY` va `TELEGRAM_MESSAGES_PER_SECOND`. Bir nechta bot
+replicasini ishga tushirish mumkin: delivery claim PostgreSQL’da atomik bo‘lib,
+bir yozuvni faqat bitta worker oladi.
 
 Ma’lumotlar bazasini tayyorlash va botni ishga tushirish:
 
@@ -85,3 +94,13 @@ Alohida buyruqlar: `make test`, `make lint`, `make typecheck`, `make format`.
 Bot tokeni faqat environment variable’dan olinadi. Loglarga token, request headerlari
 yoki foydalanuvchining keraksiz shaxsiy ma’lumoti yozilmaydi. Saqlanadigan minimal
 ma’lumot: Telegram user/chat identifikatori, tanlangan hudud va obuna holati.
+
+## Delivery kafolati
+
+Telegram va PostgreSQL o‘rtasida umumiy tranzaksiya yo‘q. Bot dublikat yuborishni
+oldini olishni ustun qo‘yadi (`at-most-once`): delivery avval `PENDING` holatida
+commit qilinadi, keyin Telegram’ga yuboriladi. Process aynan shu ikki amal orasida
+yoki Telegram qabul qilganidan keyin `SENT` yozilishidan oldin to‘xtasa, yozuv
+avtomatik qayta claim qilinmaydi. Natijada dublikat bo‘lmaydi, ammo shu kam uchraydigan
+crash oynasida bitta xabar o‘tmay qolishi mumkin. `FAILED`/`PENDING` yozuvlarini qayta
+yuborish kelajakdagi operator recovery vositasi orqali ongli ravishda bajariladi.

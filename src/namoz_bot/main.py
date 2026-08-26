@@ -20,10 +20,10 @@ from namoz_bot.infrastructure.repositories import (
     SqlAlchemyDeliveryRepository,
     SqlAlchemySubscriptionRepository,
 )
-from namoz_bot.infrastructure.telegram import TelegramMessageSender
+from namoz_bot.infrastructure.telegram import TelegramMessageSender, TelegramRateLimiter
 from namoz_bot.logging import configure_logging
 from namoz_bot.presentation.handlers import router
-from namoz_bot.presentation.middleware import ServicesMiddleware
+from namoz_bot.presentation.middleware import ErrorHandlingMiddleware, ServicesMiddleware
 from namoz_bot.scheduler import create_scheduler
 
 logger = logging.getLogger(__name__)
@@ -51,31 +51,35 @@ def _build_broadcast_runner(
     session_factory: async_sessionmaker[AsyncSession],
     schedule_service: ScheduleService,
     sender: TelegramMessageSender,
+    *,
+    batch_size: int,
+    max_concurrency: int,
 ) -> Callable[[date], Awaitable[BroadcastReport]]:
     async def run_broadcast(target_date: date) -> BroadcastReport:
-        async with session_factory() as session:
-            service = BroadcastService(
-                SqlAlchemySubscriptionRepository(session),
-                SqlAlchemyDeliveryRepository(session),
-                schedule_service,
-                sender,
-            )
-            try:
-                report = await service.send_next_day(target_date)
-            except Exception:
-                await session.rollback()
-                logger.exception("daily_broadcast_failed date=%s", target_date.isoformat())
-                raise
-            await session.commit()
-            logger.info(
-                "daily_broadcast_complete date=%s sent=%d skipped=%d deactivated=%d failed=%d",
-                target_date.isoformat(),
-                report.sent,
-                report.skipped,
-                report.deactivated,
-                report.failed,
-            )
-            return report
+        service = BroadcastService(
+            SqlAlchemySubscriptionRepository(session_factory),
+            SqlAlchemyDeliveryRepository(session_factory),
+            schedule_service,
+            sender,
+            batch_size=batch_size,
+            max_concurrency=max_concurrency,
+        )
+        try:
+            report = await service.send_next_day(target_date)
+        except Exception:
+            logger.exception("daily_broadcast_failed date=%s", target_date.isoformat())
+            raise
+        logger.info(
+            "daily_broadcast_complete date=%s sent=%d skipped=%d deactivated=%d "
+            "failed=%d failed_regions=%s",
+            target_date.isoformat(),
+            report.sent,
+            report.skipped,
+            report.deactivated,
+            report.failed,
+            ",".join(report.failed_regions),
+        )
+        return report
 
     return run_broadcast
 
@@ -96,12 +100,23 @@ def create_application(settings: Settings) -> ApplicationResources:
         schedule_service,
         timezone=settings.timezone,
     )
+    dispatcher.message.outer_middleware(ErrorHandlingMiddleware())
     dispatcher.message.outer_middleware(middleware)
+    dispatcher.callback_query.outer_middleware(ErrorHandlingMiddleware())
     dispatcher.callback_query.outer_middleware(middleware)
     dispatcher.include_router(router)
 
-    sender = TelegramMessageSender(bot)
-    run_broadcast = _build_broadcast_runner(session_factory, schedule_service, sender)
+    sender = TelegramMessageSender(
+        bot,
+        rate_limiter=TelegramRateLimiter(messages_per_second=settings.telegram_messages_per_second),
+    )
+    run_broadcast = _build_broadcast_runner(
+        session_factory,
+        schedule_service,
+        sender,
+        batch_size=settings.broadcast_batch_size,
+        max_concurrency=settings.telegram_max_concurrency,
+    )
     scheduler = create_scheduler(
         run_broadcast,
         send_time=settings.daily_send_time,

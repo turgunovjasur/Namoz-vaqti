@@ -24,3 +24,21 @@ class Settings(BaseSettings):
         default="https://islomapi.uz",
         validation_alias="ISLOM_API_BASE_URL",
     )
+    broadcast_batch_size: int = Field(
+        default=500,
+        ge=1,
+        le=5000,
+        validation_alias="BROADCAST_BATCH_SIZE",
+    )
+    telegram_max_concurrency: int = Field(
+        default=10,
+        ge=1,
+        le=100,
+        validation_alias="TELEGRAM_MAX_CONCURRENCY",
+    )
+    telegram_messages_per_second: float = Field(
+        default=25.0,
+        gt=0,
+        le=30,
+        validation_alias="TELEGRAM_MESSAGES_PER_SECOND",
+    )

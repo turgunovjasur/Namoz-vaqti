@@ -24,6 +24,14 @@ class FakeBot:
             raise self.failures.pop(0)
 
 
+class FakeLimiter:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def acquire(self) -> None:
+        self.calls += 1
+
+
 async def test_sender_translates_forbidden_recipient() -> None:
     method = SendMessage(chat_id=10, text="jadval")
     bot = FakeBot([TelegramForbiddenError(method, "bot was blocked")])
@@ -32,10 +40,22 @@ async def test_sender_translates_forbidden_recipient() -> None:
         await TelegramMessageSender(cast(Bot, bot)).send(10, "jadval")
 
 
-async def test_sender_retries_telegram_rate_limit_once() -> None:
+async def test_sender_retries_multiple_rate_limits_with_shared_limiter() -> None:
     method = SendMessage(chat_id=10, text="jadval")
-    bot = FakeBot([TelegramRetryAfter(method, "retry", retry_after=3)])
+    bot = FakeBot(
+        [
+            TelegramRetryAfter(method, "retry", retry_after=3),
+            TelegramRetryAfter(method, "retry", retry_after=2),
+        ]
+    )
+    limiter = FakeLimiter()
 
-    await TelegramMessageSender(cast(Bot, bot), sleep=no_sleep).send(10, "jadval")
+    await TelegramMessageSender(
+        cast(Bot, bot),
+        sleep=no_sleep,
+        rate_limiter=limiter,
+        max_attempts=3,
+    ).send(10, "jadval")
 
-    assert bot.calls == [(10, "jadval"), (10, "jadval")]
+    assert bot.calls == [(10, "jadval"), (10, "jadval"), (10, "jadval")]
+    assert limiter.calls == 3

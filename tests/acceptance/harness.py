@@ -46,12 +46,34 @@ class InMemorySubscriptionRepository:
         self._by_telegram_id[saved.telegram_user_id] = saved
         return saved
 
+    async def upsert_start(self, subscription: UserSubscription) -> tuple[UserSubscription, bool]:
+        existing = self._by_telegram_id.get(subscription.telegram_user_id)
+        if existing is None:
+            return await self.add(subscription), True
+        saved = UserSubscription(
+            telegram_user_id=existing.telegram_user_id,
+            chat_id=subscription.chat_id,
+            region_code=existing.region_code,
+            is_active=True,
+            id=existing.id,
+        )
+        self._by_telegram_id[saved.telegram_user_id] = saved
+        return saved, False
+
     async def save(self, subscription: UserSubscription) -> UserSubscription:
         self._by_telegram_id[subscription.telegram_user_id] = subscription
         return subscription
 
-    async def list_active(self) -> list[UserSubscription]:
-        return [item for item in self._by_telegram_id.values() if item.is_active]
+    async def list_active_page(self, *, after_id: int, limit: int) -> list[UserSubscription]:
+        items = sorted(
+            (
+                item
+                for item in self._by_telegram_id.values()
+                if item.is_active and item.id is not None and item.id > after_id
+            ),
+            key=lambda item: item.id or 0,
+        )
+        return items[:limit]
 
 
 class InMemoryDeliveryRepository:
@@ -60,17 +82,19 @@ class InMemoryDeliveryRepository:
     def __init__(self) -> None:
         self._statuses: dict[tuple[int, date, DeliveryType], DeliveryStatus] = {}
 
-    async def reserve(
+    async def claim_batch(
         self,
-        user_id: int,
+        user_ids: list[int],
         schedule_date: date,
         delivery_type: DeliveryType,
-    ) -> bool:
-        key = (user_id, schedule_date, delivery_type)
-        if self._statuses.get(key) in {DeliveryStatus.PENDING, DeliveryStatus.SENT}:
-            return False
-        self._statuses[key] = DeliveryStatus.PENDING
-        return True
+    ) -> set[int]:
+        claimed: set[int] = set()
+        for user_id in user_ids:
+            key = (user_id, schedule_date, delivery_type)
+            if key not in self._statuses:
+                self._statuses[key] = DeliveryStatus.PENDING
+                claimed.add(user_id)
+        return claimed
 
     async def mark_status(
         self,
@@ -90,6 +114,9 @@ class FakeScheduleProvider:
 
     def __init__(self) -> None:
         self.calls: list[tuple[str, date]] = []
+
+    async def get_today(self, region_code: str) -> PrayerSchedule:
+        return await self.get_for_date(region_code, date(2026, 8, 26))
 
     async def get_for_date(self, region_code: str, target_date: date) -> PrayerSchedule:
         self.calls.append((region_code, target_date))

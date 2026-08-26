@@ -28,11 +28,26 @@ class ScheduleService:
     def __init__(self, provider: PrayerScheduleProvider) -> None:
         self._provider = provider
 
+    async def get_today(self, region_code: str, expected_date: date) -> PrayerSchedule:
+        """Fetch today's dedicated endpoint and validate its local date."""
+
+        schedule = await self._provider.get_today(region_code)
+        return self._validate(schedule, region_code, expected_date)
+
     async def get_schedule(self, region_code: str, target_date: date) -> PrayerSchedule:
         schedule = await self._provider.get_for_date(region_code, target_date)
-        if schedule.date != target_date:
+        return self._validate(schedule, region_code, target_date)
+
+    @staticmethod
+    def _validate(
+        schedule: PrayerSchedule,
+        region_code: str,
+        expected_date: date,
+    ) -> PrayerSchedule:
+        if schedule.date != expected_date:
             raise ScheduleDateMismatchError(
-                f"Kutilgan sana {target_date.isoformat()}, qaytgan sana {schedule.date.isoformat()}"
+                "Kutilgan sana "
+                f"{expected_date.isoformat()}, qaytgan sana {schedule.date.isoformat()}"
             )
         if schedule.region_code != region_code:
             raise ScheduleRegionMismatchError(
