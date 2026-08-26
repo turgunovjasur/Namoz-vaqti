@@ -1,0 +1,26 @@
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: namoz
+      POSTGRES_USER: namoz
+      POSTGRES_PASSWORD: namoz
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U namoz -d namoz"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  bot:
+    build: .
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["sh", "-c", "alembic upgrade head && namoz-bot"]
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
