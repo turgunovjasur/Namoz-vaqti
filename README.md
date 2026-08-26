@@ -7,8 +7,9 @@ Telegram foydalanuvchilariga yuboradigan asinxron bot.
 
 - `/start` yangi foydalanuvchini standart **Toshkent** hududi bilan ro‘yxatdan o‘tkazadi
   va bugungi to‘liq jadvalni darhol yuboradi.
-- Foydalanuvchi sozlamalarda `namoz-vaqti.uz` uchun tekshirilgan O‘zbekiston hududlaridan
-  birini tanlaydi.
+- Foydalanuvchi sozlamalarda avval 14 ta geografik guruhdan birini, so‘ng shahar
+  yoki tumanni tanlaydi. Katalog `namoz-vaqti.uz` ko‘rsatadigan 223 ta yozuvni
+  qamrab oladi: 209 ta canonical hudud va provider shaharga yo‘naltiradigan 14 ta alias.
 - Har kuni `21:00` da `Asia/Tashkent` vaqt zonasi bo‘yicha ertangi kunning
   Bomdod, Quyosh, Peshin, Asr, Shom va Xufton vaqtlari yuboriladi.
 - Yuborish urinishlari Telegram chaqiruvidan oldin bazada atomik qayd qilinadi;
@@ -84,6 +85,10 @@ boshlaydi.
 - `/today` — tanlangan hududning bugungi jadvali;
 - `/settings` — hudud va xabar holatini o‘zgartirish;
 - `/help` — qisqa yordam.
+
+Hudud tanlash ikki bosqichli: viloyat/hudud guruhi → viloyat, shahar yoki tuman.
+Har bir guruhdagi birinchi tanlov shu viloyatning umumiy jadvalidir; ro‘yxat
+oxiridagi `⬅️ Viloyatlar` tugmasi guruhlar menyusiga qaytaradi.
 
 ## Sifat tekshiruvlari
 

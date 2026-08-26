@@ -104,7 +104,7 @@ async def test_client_requests_today_json_with_verified_provider_slug() -> None:
     }
     assert schedule.date == date(2026, 8, 26)
     assert schedule.region_code == "Toshkent"
-    assert schedule.region_name == "Toshkent"
+    assert schedule.region_name == "Toshkent shahri"
     assert schedule.times.bomdod == "04:19"
     assert schedule.times.xufton == "20:30"
 

@@ -11,7 +11,8 @@ from aiogram.types import CallbackQuery, Message
 
 from namoz_bot.application.schedules import ScheduleService, format_schedule
 from namoz_bot.application.subscriptions import SubscriptionService
-from namoz_bot.domain.regions import get_region, list_regions
+from namoz_bot.domain.errors import UnsupportedRegionError
+from namoz_bot.domain.regions import get_region, get_region_group
 from namoz_bot.presentation.keyboards import (
     DISABLE_LABEL,
     ENABLE_LABEL,
@@ -19,6 +20,7 @@ from namoz_bot.presentation.keyboards import (
     REGION_LABEL,
     TODAY_LABEL,
     build_main_menu,
+    build_region_group_keyboard,
     build_region_keyboard,
 )
 
@@ -67,20 +69,36 @@ async def handle_settings(message: Message, handler_services: HandlerServices) -
     region = get_region(subscription.region_code)
     await message.answer(
         f"Joriy hudud: {region.display_name}\nYangi hududni tanlang:",
-        reply_markup=build_region_keyboard(page=0),
+        reply_markup=build_region_group_keyboard(),
     )
 
 
-async def handle_region_page(callback: CallbackQuery) -> None:
+async def handle_region_groups(callback: CallbackQuery) -> None:
+    if callback.message is None:
+        await callback.answer("So‘rov noto‘g‘ri", show_alert=True)
+        return
+    await callback.message.answer(
+        "Viloyat yoki hudud guruhini tanlang:",
+        reply_markup=build_region_group_keyboard(),
+    )
+    await callback.answer()
+
+
+async def handle_region_group_selection(callback: CallbackQuery) -> None:
     if callback.data is None or callback.message is None:
         await callback.answer("So‘rov noto‘g‘ri", show_alert=True)
         return
+    group_code = callback.data.removeprefix("region-group:")
     try:
-        page = int(callback.data.split(":", maxsplit=1)[1])
-    except (IndexError, ValueError):
-        await callback.answer("Sahifa topilmadi", show_alert=True)
+        group = get_region_group(group_code)
+        keyboard = build_region_keyboard(group_code=group.code)
+    except UnsupportedRegionError:
+        await callback.answer("Hudud guruhi topilmadi", show_alert=True)
         return
-    await callback.message.answer("Hududni tanlang:", reply_markup=build_region_keyboard(page=page))
+    await callback.message.answer(
+        f"{group.display_name}: shahar yoki tumanni tanlang:",
+        reply_markup=keyboard,
+    )
     await callback.answer()
 
 
@@ -92,9 +110,8 @@ async def handle_region_selection(
         await callback.answer("So‘rov noto‘g‘ri", show_alert=True)
         return
     try:
-        _, _, raw_index = callback.data.split(":", maxsplit=2)
-        region = list_regions()[int(raw_index)]
-    except (IndexError, ValueError):
+        region = get_region(callback.data.removeprefix("region:"))
+    except UnsupportedRegionError:
         await callback.answer("Hudud topilmadi", show_alert=True)
         return
 
@@ -139,5 +156,9 @@ router.message.register(handle_today, F.text == TODAY_LABEL)
 router.message.register(handle_settings, F.text == REGION_LABEL)
 router.message.register(handle_toggle_notifications, F.text.in_({DISABLE_LABEL, ENABLE_LABEL}))
 router.message.register(handle_help, F.text == HELP_LABEL)
-router.callback_query.register(handle_region_page, F.data.startswith("regions:"))
+router.callback_query.register(handle_region_groups, F.data == "region-groups")
+router.callback_query.register(
+    handle_region_group_selection,
+    F.data.startswith("region-group:"),
+)
 router.callback_query.register(handle_region_selection, F.data.startswith("region:"))

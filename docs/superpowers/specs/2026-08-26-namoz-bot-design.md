@@ -7,7 +7,8 @@ O‘zbekiston hududlari uchun namoz vaqtlarini `namoz-vaqti.uz` dan olib, Telegr
 ## Birinchi bosqich doirasi
 
 - Botdan istalgan Telegram foydalanuvchisi foydalanishi mumkin.
-- Faqat `namoz-vaqti.uz` uchun tekshirilgan O‘zbekiston hududlari ko‘rsatiladi.
+- `namoz-vaqti.uz` katalogidagi 223 ta ko‘rinadigan O‘zbekiston hududi 14 ta
+  geografik guruhda ko‘rsatiladi (209 canonical jadval va 14 provider aliasi).
 - Yangi foydalanuvchining standart hududi — Toshkent.
 - `/start` bosilganda foydalanuvchi bazaga yoziladi va bugungi Toshkent jadvali darhol yuboriladi.
 - Har kuni soat 21:00 da `Asia/Tashkent` vaqt zonasi bo‘yicha ertangi kunning to‘liq jadvali yuboriladi.
@@ -29,9 +30,13 @@ O‘zbekiston hududlari uchun namoz vaqtlarini `namoz-vaqti.uz` dan olib, Telegr
 ### Hududni o‘zgartirish
 
 1. Foydalanuvchi `📍 Hududni o‘zgartirish` tugmasini bosadi.
-2. Bot faqat qo‘llab-quvvatlanadigan O‘zbekiston hududlarini sahifalangan inline tugmalarda ko‘rsatadi.
-3. Foydalanuvchi bitta hududni tanlaydi.
-4. Bot tanlovni bazaga saqlaydi va yangi hududning bugungi jadvalini tasdiq sifatida yuboradi.
+2. Bot 14 ta geografik guruhni inline tugmalarda ko‘rsatadi.
+3. Foydalanuvchi guruhni tanlaydi; bot shu guruhdagi viloyat, shahar va tumanlarni
+   to‘liq nomlari bilan ko‘rsatadi.
+4. Guruh ichidagi birinchi tanlov viloyatning umumiy jadvalidir; `⬅️ Viloyatlar`
+   tugmasi birinchi bosqichga qaytaradi.
+5. Foydalanuvchi bitta hududni tanlaydi.
+6. Bot tanlovni bazaga saqlaydi va yangi hududning bugungi jadvalini tasdiq sifatida yuboradi.
 
 ### Kunlik xabar
 
@@ -91,7 +96,7 @@ Servis ichidagi mantiqiy qismlar:
 
 - Telegram handlerlari;
 - foydalanuvchi va obuna servisi;
-- hududlar katalogi va ko‘rinadigan nom/API nomi mappingi;
+- 14 guruhli hududlar katalogi va stable DB code/API canonical slug mappingi;
 - `namoz-vaqti.uz` API klienti;
 - jadvalni tekshirish va formatlash;
 - kunlik scheduler va ommaviy yuborish servisi;
@@ -135,6 +140,8 @@ Servis ichidagi mantiqiy qismlar:
   - `xufton` → `Xufton`.
 - Hududlar erkin matn orqali kiritilmaydi. Bot ichidagi tekshirilgan katalogdan tanlanadi.
 - API nomlaridagi apostrof va o‘xshash Unicode harflari sabab ko‘rinadigan nom bilan aniq API qiymati alohida saqlanadi.
+- Provider 14 ta tuman aliasini tegishli shahar canonical slugiga qaytaradi; bot
+  ko‘rinadigan tanlovni saqlaydi va qaytgan canonical slugni qat’iy tekshiradi.
 
 ## Tekshiruv va xatolik siyosati
 
@@ -192,7 +199,7 @@ Quyidagilar environment variable orqali beriladi:
 - sana, hudud, maydon va vaqt formatini tekshirish testlari;
 - xabar formatlash testlari;
 - `/start` idempotentligi va standart Toshkent testi;
-- hudud tanlash va saqlash testlari;
+- 14 guruh, 223 ko‘rinadigan hudud, 209 canonical slug hamda hudud tanlash/saqlash testlari;
 - foydalanuvchilarni hudud bo‘yicha guruhlash testi;
 - takroriy yuborishdan himoya testi;
 - bloklangan foydalanuvchini faolsizlantirish testi;
