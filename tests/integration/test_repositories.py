@@ -61,9 +61,9 @@ async def test_subscription_repository_round_trips_all_prayer_offsets(
             )
         )
     )
-    loaded = await SqlAlchemySubscriptionRepository(
-        session_factory
-    ).get_by_telegram_user_id(saved.telegram_user_id)
+    loaded = await SqlAlchemySubscriptionRepository(session_factory).get_by_telegram_user_id(
+        saved.telegram_user_id
+    )
 
     assert loaded is not None
     assert loaded.offsets == PrayerOffsets(-3, -2, -1, 1, 4, 5)

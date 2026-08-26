@@ -203,9 +203,7 @@ async def test_invalid_personal_adjustment_fails_only_that_delivery() -> None:
         ]
     )
     deliveries = Deliveries()
-    provider = Provider(
-        times=PrayerTimes("00:10", "05:42", "12:25", "17:10", "19:12", "20:32")
-    )
+    provider = Provider(times=PrayerTimes("00:10", "05:42", "12:25", "17:10", "19:12", "20:32"))
     sender = Sender()
     target_date = date(2026, 8, 27)
 
