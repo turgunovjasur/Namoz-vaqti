@@ -42,6 +42,7 @@ class InMemorySubscriptionRepository:
             chat_id=subscription.chat_id,
             region_code=subscription.region_code,
             is_active=subscription.is_active,
+            offsets=subscription.offsets,
         )
         self._next_id += 1
         self._by_telegram_id[saved.telegram_user_id] = saved
@@ -57,6 +58,7 @@ class InMemorySubscriptionRepository:
             region_code=existing.region_code,
             is_active=True,
             id=existing.id,
+            offsets=existing.offsets,
         )
         self._by_telegram_id[saved.telegram_user_id] = saved
         return saved, False

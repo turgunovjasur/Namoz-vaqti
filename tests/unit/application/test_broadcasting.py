@@ -35,6 +35,7 @@ class Subscriptions:
             region_code=existing.region_code,
             is_active=True,
             id=existing.id,
+            offsets=existing.offsets,
         )
         self.users[saved.telegram_user_id] = saved
         return saved, False
