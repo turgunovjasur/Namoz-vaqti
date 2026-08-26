@@ -11,8 +11,13 @@ from namoz_bot.application.ports import (
     SubscriptionRepository,
 )
 from namoz_bot.application.schedules import ScheduleService, format_schedule
-from namoz_bot.domain.errors import RecipientBlockedError
-from namoz_bot.domain.models import DeliveryStatus, DeliveryType, UserSubscription
+from namoz_bot.domain.errors import RecipientBlockedError, ScheduleValidationError
+from namoz_bot.domain.models import (
+    DeliveryStatus,
+    DeliveryType,
+    PrayerSchedule,
+    UserSubscription,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +54,7 @@ class BroadcastService:
         self._semaphore = asyncio.Semaphore(max_concurrency)
 
     async def send_next_day(self, target_date: date) -> BroadcastReport:
-        schedule_cache: dict[str, str | Exception] = {}
+        schedule_cache: dict[str, PrayerSchedule | Exception] = {}
         failed_regions: list[str] = []
         cursor = 0
         sent = 0
@@ -108,7 +113,11 @@ class BroadcastService:
             failed_regions=tuple(failed_regions),
         )
 
-    async def _prepare_schedule(self, region_code: str, target_date: date) -> str | Exception:
+    async def _prepare_schedule(
+        self,
+        region_code: str,
+        target_date: date,
+    ) -> PrayerSchedule | Exception:
         try:
             schedule = await self._schedules.get_schedule(region_code, target_date)
         except Exception as exc:
@@ -119,13 +128,13 @@ class BroadcastService:
                 type(exc).__name__,
             )
             return exc
-        return format_schedule(schedule, relative_label="Ertaga")
+        return schedule
 
     async def _send_one(
         self,
         subscription: UserSubscription,
         target_date: date,
-        schedule_cache: dict[str, str | Exception],
+        schedule_cache: dict[str, PrayerSchedule | Exception],
     ) -> tuple[str, str]:
         try:
             return await self._send_one_workflow(subscription, target_date, schedule_cache)
@@ -141,7 +150,7 @@ class BroadcastService:
         self,
         subscription: UserSubscription,
         target_date: date,
-        schedule_cache: dict[str, str | Exception],
+        schedule_cache: dict[str, PrayerSchedule | Exception],
     ) -> tuple[str, str]:
         region_code = subscription.region_code
         cached = schedule_cache[region_code]
@@ -150,9 +159,24 @@ class BroadcastService:
             await self._mark_failed(subscription, target_date, type(cached).__name__)
             return "region_failed", region_code
 
+        try:
+            text = format_schedule(
+                cached,
+                relative_label="Ertaga",
+                offsets=subscription.offsets,
+            )
+        except ScheduleValidationError as exc:
+            logger.exception(
+                "broadcast_recipient_schedule_failed region=%s error=%s",
+                region_code,
+                type(exc).__name__,
+            )
+            await self._mark_failed(subscription, target_date, type(exc).__name__)
+            return "failed", region_code
+
         async with self._semaphore:
             try:
-                await self._sender.send(subscription.chat_id, cached)
+                await self._sender.send(subscription.chat_id, text)
             except RecipientBlockedError:
                 logger.info("broadcast_recipient_deactivated region=%s", region_code)
                 await self._subscriptions.save(subscription.with_preferences(is_active=False))
