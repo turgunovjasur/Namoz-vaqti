@@ -7,7 +7,7 @@ from aiogram.types import (
     ReplyKeyboardMarkup,
 )
 
-from namoz_bot.domain.models import PrayerKey, PrayerOffsets
+from namoz_bot.domain.models import PrayerKey
 from namoz_bot.domain.regions import list_region_groups, list_regions
 
 TODAY_LABEL = "📅 Bugungi jadval"
@@ -37,18 +37,17 @@ def format_offset_value(value: int) -> str:
     return "0 daqiqa"
 
 
-def build_offsets_keyboard(offsets: PrayerOffsets) -> InlineKeyboardMarkup:
+def build_offsets_keyboard() -> InlineKeyboardMarkup:
     """Build the six-prayer personal offset selector."""
 
-    rows = [
-        [
-            InlineKeyboardButton(
-                text=f"{label}: {format_offset_value(offsets.value_for(prayer))}",
-                callback_data=f"offset:{prayer}",
-            )
-        ]
+    buttons = [
+        InlineKeyboardButton(
+            text=label,
+            callback_data=f"offset:{prayer}",
+        )
         for prayer, label in PRAYER_LABELS.items()
     ]
+    rows = [buttons[index : index + 2] for index in range(0, len(buttons), 2)]
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -76,7 +75,12 @@ def build_offset_adjustment_keyboard(
                     callback_data=f"offset-change:{prayer}:1",
                 ),
             ],
-            [InlineKeyboardButton(text="⬅️ Orqaga", callback_data="offsets")],
+            [
+                InlineKeyboardButton(
+                    text="📅 Taqvimga qaytish",
+                    callback_data="offset-schedule",
+                )
+            ],
         ]
     )
 
@@ -106,8 +110,7 @@ def build_main_menu(*, is_active: bool) -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text=TODAY_LABEL), KeyboardButton(text=REGION_LABEL)],
-            [KeyboardButton(text=OFFSETS_LABEL)],
-            [KeyboardButton(text=toggle_label)],
+            [KeyboardButton(text=OFFSETS_LABEL), KeyboardButton(text=toggle_label)],
             [KeyboardButton(text=HELP_LABEL)],
         ],
         resize_keyboard=True,

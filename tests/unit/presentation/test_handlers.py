@@ -306,7 +306,9 @@ async def test_offsets_message_shows_saved_values_and_six_prayer_buttons() -> No
     assert handler is not None
     await handler(message, make_services(repository))
 
-    assert "Shom: +4 daqiqa" in message.answers[0].text
+    assert message.answers[0].text == (
+        "⏱ Vaqtlarni sozlash\n\nO‘zgartirmoqchi bo‘lgan namoz vaqtini tanlang:"
+    )
     buttons = [
         button
         for row in message.answers[0].kwargs["reply_markup"].inline_keyboard
@@ -328,7 +330,7 @@ async def test_offsets_callback_edits_existing_message_with_overview() -> None:
     assert callback.answered is True
     assert len(message.edits) == 1
     assert message.answers == []
-    assert "Shaxsiy vaqt farqlari" in message.edits[0].text
+    assert "O‘zgartirmoqchi bo‘lgan namoz vaqtini tanlang:" in message.edits[0].text
 
 
 async def test_offset_selection_edits_message_with_minute_controls() -> None:
@@ -342,8 +344,13 @@ async def test_offset_selection_edits_message_with_minute_controls() -> None:
     assert handler is not None
     await handler(callback, make_services(repository))
 
-    assert "Shom" in message.edits[0].text
-    assert "+4 daqiqa" in message.edits[0].text
+    assert message.edits[0].text == (
+        "⏱ Shom vaqtini sozlash\n\n"
+        "Asl vaqt: 19:12\n"
+        "Sozlangan vaqt: 19:16\n"
+        "Joriy farq: +4 daqiqa\n\n"
+        "\N{MINUS SIGN}1/+1 — vaqtni o‘zgartiradi, 0 — asl vaqt."
+    )
     buttons = [
         button for row in message.edits[0].kwargs["reply_markup"].inline_keyboard for button in row
     ]
@@ -352,6 +359,7 @@ async def test_offset_selection_edits_message_with_minute_controls() -> None:
         "offset-change:shom:0",
         "offset-change:shom:1",
     ]
+    assert buttons[-1].callback_data == "offset-schedule"
 
 
 async def test_offset_change_supports_repeated_increment_and_selected_reset() -> None:
@@ -367,10 +375,31 @@ async def test_offset_change_supports_repeated_increment_and_selected_reset() ->
     assert repository.item is not None
     assert repository.item.offsets == PrayerOffsets(shom=4)
     assert len(message.edits) == 4
-    assert "+4 daqiqa" in message.edits[-1].text
+    assert "Asl vaqt: 19:12" in message.edits[-1].text
+    assert "Sozlangan vaqt: 19:16" in message.edits[-1].text
+    assert "Joriy farq: +4 daqiqa" in message.edits[-1].text
 
     await handler(FakeCallback("offset-change:shom:0", message), services)
     assert repository.item.offsets == PrayerOffsets()
+
+
+async def test_offset_schedule_replaces_settings_with_adjusted_today_schedule() -> None:
+    handler = getattr(handlers_module, "handle_offset_schedule", None)
+    repository = InMemorySubscriptions(
+        UserSubscription(7, 9, "Toshkent", True, id=1, offsets=PrayerOffsets(shom=4))
+    )
+    message = FakeMessage()
+    callback = FakeCallback("offset-schedule", message)
+
+    assert handler is not None
+    await handler(callback, make_services(repository))
+
+    assert callback.answered is True
+    assert message.answers == []
+    assert len(message.edits) == 1
+    assert "📅 Bugun — 27-avgust, Toshkent" in message.edits[0].text
+    assert "Shom — 19:16 (+4 daqiqa)" in message.edits[0].text
+    assert message.edits[0].kwargs == {"reply_markup": None}
 
 
 async def test_offset_change_boundary_alert_does_not_save_or_edit() -> None:

@@ -1,5 +1,4 @@
 import namoz_bot.presentation.keyboards as keyboards_module
-from namoz_bot.domain.models import PrayerOffsets
 from namoz_bot.presentation.keyboards import (
     build_main_menu,
     build_offset_adjustment_keyboard,
@@ -31,10 +30,18 @@ def test_main_menu_reflects_notification_state() -> None:
     assert "🔔 Xabarlarni yoqish" in disabled_labels
     assert "⏱ Vaqtlarni sozlash" in enabled_labels
     assert "⏱ Vaqtlarni sozlash" in disabled_labels
+    assert [button.text for button in enabled.keyboard[1]] == [
+        "⏱ Vaqtlarni sozlash",
+        "🔕 Xabarlarni o‘chirish",
+    ]
+    assert [button.text for button in disabled.keyboard[1]] == [
+        "⏱ Vaqtlarni sozlash",
+        "🔔 Xabarlarni yoqish",
+    ]
 
 
 def test_offsets_keyboard_exposes_all_six_stable_prayer_callbacks() -> None:
-    markup = build_offsets_keyboard(PrayerOffsets(shom=4))
+    markup = build_offsets_keyboard()
     buttons = [button for row in markup.inline_keyboard for button in row]
 
     assert [button.callback_data for button in buttons] == [
@@ -45,10 +52,18 @@ def test_offsets_keyboard_exposes_all_six_stable_prayer_callbacks() -> None:
         "offset:shom",
         "offset:xufton",
     ]
-    assert buttons[4].text == "Shom: +4 daqiqa"
+    assert [button.text for button in buttons] == [
+        "Bomdod",
+        "Quyosh",
+        "Peshin",
+        "Asr",
+        "Shom",
+        "Xufton",
+    ]
+    assert [len(row) for row in markup.inline_keyboard] == [2, 2, 2]
 
 
-def test_offset_adjustment_keyboard_has_minute_controls_and_back_button() -> None:
+def test_offset_adjustment_keyboard_has_minute_controls_and_calendar_button() -> None:
     markup = build_offset_adjustment_keyboard("shom", 4)
     buttons = [button for row in markup.inline_keyboard for button in row]
 
@@ -58,8 +73,8 @@ def test_offset_adjustment_keyboard_has_minute_controls_and_back_button() -> Non
         "offset-change:shom:0",
         "offset-change:shom:1",
     ]
-    assert buttons[-1].text == "⬅️ Orqaga"
-    assert buttons[-1].callback_data == "offsets"
+    assert buttons[-1].text == "📅 Taqvimga qaytish"
+    assert buttons[-1].callback_data == "offset-schedule"
 
 
 def test_region_keyboard_contains_only_selected_group_and_back_button() -> None:
