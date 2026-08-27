@@ -30,7 +30,11 @@ def test_main_menu_has_no_notification_toggle() -> None:
         "⏱ Vaqtlarni sozlash",
         "ℹ️ Yordam",
     ]
-    assert [len(row) for row in menu.keyboard] == [2, 1, 1]
+    assert [len(row) for row in menu.keyboard] == [2, 2]
+    assert [button.text for button in menu.keyboard[1]] == [
+        "⏱ Vaqtlarni sozlash",
+        "ℹ️ Yordam",
+    ]
 
 
 def test_offsets_keyboard_exposes_all_six_stable_prayer_callbacks() -> None:
