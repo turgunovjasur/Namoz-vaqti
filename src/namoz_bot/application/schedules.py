@@ -1,6 +1,7 @@
 """Prayer schedule validation and presentation-neutral formatting."""
 
 from datetime import date
+from html import escape
 
 from namoz_bot.application.ports import PrayerScheduleProvider
 from namoz_bot.domain.errors import (
@@ -9,6 +10,16 @@ from namoz_bot.domain.errors import (
     ScheduleValidationError,
 )
 from namoz_bot.domain.models import PrayerOffsets, PrayerSchedule, PrayerTimes
+
+UZBEK_WEEKDAYS = (
+    "Dushanba",
+    "Seshanba",
+    "Chorshanba",
+    "Payshanba",
+    "Juma",
+    "Shanba",
+    "Yakshanba",
+)
 
 
 class ScheduleService:
@@ -89,13 +100,21 @@ def format_schedule(
 
     configured_offsets = offsets or PrayerOffsets()
     times = apply_offsets(schedule, configured_offsets).times
+    weekday = UZBEK_WEEKDAYS[schedule.date.weekday()]
+    rows = (
+        ("Bomdod", times.bomdod, configured_offsets.bomdod),
+        ("Quyosh", times.quyosh, configured_offsets.quyosh),
+        ("Peshin", times.peshin, configured_offsets.peshin),
+        ("Asr", times.asr, configured_offsets.asr),
+        ("Shom", times.shom, configured_offsets.shom),
+        ("Xufton", times.xufton, configured_offsets.xufton),
+    )
+    schedule_rows = "\n".join(
+        f"{label:<7} — {clock}{_offset_suffix(offset)}" for label, clock, offset in rows
+    )
     return (
-        f"📅 {schedule.date:%d.%m.%Y} ({schedule.region_name})\n\n"
-        f"Bomdod — {times.bomdod}{_offset_suffix(configured_offsets.bomdod)}\n"
-        f"Quyosh — {times.quyosh}{_offset_suffix(configured_offsets.quyosh)}\n"
-        f"Peshin — {times.peshin}{_offset_suffix(configured_offsets.peshin)}\n"
-        f"Asr — {times.asr}{_offset_suffix(configured_offsets.asr)}\n"
-        f"Shom — {times.shom}{_offset_suffix(configured_offsets.shom)}\n"
-        f"Xufton — {times.xufton}{_offset_suffix(configured_offsets.xufton)}\n\n"
+        f"{schedule.date:%d.%m.%Y} ({weekday})\n"
+        f"{escape(schedule.region_name)}\n\n"
+        f"<pre>{schedule_rows}</pre>\n\n"
         "Manba: namoz-vaqti.uz"
     )

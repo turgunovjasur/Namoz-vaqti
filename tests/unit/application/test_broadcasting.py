@@ -225,7 +225,7 @@ async def test_broadcast_formats_distinct_offsets_after_one_region_fetch() -> No
     assert report.sent == 2
     assert messages[10] != messages[20]
     assert "(+4 daqiqa)" not in messages[10]
-    assert "Shom — 19:16 (+4 daqiqa)" in messages[20]
+    assert "Shom    — 19:16 (+4 daqiqa)" in messages[20]
 
 
 async def test_invalid_personal_adjustment_fails_only_that_delivery() -> None:
