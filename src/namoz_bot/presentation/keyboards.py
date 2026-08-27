@@ -13,7 +13,7 @@ from namoz_bot.domain.regions import list_region_groups, list_regions
 TODAY_LABEL = "📅 Bugungi jadval"
 REGION_LABEL = "📍 Hududni o‘zgartirish"
 HELP_LABEL = "ℹ️ Yordam"
-OFFSETS_LABEL = "⏱ Vaqtlarni sozlash"
+OFFSETS_LABEL = "🕌 Masjidga moslash"
 
 PRAYER_LABELS: dict[PrayerKey, str] = {
     "bomdod": "Bomdod",

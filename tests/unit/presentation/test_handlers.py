@@ -297,7 +297,10 @@ async def test_offsets_message_shows_saved_values_and_six_prayer_buttons() -> No
     await handler(message, make_services(repository))
 
     assert message.answers[0].text == (
-        "⏱ Vaqtlarni sozlash\n\nO‘zgartirmoqchi bo‘lgan namoz vaqtini tanlang:"
+        "🕌 Taqvimni masjid vaqtiga moslash\n\n"
+        "Agar botdagi vaqt masjidingizdagi vaqtdan farq qilsa,\n"
+        "kerakli namozni tanlab daqiqa qo‘shing yoki ayiring.\n\n"
+        "Qaysi vaqtni moslamoqchisiz?"
     )
     buttons = [
         button
@@ -320,7 +323,7 @@ async def test_offsets_callback_edits_existing_message_with_overview() -> None:
     assert callback.answered is True
     assert len(message.edits) == 1
     assert message.answers == []
-    assert "O‘zgartirmoqchi bo‘lgan namoz vaqtini tanlang:" in message.edits[0].text
+    assert "Qaysi vaqtni moslamoqchisiz?" in message.edits[0].text
 
 
 async def test_offset_selection_edits_message_with_minute_controls() -> None:
@@ -335,7 +338,7 @@ async def test_offset_selection_edits_message_with_minute_controls() -> None:
     await handler(callback, make_services(repository))
 
     assert message.edits[0].text == (
-        "⏱ Shom vaqtini sozlash\n\n"
+        "🕌 Shom vaqtini masjidga moslash\n\n"
         "Asl vaqt: 19:12\n"
         "Sozlangan vaqt: 19:16\n"
         "Joriy farq: +4 daqiqa\n\n"

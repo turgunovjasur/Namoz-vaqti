@@ -90,7 +90,12 @@ async def handle_settings(message: Message, handler_services: HandlerServices) -
 
 
 def _format_offsets_overview() -> str:
-    return "⏱ Vaqtlarni sozlash\n\nO‘zgartirmoqchi bo‘lgan namoz vaqtini tanlang:"
+    return (
+        "🕌 Taqvimni masjid vaqtiga moslash\n\n"
+        "Agar botdagi vaqt masjidingizdagi vaqtdan farq qilsa,\n"
+        "kerakli namozni tanlab daqiqa qo‘shing yoki ayiring.\n\n"
+        "Qaysi vaqtni moslamoqchisiz?"
+    )
 
 
 def _format_offset_detail(
@@ -100,7 +105,7 @@ def _format_offset_detail(
     value: int,
 ) -> str:
     return (
-        f"⏱ {PRAYER_LABELS[prayer]} vaqtini sozlash\n\n"
+        f"🕌 {PRAYER_LABELS[prayer]} vaqtini masjidga moslash\n\n"
         f"Asl vaqt: {original_time}\n"
         f"Sozlangan vaqt: {adjusted_time}\n"
         f"Joriy farq: {format_offset_value(value)}\n\n"
