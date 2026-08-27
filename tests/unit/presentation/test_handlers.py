@@ -20,6 +20,7 @@ from namoz_bot.domain.models import (
 )
 from namoz_bot.presentation.handlers import (
     HandlerServices,
+    handle_help,
     handle_region_selection,
     handle_settings,
     handle_start,
@@ -198,6 +199,30 @@ async def test_today_applies_saved_prayer_offsets() -> None:
     await handle_today(message, make_services(repository))
 
     assert "Shom — 19:16 (+4 daqiqa)" in message.answers[0].text
+
+
+async def test_help_explains_daily_delivery_and_each_user_action() -> None:
+    message = FakeMessage()
+
+    await handle_help(message)
+
+    assert message.answers[0].text == (
+        "ℹ️ Yordam\n\n"
+        "Bot tanlangan hudud bo‘yicha namoz vaqtlarini ko‘rsatadi va har kuni "
+        "soat 21:00 da ertangi jadvalni yuboradi.\n\n"
+        "📅 Bugungi jadval — bugungi namoz vaqtlarini ko‘rsatadi.\n"
+        "📍 Hududni o‘zgartirish — kerakli hududni tanlash uchun.\n"
+        "🕌 Masjidga moslash — bot va masjid vaqti farq qilsa, daqiqa qo‘shish "
+        "yoki ayirish uchun.\n\n"
+        "Hudud o‘zgartirilganda masjidga moslash sozlamalari 0 ga qaytadi.\n\n"
+        "Buyruqlar:\n"
+        "/start — botni ishga tushirish\n"
+        "/today — bugungi jadval\n"
+        "/settings — hududni tanlash\n"
+        "/offsets — masjid vaqtiga moslash\n"
+        "/help — yordam\n\n"
+        "Manba: namoz-vaqti.uz"
+    )
 
 
 async def test_region_selection_persists_region_and_sends_today_schedule() -> None:

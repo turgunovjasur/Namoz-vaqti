@@ -358,9 +358,21 @@ async def handle_region_selection(
 
 async def handle_help(message: Message) -> None:
     await message.answer(
-        "Bot har kuni soat 21:00 da tanlangan hudud uchun ertangi namoz vaqtlarini "
-        "yuboradi. /today — bugungi jadval, /settings — hudud sozlamalari, "
-        "/offsets — saqlanadigan shaxsiy vaqt farqlari."
+        "ℹ️ Yordam\n\n"
+        "Bot tanlangan hudud bo‘yicha namoz vaqtlarini ko‘rsatadi va har kuni "
+        "soat 21:00 da ertangi jadvalni yuboradi.\n\n"
+        "📅 Bugungi jadval — bugungi namoz vaqtlarini ko‘rsatadi.\n"
+        "📍 Hududni o‘zgartirish — kerakli hududni tanlash uchun.\n"
+        "🕌 Masjidga moslash — bot va masjid vaqti farq qilsa, daqiqa qo‘shish "
+        "yoki ayirish uchun.\n\n"
+        "Hudud o‘zgartirilganda masjidga moslash sozlamalari 0 ga qaytadi.\n\n"
+        "Buyruqlar:\n"
+        "/start — botni ishga tushirish\n"
+        "/today — bugungi jadval\n"
+        "/settings — hududni tanlash\n"
+        "/offsets — masjid vaqtiga moslash\n"
+        "/help — yordam\n\n"
+        "Manba: namoz-vaqti.uz"
     )
 
 
