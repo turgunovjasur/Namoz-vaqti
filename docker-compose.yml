@@ -1,26 +1,48 @@
+name: namoz-vaqti
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   db:
     image: postgres:17-alpine
+    restart: unless-stopped
     environment:
-      POSTGRES_DB: namoz
-      POSTGRES_USER: namoz
-      POSTGRES_PASSWORD: namoz
+      POSTGRES_DB: ${POSTGRES_DB:-namoz}
+      POSTGRES_USER: ${POSTGRES_USER:-namoz}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U namoz -d namoz"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-namoz} -d ${POSTGRES_DB:-namoz}",
+        ]
       interval: 5s
       timeout: 3s
       retries: 10
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    cpus: 0.50
+    mem_limit: 512m
+    logging: *default-logging
 
   bot:
     build: .
     env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-namoz}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@db:5432/${POSTGRES_DB:-namoz}
     depends_on:
       db:
         condition: service_healthy
     command: ["sh", "-c", "alembic upgrade head && namoz-bot"]
     restart: unless-stopped
+    stop_grace_period: 30s
+    cpus: 0.50
+    mem_limit: 384m
+    logging: *default-logging
 
 volumes:
   postgres_data:

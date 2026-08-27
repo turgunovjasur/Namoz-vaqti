@@ -82,6 +82,9 @@ docker compose logs -f bot
 Compose PostgreSQL’ni ishga tushiradi, migration’ni qo‘llaydi va bot polling’ni
 boshlaydi.
 
+QA-Assistant bilan bitta VPSdagi production deployment va izolyatsiya qoidalari:
+[DEPLOYMENT_QA_SERVER.md](DEPLOYMENT_QA_SERVER.md).
+
 ## Buyruqlar
 
 - `/start` — ro‘yxatdan o‘tish va bugungi jadval;
