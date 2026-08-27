@@ -69,18 +69,18 @@ async def test_schedule_service_rejects_response_for_wrong_region() -> None:
         await service.get_schedule("Toshkent", date(2026, 8, 27))
 
 
-def test_format_schedule_shows_plain_text_rows_padded_to_longest_prayer_name() -> None:
+def test_format_schedule_places_fixed_width_times_before_prayer_names() -> None:
     text = format_schedule(make_schedule())
 
     assert text == (
         "27.08.2026 (Payshanba)\n"
         "Toshkent\n\n"
-        "Bomdod — 04:17\n"
-        "Quyosh — 05:42\n"
-        "Peshin — 12:25\n"
-        "Asr    — 17:10\n"
-        "Shom   — 19:12\n"
-        "Xufton — 20:32\n\n"
+        "04:17 — Bomdod\n"
+        "05:42 — Quyosh\n"
+        "12:25 — Peshin\n"
+        "17:10 — Asr\n"
+        "19:12 — Shom\n"
+        "20:32 — Xufton\n\n"
         "Manba: namoz-vaqti.uz"
     )
 
@@ -124,10 +124,10 @@ def test_format_schedule_marks_only_adjusted_values() -> None:
         PrayerOffsets(shom=4, xufton=-2),
     )
 
-    assert "Shom   — 19:16 (+4 daqiqa)" in text
-    assert "Xufton — 20:30 (\N{MINUS SIGN}2 daqiqa)" in text
-    assert "Asr    — 17:10\n" in text
-    assert "Asr    — 17:10 (" not in text
+    assert "19:16 — Shom (+4)" in text
+    assert "20:30 — Xufton (\N{MINUS SIGN}2)" in text
+    assert "17:10 — Asr\n" in text
+    assert "17:10 — Asr (" not in text
 
 
 def test_apply_offsets_rejects_crossing_day_boundary() -> None:
