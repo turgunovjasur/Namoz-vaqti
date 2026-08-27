@@ -5,8 +5,9 @@
 - Server: Hetzner VPS (`qa-assistant.uz`)
 - Server katalogi: `/opt/namoz-vaqti`
 - Docker Compose project: `namoz-vaqti`
-- Deploy holati: tayyorlanmoqda
+- Deploy holati: productionda ishlayapti (2026-08-27)
 - Ma'lumotlar bazasi: alohida PostgreSQL 17 va alohida persistent volume
+- Servislar: `namoz-vaqti-bot-1`, `namoz-vaqti-db-1`
 
 ## QA-Assistantdan izolyatsiya
 
@@ -77,6 +78,8 @@ Mac'dagi loyiha katalogidan:
 ```bash
 rsync -az \
   --exclude='.git' --exclude='.venv' --exclude='.env' --exclude='.env.*' \
+  --exclude='.idea' --exclude='build' --exclude='__pycache__' \
+  --exclude='.mypy_cache' --exclude='.pytest_cache' --exclude='.ruff_cache' \
   --exclude='data' --exclude='logs' --exclude='backups' \
   -e "ssh -i ~/.ssh/qa_assistant_deploy" \
   ./ root@46.225.173.88:/opt/namoz-vaqti/
@@ -93,6 +96,19 @@ docker compose -p namoz-vaqti logs bot --tail 100
 
 Bitta token bilan faqat bitta polling process ishlashi kerak. Server botini yoqishdan
 oldin Mac'dagi `./run_bot.sh` processini to'xtating.
+
+## 2026-08-27 deploy verifikatsiyasi
+
+- bot scheduler va Telegram pollingni `@UzNamozTaqvimiBot` uchun boshladi;
+- production bazasi yangi yaratildi va `users=0` tasdiqlandi;
+- lokal ikki test foydalanuvchisi ko'chirilmadi;
+- bot va DB hostga port publish qilmagan;
+- Docker network: `namoz-vaqti_default`;
+- Docker volume: `namoz-vaqti_postgres_data`;
+- QA-Assistantning besh konteyner ID va start vaqti deploydan oldingi snapshot
+  bilan bir xil qoldi;
+- QA backend ichki health tekshiruvi `healthy`, public sayt `/` javobi HTTP 200;
+- deploydan keyin serverda 2.3 GiB available RAM va 23 GiB bo'sh disk qoldi.
 
 ## Backup
 
@@ -122,4 +138,3 @@ QA-Assistant konteynerlariga tegmaydi.
 
 QA-Assistant reposida bir serverda yashash qoidalari:
 `docs/NAMOZ_BOT_COLOCATION.md`.
-
