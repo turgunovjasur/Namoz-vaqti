@@ -8,6 +8,8 @@ from datetime import date
 
 import httpx
 from aiogram import Bot, Dispatcher
+from aiogram.client.default import DefaultBotProperties
+from aiogram.enums import ParseMode
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
@@ -87,7 +89,10 @@ def _build_broadcast_runner(
 def create_application(settings: Settings) -> ApplicationResources:
     """Compose adapters and services without starting network activity."""
 
-    bot = Bot(token=settings.telegram_bot_token.get_secret_value())
+    bot = Bot(
+        token=settings.telegram_bot_token.get_secret_value(),
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML),
+    )
     dispatcher = Dispatcher()
     http_client = httpx.AsyncClient(
         base_url=settings.prayer_api_base_url,

@@ -1,5 +1,7 @@
 from typing import Any, cast
 
+from aiogram.enums import ParseMode
+
 from namoz_bot.config import Settings
 from namoz_bot.main import ApplicationResources, create_application
 
@@ -74,5 +76,6 @@ async def test_create_application_wires_daily_job_without_network_calls() -> Non
 
     assert resources.scheduler.get_job("daily-prayer-schedule") is not None
     assert resources.dispatcher.sub_routers
+    assert resources.bot.default.parse_mode is ParseMode.HTML
 
     await resources.close()

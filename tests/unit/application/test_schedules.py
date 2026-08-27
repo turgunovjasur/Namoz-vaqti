@@ -69,19 +69,41 @@ async def test_schedule_service_rejects_response_for_wrong_region() -> None:
         await service.get_schedule("Toshkent", date(2026, 8, 27))
 
 
-def test_format_schedule_uses_numeric_date_and_parenthesized_region() -> None:
+def test_format_schedule_shows_uzbek_weekday_and_aligned_prayer_rows() -> None:
     text = format_schedule(make_schedule())
 
     assert text == (
-        "📅 27.08.2026 (Toshkent)\n\n"
-        "Bomdod — 04:17\n"
-        "Quyosh — 05:42\n"
-        "Peshin — 12:25\n"
-        "Asr — 17:10\n"
-        "Shom — 19:12\n"
-        "Xufton — 20:32\n\n"
+        "27.08.2026 (Payshanba)\n"
+        "Toshkent\n\n"
+        "<pre>Bomdod  — 04:17\n"
+        "Quyosh  — 05:42\n"
+        "Peshin  — 12:25\n"
+        "Asr     — 17:10\n"
+        "Shom    — 19:12\n"
+        "Xufton  — 20:32</pre>\n\n"
         "Manba: namoz-vaqti.uz"
     )
+
+
+@pytest.mark.parametrize(
+    ("schedule_date", "weekday"),
+    (
+        (date(2026, 8, 24), "Dushanba"),
+        (date(2026, 8, 25), "Seshanba"),
+        (date(2026, 8, 26), "Chorshanba"),
+        (date(2026, 8, 27), "Payshanba"),
+        (date(2026, 8, 28), "Juma"),
+        (date(2026, 8, 29), "Shanba"),
+        (date(2026, 8, 30), "Yakshanba"),
+    ),
+)
+def test_format_schedule_localizes_every_weekday(
+    schedule_date: date,
+    weekday: str,
+) -> None:
+    text = format_schedule(make_schedule(schedule_date=schedule_date))
+
+    assert text.startswith(f"{schedule_date:%d.%m.%Y} ({weekday})\n")
 
 
 def test_apply_offsets_adjusts_all_six_values_without_mutating_canonical_schedule() -> None:
@@ -102,10 +124,10 @@ def test_format_schedule_marks_only_adjusted_values() -> None:
         PrayerOffsets(shom=4, xufton=-2),
     )
 
-    assert "Shom — 19:16 (+4 daqiqa)" in text
-    assert "Xufton — 20:30 (\N{MINUS SIGN}2 daqiqa)" in text
-    assert "Asr — 17:10\n" in text
-    assert "Asr — 17:10 (" not in text
+    assert "Shom    — 19:16 (+4 daqiqa)" in text
+    assert "Xufton  — 20:30 (\N{MINUS SIGN}2 daqiqa)" in text
+    assert "Asr     — 17:10\n" in text
+    assert "Asr     — 17:10 (" not in text
 
 
 def test_apply_offsets_rejects_crossing_day_boundary() -> None:

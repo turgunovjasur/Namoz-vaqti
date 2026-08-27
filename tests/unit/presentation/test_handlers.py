@@ -183,8 +183,8 @@ async def test_start_uses_saved_region_and_shared_schedule_format() -> None:
 
     await handle_start(message, make_services(repository))
 
-    assert "📅 27.08.2026 (Samarqand)" in message.answers[0].text
-    assert "Shom — 19:16 (+4 daqiqa)" in message.answers[0].text
+    assert "27.08.2026 (Payshanba)\nSamarqand" in message.answers[0].text
+    assert "Shom    — 19:16 (+4 daqiqa)" in message.answers[0].text
     assert repository.item is not None
     assert repository.item.chat_id == 9
     assert repository.item.is_active is True
@@ -198,7 +198,7 @@ async def test_today_applies_saved_prayer_offsets() -> None:
 
     await handle_today(message, make_services(repository))
 
-    assert "Shom — 19:16 (+4 daqiqa)" in message.answers[0].text
+    assert "Shom    — 19:16 (+4 daqiqa)" in message.answers[0].text
 
 
 async def test_help_explains_daily_delivery_and_each_user_action() -> None:
@@ -415,8 +415,8 @@ async def test_offset_schedule_replaces_settings_with_adjusted_today_schedule() 
     assert callback.answered is True
     assert message.answers == []
     assert len(message.edits) == 1
-    assert "📅 27.08.2026 (Toshkent)" in message.edits[0].text
-    assert "Shom — 19:16 (+4 daqiqa)" in message.edits[0].text
+    assert "27.08.2026 (Payshanba)\nToshkent" in message.edits[0].text
+    assert "Shom    — 19:16 (+4 daqiqa)" in message.edits[0].text
     assert message.edits[0].kwargs == {"reply_markup": None}
 
 
@@ -610,5 +610,5 @@ async def test_region_reset_and_offset_change_share_one_user_lock() -> None:
     assert repository.item is not None
     assert repository.item.region_code == "Samarqand"
     assert repository.item.offsets == PrayerOffsets()
-    assert "📅 27.08.2026 (Samarqand)" in message.edits[-1].text
+    assert "27.08.2026 (Payshanba)\nSamarqand" in message.edits[-1].text
     assert "(+1 daqiqa)" not in message.edits[-1].text
