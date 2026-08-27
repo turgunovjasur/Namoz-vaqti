@@ -27,12 +27,12 @@ def test_main_menu_has_no_notification_toggle() -> None:
     assert labels == [
         "📅 Bugungi jadval",
         "📍 Hududni o‘zgartirish",
-        "⏱ Vaqtlarni sozlash",
+        "🕌 Masjidga moslash",
         "ℹ️ Yordam",
     ]
     assert [len(row) for row in menu.keyboard] == [2, 2]
     assert [button.text for button in menu.keyboard[1]] == [
-        "⏱ Vaqtlarni sozlash",
+        "🕌 Masjidga moslash",
         "ℹ️ Yordam",
     ]
 
