@@ -32,23 +32,23 @@
 - Consumes: `.env` ichidagi `TELEGRAM_BOT_TOKEN`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`.
 - Produces: tashqi portsiz `bot` va `db`, `namoz-vaqti` project namespace'i.
 
-- [ ] **Step 1: Compose test env bilan eski konfiguratsiyani tekshirish**
+- [x] **Step 1: Compose test env bilan eski konfiguratsiyani tekshirish**
 
   Run: `POSTGRES_PASSWORD=test TELEGRAM_BOT_TOKEN=123456:TEST DATABASE_URL=postgresql+asyncpg://x docker compose config`
 
   Expected: config parse bo'ladi, ammo hardcoded `POSTGRES_PASSWORD: namoz` va resurs/log limitlari yo'qligi auditda ko'rinadi.
 
-- [ ] **Step 2: Compose'ni minimal production ko'rinishga keltirish**
+- [x] **Step 2: Compose'ni minimal production ko'rinishga keltirish**
 
   `name: namoz-vaqti`, `x-logging`, env orqali DB credentials, `restart`, CPU/RAM limitlari va hech qanday `ports` bo'lmagan servislarni yozish.
 
-- [ ] **Step 3: Render qilingan Compose'ni tekshirish**
+- [x] **Step 3: Render qilingan Compose'ni tekshirish**
 
   Run: `POSTGRES_PASSWORD=test TELEGRAM_BOT_TOKEN=123456:TEST docker compose config`
 
   Expected: exit 0; projectda faqat `bot` va `db`; `ports` yo'q; `bot` DB hosti `db`; limitlar mavjud.
 
-- [ ] **Step 4: Namoz bot sifat tekshiruvlarini bajarish**
+- [x] **Step 4: Namoz bot sifat tekshiruvlarini bajarish**
 
   Run: `./.venv/bin/pytest -q && ./.venv/bin/ruff check . && ./.venv/bin/mypy src && git diff --check`
 
@@ -66,17 +66,17 @@
 - Consumes: tasdiqlangan server yo'llari va Compose project nomlari.
 - Produces: ikkala loyiha operatorlari uchun o'zaro izolyatsiya, start/stop/log/backup va ehtiyot choralarini ko'rsatadigan source-of-truth hujjatlar.
 
-- [ ] **Step 1: Namoz bot deploy qo'llanmasini yozish**
+- [x] **Step 1: Namoz bot deploy qo'llanmasini yozish**
 
   Hujjatda `/opt/namoz-vaqti`, project nomi, secretlar, deploy/update, loglar,
   backup, rollback va QA-Assistantga tegmaslik qoidalari aniq yoziladi.
 
-- [ ] **Step 2: QA-Assistant co-location qo'llanmasini yozish**
+- [x] **Step 2: QA-Assistant co-location qo'llanmasini yozish**
 
   Hujjat Namoz bot boshqa Compose project ekanini, QA compose/Caddy/DB bilan
   integratsiya qilinmaganini va alohida operator buyruqlarini qayd etadi.
 
-- [ ] **Step 3: README'lardan hujjatlarga link qo'shish**
+- [x] **Step 3: README'lardan hujjatlarga link qo'shish**
 
   Har repo o'z hujjatiga va qo'shni loyiha joylashuviga qisqa havola beradi.
 
@@ -89,11 +89,11 @@
 - Consumes: validatsiyalangan config va hujjatlar.
 - Produces: `dev1` commitlari, `main` merge commitlari va GitHub remote yangilanishi.
 
-- [ ] **Step 1: Namoz o'zgarishlarini `dev1`ga commit/push qilish**
+- [x] **Step 1: Namoz o'zgarishlarini `dev1`ga commit/push qilish**
 
-- [ ] **Step 2: QA hujjatlarini `dev1`ga commit/push qilish**
+- [x] **Step 2: QA hujjatlarini `dev1`ga commit/push qilish**
 
-- [ ] **Step 3: Har repoda `main`ga `--no-ff` merge va push qilish**
+- [x] **Step 3: Har repoda `main`ga `--no-ff` merge va push qilish**
 
   `.env.example`dagi foydalanuvchi deletion'i stagingga kiritilmaydi.
 
@@ -107,17 +107,17 @@
 - Consumes: Git'dagi deploy-ready kod va lokal `.env`dagi Telegram token.
 - Produces: `namoz-vaqti-db-1` va `namoz-vaqti-bot-1` konteynerlari.
 
-- [ ] **Step 1: QA container ID/start vaqtlarini snapshot qilish**
+- [x] **Step 1: QA container ID/start vaqtlarini snapshot qilish**
 
-- [ ] **Step 2: Kodni `.env`, `.git`, `.venv` va lokal datalarsiz rsync qilish**
+- [x] **Step 2: Kodni `.env`, `.git`, `.venv` va lokal datalarsiz rsync qilish**
 
-- [ ] **Step 3: Server `.env`ni tokenni loglamasdan va random hex DB parol bilan yaratish**
+- [x] **Step 3: Server `.env`ni tokenni loglamasdan va random hex DB parol bilan yaratish**
 
-- [ ] **Step 4: Image build va faqat Namoz DB'ni ishga tushirish**
+- [x] **Step 4: Image build va faqat Namoz DB'ni ishga tushirish**
 
-- [ ] **Step 5: Lokal polling processni to'xtatish**
+- [x] **Step 5: Lokal polling processni to'xtatish**
 
-- [ ] **Step 6: Server botni ishga tushirish va migration/polling logini tekshirish**
+- [x] **Step 6: Server botni ishga tushirish va migration/polling logini tekshirish**
 
 ### Task 5: Production verifikatsiya va hujjatni yakunlash
 
@@ -129,17 +129,17 @@
 - Consumes: jonli konteynerlar va health endpointlar.
 - Produces: deploy dalillari va operator handoff.
 
-- [ ] **Step 1: Namoz servislarini tekshirish**
+- [x] **Step 1: Namoz servislarini tekshirish**
 
   `docker compose -p namoz-vaqti ps`, bot loglari, `users=0`, network/volume nomlari va host portlar tekshiriladi.
 
-- [ ] **Step 2: QA-Assistantga regressiya bo'lmaganini tekshirish**
+- [x] **Step 2: QA-Assistantga regressiya bo'lmaganini tekshirish**
 
-  QA container ID/start va health holati oldingi snapshot bilan solishtiriladi;
-  `https://qa-assistant.uz/health` HTTP 200 qaytarishi shart.
+  QA container ID/start va health holati oldingi snapshot bilan solishtiriladi.
+  Amaldagi Caddy public `/health` route bermagani uchun backend health konteyner
+  ichidan, public sayt esa `/` orqali tekshiriladi.
 
-- [ ] **Step 3: Final hujjat holatini commit/push qilish**
+- [x] **Step 3: Final hujjat holatini commit/push qilish**
 
   Real deploy natijalari ikkala repodagi hujjatga yozilib, faqat docs commit bilan
   `dev1` va `main`ga olib chiqiladi; QA production konteynerlari rebuild qilinmaydi.
-

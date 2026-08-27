@@ -70,5 +70,6 @@ ishga tushiriladi. QA-Assistant rollback jarayoniga kirmaydi.
 - bot logida scheduler va polling boshlangan bo'lishi kerak.
 - yangi bazada `users=0` tasdiqlanadi.
 - QA-Assistantning avvalgi besh konteyneri o'sha container ID va start time bilan
-  ishlashda davom etishi, `https://qa-assistant.uz/health` HTTP 200 qaytarishi kerak.
-
+  ishlashda davom etishi kerak. Amaldagi Caddy `/health`ni public route qilmagani
+  uchun backend health konteyner ichidan tekshiriladi, public `/` esa HTTP 200
+  qaytarishi kerak.
