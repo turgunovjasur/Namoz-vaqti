@@ -107,8 +107,7 @@ def build_main_menu() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text=TODAY_LABEL), KeyboardButton(text=REGION_LABEL)],
-            [KeyboardButton(text=OFFSETS_LABEL)],
-            [KeyboardButton(text=HELP_LABEL)],
+            [KeyboardButton(text=OFFSETS_LABEL), KeyboardButton(text=HELP_LABEL)],
         ],
         resize_keyboard=True,
     )
