@@ -1,7 +1,6 @@
 """Prayer schedule validation and presentation-neutral formatting."""
 
 from datetime import date
-from html import escape
 
 from namoz_bot.application.ports import PrayerScheduleProvider
 from namoz_bot.domain.errors import (
@@ -109,12 +108,13 @@ def format_schedule(
         ("Shom", times.shom, configured_offsets.shom),
         ("Xufton", times.xufton, configured_offsets.xufton),
     )
+    label_width = max(len(label) for label, _, _ in rows)
     schedule_rows = "\n".join(
-        f"{label:<7} — {clock}{_offset_suffix(offset)}" for label, clock, offset in rows
+        f"{label:<{label_width}} — {clock}{_offset_suffix(offset)}" for label, clock, offset in rows
     )
     return (
         f"{schedule.date:%d.%m.%Y} ({weekday})\n"
-        f"{escape(schedule.region_name)}\n\n"
-        f"<pre>{schedule_rows}</pre>\n\n"
+        f"{schedule.region_name}\n\n"
+        f"{schedule_rows}\n\n"
         "Manba: namoz-vaqti.uz"
     )
