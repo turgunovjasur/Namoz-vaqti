@@ -153,6 +153,11 @@ Keyingi lokal tekshiruvda ro‘yxat va natija oynalarida ortga tugmasi
 yetishmasligi hamda reply-klaviaturaga biriktirilgan xabar o‘chirilishi
 aniqlandi. Endi shu oynalardagi «⬅️ Orqaga» eslatmalar inline menyusini
 ochadi. Undan qo‘shish, ro‘yxat va asosiy menyuga qaytish mumkin.
-Qo‘shishdagi avvalgi bosqichga qaytish saqlanadi. Bo‘limning doimiy
-reply-klaviatura xabari bo‘limdan chiqilguncha qoladi; faqat ishchi oyna
-tahrirlanadi. Asosiy menyuga chiqishda ikkalasi tozalanadi.
+Qo‘shishdagi avvalgi bosqichga qaytish saqlanadi.
+
+Foydalanuvchi skrinshotida bo‘lim sarlavhasi va menyu ikki marta ko‘ringani
+sababli eslatmalar to‘liq inline menyuga o‘tkazildi. Kirish, ro‘yxat,
+qo‘shish va ortga qaytish bitta oynani yangilaydi. Kirishda avvalgi pastki
+klaviatura ReplyKeyboardRemove bilan olib tashlanadi; texnik xabar darhol
+o‘chiriladi va faqat inline oyna qoladi. Asosiy menyuga qaytishda shu oyna
+tozalanadi va asosiy pastki klaviatura tiklanadi.

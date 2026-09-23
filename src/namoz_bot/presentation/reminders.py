@@ -20,11 +20,9 @@ from namoz_bot.presentation.keyboards import (
     REMINDERS_LABEL,
     build_main_menu,
     build_prayer_menu,
-    build_reminders_menu,
 )
 from namoz_bot.presentation.reminder_keyboards import dialog_keyboard, menu_keyboard, page_keyboard
 from namoz_bot.presentation.reminder_panel import (
-    MENU_ID,
     PANEL_ID,
     delete_input,
     discard_panel,
@@ -60,17 +58,21 @@ async def _private(message: Message) -> bool:
 
 
 async def show_section(message: Message, state: FSMContext) -> None:
+    if message.text == REMINDERS_LABEL:
+        if await _private(message) and message.from_user is not None:
+            await reset_draft(state)
+            await render_panel(
+                message,
+                state,
+                "🔔 Eslatmalar. Amalni tanlang:",
+                menu_keyboard(message.from_user.id, section=True),
+            )
+            await delete_input(message)
+        return
     await discard_panel(message, state)
     await state.clear()
     if message.text == PRAYER_MENU_LABEL:
         await message.answer("🕌 Namoz vaqti. Amalni tanlang:", reply_markup=build_prayer_menu())
-    elif message.text == REMINDERS_LABEL:
-        if await _private(message):
-            menu = await message.answer(
-                "🔔 Eslatmalar. Amalni tanlang:", reply_markup=build_reminders_menu()
-            )
-            await state.update_data({MENU_ID: menu.message_id})
-            await delete_input(message)
     else:
         await message.answer("Asosiy menyu. Bo‘limni tanlang:", reply_markup=build_main_menu())
 
@@ -392,6 +394,7 @@ async def menu_callback(
     elif action == "add":
         await _start_reminder(message, state, owner, reminder_service, handler_services)
     else:
+        await handler_services.subscriptions.start(owner, message.chat.id)
         await _show_list(message, state, owner, 0, handler_services, reminder_service)
     await callback.answer()
 

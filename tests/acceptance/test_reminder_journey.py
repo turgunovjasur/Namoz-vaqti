@@ -4,7 +4,7 @@ import pytest
 from aiogram.client.session.base import BaseSession
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.methods import AnswerCallbackQuery, DeleteMessage, EditMessageText, SendMessage
-from aiogram.types import Chat, Message, Update
+from aiogram.types import Chat, Message, ReplyKeyboardMarkup, ReplyKeyboardRemove, Update
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from namoz_bot.config import Settings
@@ -23,6 +23,7 @@ class LocalSession(BaseSession):
         self.last_ids = {}
         self.next_id = 10000
         self.fail_edit = None
+        self.reply_keyboards = {}
 
     async def close(self):
         pass
@@ -32,6 +33,11 @@ class LocalSession(BaseSession):
 
     async def make_request(self, bot, method, timeout=None):  # noqa: ASYNC109
         self.calls.append(method)
+        if isinstance(method, SendMessage):
+            if isinstance(method.reply_markup, ReplyKeyboardMarkup):
+                self.reply_keyboards[method.chat_id] = method.reply_markup
+            elif isinstance(method.reply_markup, ReplyKeyboardRemove):
+                self.reply_keyboards.pop(method.chat_id, None)
         if isinstance(method, AnswerCallbackQuery):
             return True
         if isinstance(method, DeleteMessage):
@@ -345,7 +351,7 @@ async def test_creation_validation_back_and_completion_edit_one_panel(journey):
     sends = [c for c in calls if isinstance(c, SendMessage)]
     edits = [c for c in calls if isinstance(c, EditMessageText)]
     deletes = [c.message_id for c in calls if isinstance(c, DeleteMessage)]
-    assert len(sends) == 1
+    assert len(sends) == 0
     assert len(edits) >= 8
     assert {c.message_id for c in edits} == {panel_id}
     assert text_id in deletes and time_id in deletes
@@ -371,23 +377,34 @@ async def test_list_repeated_open_and_navigation_edit_same_message(journey):
     assert len({c.message_id for c in calls}) == 1
 
 
-async def test_reminder_keyboard_carrier_survives_panel_navigation(journey):
+async def test_reminders_have_one_inline_menu_without_duplicate_reply_keyboard(journey):
     await journey.text("/start")
+    assert 7 in journey.session.reply_keyboards
+    before = len(journey.session.calls)
     await journey.text("🔔 Eslatmalar")
-    header_id = journey.session.last_ids[7]
-    assert journey.last.reply_markup.is_persistent is True
-    assert journey.last.reply_markup.one_time_keyboard is False
-    await journey.text("📋 Eslatma ro‘yxati")
-    assert (7, header_id) in journey.session.messages
     panel_id = journey.session.last_ids[7]
-    assert (7, panel_id) in journey.session.messages
-    await journey.text("➕ Eslatma qo‘shish")
+    assert 7 not in journey.session.reply_keyboards
+    await journey.click("📋 Eslatma ro‘yxati")
+    await journey.click("⬅️ Orqaga")
+    await journey.click("➕ Eslatma qo‘shish")
     assert journey.session.last_ids[7] == panel_id
     await journey.click("❌ Bekor qilish")
     await journey.click("⬅️ Orqaga")
+    await journey.text("🔔 Eslatmalar")
+    calls = journey.session.calls[before:]
+    sends = [c for c in calls if isinstance(c, SendMessage)]
+    assert len(sends) == 2
+    assert isinstance(sends[0].reply_markup, ReplyKeyboardRemove)
+    assert len(journey.session.messages) == 2  # Root greeting and one inline panel.
+    assert {c.message_id for c in calls if isinstance(c, EditMessageText)} == {panel_id}
+    assert 7 not in journey.session.reply_keyboards
+    assert (
+        sum(m.text == "🔔 Eslatmalar. Amalni tanlang:" for m in journey.session.messages.values())
+        == 1
+    )
     await journey.click("⬅️ Orqaga")
-    assert (7, header_id) not in journey.session.messages
     assert (7, panel_id) not in journey.session.messages
+    assert 7 in journey.session.reply_keyboards
 
 
 async def test_list_back_menu_add_save_back_and_home(journey):
@@ -412,6 +429,15 @@ async def test_list_back_menu_add_save_back_and_home(journey):
         "🕌 Namoz vaqti",
         "🔔 Eslatmalar",
     ]
+
+
+async def test_inline_list_works_before_start_command(journey):
+    await journey.text("🔔 Eslatmalar")
+    await journey.click("📋 Eslatma ro‘yxati")
+    assert "Hozircha eslatmalaringiz yo‘q" in journey.last.text
+    await journey.click("⬅️ Orqaga")
+    await journey.click("➕ Eslatma qo‘shish")
+    assert "Eslatma matnini" in journey.last.text
 
 
 async def test_cancel_back_and_stale_menu_cannot_interrupt_draft(journey):
@@ -464,7 +490,9 @@ async def test_removed_panel_is_recreated_once_then_reused(journey):
     replacement = journey.session.last_ids[7]
     assert replacement != previous
     await journey.click("✅ Saqlash")
-    assert len([c for c in journey.session.calls[before:] if isinstance(c, SendMessage)]) == 1
+    sends = [c for c in journey.session.calls[before:] if isinstance(c, SendMessage)]
+    assert len([c for c in sends if not isinstance(c.reply_markup, ReplyKeyboardRemove)]) == 1
+    assert (7, replacement - 1) not in journey.session.messages
     assert (await journey.rows())[0].spec.text == "Kitob o‘qish"
 
 

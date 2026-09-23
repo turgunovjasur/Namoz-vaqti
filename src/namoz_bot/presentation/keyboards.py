@@ -147,15 +147,3 @@ def build_main_menu() -> ReplyKeyboardMarkup:
         is_persistent=True,
         one_time_keyboard=False,
     )
-
-
-def build_reminders_menu() -> ReplyKeyboardMarkup:
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text=LIST_LABEL), KeyboardButton(text=ADD_LABEL)],
-            [KeyboardButton(text=HOME_LABEL)],
-        ],
-        resize_keyboard=True,
-        is_persistent=True,
-        one_time_keyboard=False,
-    )

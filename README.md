@@ -28,7 +28,8 @@ Telegram foydalanuvchilariga yuboradigan asinxron bot.
 **🕌 Namoz vaqti** bo‘limida bugungi jadval, hududni o‘zgartirish,
 masjidga moslash va yordam bor. **🔔 Eslatmalar** bo‘limida
 **📋 Eslatma ro‘yxati** va **➕ Eslatma qo‘shish** mavjud.
-Har ikkala bo‘limdan **⬅️ Asosiy menyu** orqali qaytiladi.
+Namoz vaqtidan **⬅️ Asosiy menyu**, eslatmalar menyusidan **⬅️ Orqaga**
+orqali asosiy menyuga qaytiladi.
 
 Eslatma yaratish: matn → `HH:MM` soat → aniq sana / har kuni / har hafta
 → tasdiqlash. Aniq sana inline kalendardan, haftalik jadval esa hafta
@@ -42,8 +43,9 @@ chat tarixi va belgilangan vaqtda kelgan eslatma xabarlari tozalanmaydi.
 Faol oynani foydalanuvchi o‘chirsa, keyingi amal yangi oynani yaratadi.
 Ro‘yxat va saqlash/bekor qilish natijasidagi **⬅️ Orqaga** tugmasi shu
 oynada eslatmalar menyusini ochadi; u yerdan qo‘shish, ro‘yxat yoki asosiy
-menyuga o‘tish mumkin. Pastki menyu doimiy ko‘rsatilishi so‘raladi va unga
-biriktirilgan bo‘lim xabari bo‘limdan chiqilguncha saqlanadi.
+menyuga o‘tish mumkin. Eslatmalar bo‘limida faqat xabar ostidagi inline
+menyu ishlatiladi; takroriy pastki klaviatura va alohida bo‘lim sarlavhasi
+chiqarilmaydi. Asosiy menyuga qaytilganda pastki klaviatura tiklanadi.
 
 - Eslatmalar faqat shaxsiy chatda yaratiladi va egasiga ko‘rsatiladi.
 - Matn 1–1000 belgi; barcha eslatma vaqtlari **Asia/Tashkent** bo‘yicha.

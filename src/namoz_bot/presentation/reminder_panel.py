@@ -4,17 +4,16 @@ import logging
 
 from aiogram.exceptions import TelegramAPIError, TelegramBadRequest
 from aiogram.fsm.context import FSMContext
-from aiogram.types import InlineKeyboardMarkup, Message
+from aiogram.types import InlineKeyboardMarkup, Message, ReplyKeyboardRemove
 
 logger = logging.getLogger(__name__)
 PANEL_ID = "reminder_panel_id"
-MENU_ID = "reminder_menu_message_id"
 
 
 async def reset_draft(state: FSMContext) -> None:
     """Forget dialog fields while retaining the reusable UI message."""
     data = await state.get_data()
-    retained = {key: data[key] for key in (PANEL_ID, MENU_ID) if data.get(key) is not None}
+    retained = {PANEL_ID: data[PANEL_ID]} if data.get(PANEL_ID) is not None else {}
     await state.clear()
     await state.set_data(retained)
 
@@ -36,9 +35,8 @@ async def delete_input(message: Message) -> None:
 
 async def discard_panel(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
-    for key in (PANEL_ID, MENU_ID):
-        if data.get(key) is not None:
-            await _delete(message, int(data[key]))
+    if data.get(PANEL_ID) is not None:
+        await _delete(message, int(data[PANEL_ID]))
 
 
 async def render_panel(
@@ -70,6 +68,11 @@ async def render_panel(
             ):
                 raise
             await _delete(message, int(panel_id))
-    sent = await message.answer(text, reply_markup=markup, parse_mode=None)
-    # Keep the reply-keyboard carrier until the user leaves this section.
-    await state.update_data({PANEL_ID: sent.message_id})
+    # Telegram requires a separate send to remove a reply keyboard. Keep only
+    # the inline panel in chat; the removal message must never become the panel.
+    removal = await message.answer("🔔 Eslatmalar", reply_markup=ReplyKeyboardRemove())
+    try:
+        sent = await message.answer(text, reply_markup=markup, parse_mode=None)
+        await state.update_data({PANEL_ID: sent.message_id})
+    finally:
+        await _delete(message, removal.message_id)
