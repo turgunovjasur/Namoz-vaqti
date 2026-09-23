@@ -67,7 +67,8 @@ xabar chegarasidan oshmaydi. Bir sahifada ko‘pi bilan uchta eslatma.
 Yuboriladigan xabar: `🔔 Eslatma` va foydalanuvchi kiritgan matn.
 Matn HTML yoki Markdown sifatida bajarilmaydi. Bir martalik eslatma
 bajarilgach qayta rejalashtirilmaydi. Takrorlanuvchi eslatma keyingi
-kun/haftaga o‘tadi. Bu bosqichda tahrirlash va o‘chirish qo‘shilmaydi.
+tanlangan keyingi vaqtga o‘tadi. Tahrirlash hozircha qo‘shilmaydi;
+o‘chirish oqimi quyidagi «Eslatmani o‘chirish» bo‘limida tavsiflangan.
 
 ## Tavsiya etilgan texnik yechim
 
@@ -179,3 +180,23 @@ vaqti bo‘yicha eng yaqin kelajakdagi tanlangan kunni hisoblaydi. Bazadagi
 eski `weekday` qiymatini unga aylantirib, mavjud eslatmalar va yuborish
 tarixini saqlaydi. Bir nechta kunli eslatma mavjud bo‘lsa, eski bir kunli
 sxemaga downgrade ma’lumot yo‘qotmaslik uchun rad etiladi.
+
+## Eslatmani o‘chirish
+
+Ro‘yxatning ko‘rinib turgan qismidagi har bir eslatma uchun raqami bilan
+«🗑 N. O‘chirish» tugmasi chiqariladi. U ayni oynada matn, vaqt va takrorlanish
+bilan tasdiqlashni ochadi. «🗑 Ha, o‘chirish» eslatma va yuborish tarixini
+bitta tranzaksiyada olib tashlaydi; «⬅️ Orqaga» o‘chirmasdan ro‘yxatga qaytadi.
+Bo‘shagan oxirgi sahifa o‘rniga birinchi sahifa ko‘rsatiladi.
+
+Har ko‘rinish va tasdiqlash uchun alohida token beriladi. Callback joriy
+oyna, shaxsiy chat, faol bosqich va aniq eslatmaga bog‘lanadi. Repository
+ham eslatma egasini tekshiradi. Eski, begona yoki takroriy tasdiqlash
+boshqa eslatmani o‘chirmaydi.
+
+Claim va delete asosiy eslatma qatorini bloklaydi; finish ham parent,
+keyin delivery tartibida ishlaydi. Worker yuborishdan oldin delivery hali
+mavjudligini tekshiradi. Allaqachon Telegram tarmoq so‘roviga o‘tgan
+xabar qaytarib olinmaydi. PostgreSQL ketma-ket identifikatorlari va
+testlarda yaratiladigan SQLite AUTOINCREMENT identifikatorlari eski
+delivery yakuni yangi eslatmaga ta’sir qilishiga yo‘l qo‘ymaydi.

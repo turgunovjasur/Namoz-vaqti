@@ -92,6 +92,7 @@ class ReminderRecord(Base):
             "AND weekdays_mask IS NOT NULL)",
             name="ck_reminder_schedule",
         ),
+        {"sqlite_autoincrement": True},
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -112,6 +113,7 @@ class ReminderDeliveryRecord(Base):
     __tablename__ = "reminder_deliveries"
     __table_args__ = (
         UniqueConstraint("reminder_id", "scheduled_at", name="uq_reminder_occurrence"),
+        {"sqlite_autoincrement": True},
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

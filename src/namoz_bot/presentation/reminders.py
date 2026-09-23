@@ -21,7 +21,12 @@ from namoz_bot.presentation.keyboards import (
     build_main_menu,
     build_prayer_menu,
 )
-from namoz_bot.presentation.reminder_keyboards import dialog_keyboard, menu_keyboard, page_keyboard
+from namoz_bot.presentation.reminder_keyboards import (
+    delete_keyboard,
+    dialog_keyboard,
+    menu_keyboard,
+    page_keyboard,
+)
 from namoz_bot.presentation.reminder_panel import (
     PANEL_ID,
     delete_input,
@@ -282,6 +287,9 @@ async def _show_list(
     user = await services.subscriptions.get(owner)
     assert user.id is not None
     rows, more = await reminders.page(user.id, page)
+    if not rows and page:
+        page, part = 0, 0
+        rows, more = await reminders.page(user.id, page)
     statuses = {
         "active": "Faol",
         "processing": "Yuborilmoqda",
@@ -290,6 +298,7 @@ async def _show_list(
         "paused": "To‘xtatilgan",
     }
     chunks = ["📋 Eslatma ro‘yxati\n\n"]
+    chunk_items: list[list[tuple[int, int]]] = [[]]
     if not rows:
         chunks[0] += "Hozircha eslatmalaringiz yo‘q." if not page else "Bu sahifada eslatma yo‘q."
     for i, row in enumerate(rows, 1):
@@ -300,13 +309,32 @@ async def _show_list(
         )
         if len((chunks[-1] + entry).encode("utf-16-le")) // 2 > 3900:
             chunks.append("")
+            chunk_items.append([])
         chunks[-1] += entry + "\n\n"
+        chunk_items[-1].append((page * 3 + i, row.id))
     selected = len(chunks) - 1 if part == -1 else min(part, len(chunks) - 1)
+    token = uuid4().hex[:16]
+    await state.update_data(
+        delete_token=token,
+        delete_stage="list",
+        delete_target=None,
+        delete_ids=[item[1] for item in chunk_items[selected]],
+        list_page=page,
+        list_part=selected,
+    )
     await render_panel(
         message,
         state,
         chunks[selected].rstrip(),
-        page_keyboard(owner, page, more, part=selected, parts=len(chunks)),
+        page_keyboard(
+            owner,
+            page,
+            more,
+            part=selected,
+            parts=len(chunks),
+            delete_token=token,
+            items=tuple(chunk_items[selected]),
+        ),
     )
 
 
@@ -374,6 +402,82 @@ async def choose_button(
     await delete_input(message)
 
 
+async def delete_callback(
+    callback: CallbackQuery,
+    state: FSMContext,
+    handler_services: HandlerServices,
+    reminder_service: ReminderService,
+) -> None:
+    message = callback.message
+    data = await state.get_data()
+    parts = (callback.data or "").split(":")
+    if (
+        not isinstance(message, Message)
+        or message.chat.type != "private"
+        or message.chat.id != callback.from_user.id
+        or data.get(PANEL_ID) != message.message_id
+        or await state.get_state() is not None
+        or len(parts) != 4
+        or parts[1] != data.get("delete_token")
+        or not parts[3].isascii()
+        or not parts[3].isdigit()
+        or len(parts[3]) > 19
+    ):
+        await callback.answer("Bu tugma eskirgan. Ro‘yxatni qayta oching.", show_alert=True)
+        return
+    action, reminder_id = parts[2], int(parts[3])
+    if (
+        action == "ask"
+        and data.get("delete_stage") == "list"
+        and reminder_id in data.get("delete_ids", [])
+    ):
+        user = await handler_services.subscriptions.get(callback.from_user.id)
+        assert user.id is not None
+        reminder = await reminder_service.get(user.id, reminder_id)
+        if reminder is not None:
+            token = uuid4().hex[:16]
+            await state.update_data(
+                delete_token=token, delete_stage="confirm", delete_target=reminder_id
+            )
+            await render_panel(
+                message,
+                state,
+                f"Shu eslatma o‘chirilsinmi?\n\n📝 {reminder.spec.text}\n"
+                f"🕒 {reminder.spec.at:%H:%M} · Toshkent\n📅 {reminder.spec.schedule_label()}",
+                delete_keyboard(token, reminder_id),
+            )
+            await callback.answer()
+            return
+    elif (
+        action in {"yes", "back"}
+        and data.get("delete_stage") == "confirm"
+        and reminder_id == data.get("delete_target")
+    ):
+        if action == "yes":
+            user = await handler_services.subscriptions.get(callback.from_user.id)
+            assert user.id is not None
+            deleted = await reminder_service.delete(user.id, reminder_id)
+            await callback.answer(
+                "Eslatma o‘chirildi." if deleted else "Eslatma allaqachon o‘chirilgan."
+            )
+        else:
+            await callback.answer()
+    else:
+        await callback.answer("Bu tugma eskirgan. Ro‘yxatni qayta oching.", show_alert=True)
+        return
+    await _show_list(
+        message,
+        state,
+        callback.from_user.id,
+        data["list_page"],
+        handler_services,
+        reminder_service,
+        data["list_part"],
+    )
+    if action == "ask":
+        await callback.answer("Eslatma topilmadi.")
+
+
 async def menu_callback(
     callback: CallbackQuery,
     state: FSMContext,
@@ -436,4 +540,5 @@ def build_reminder_router() -> Router:
     router.callback_query.register(dialog_callback, F.data.startswith("rem:"))
     router.callback_query.register(list_callback, F.data.startswith("remlist:"))
     router.callback_query.register(menu_callback, F.data.startswith("remmenu:"))
+    router.callback_query.register(delete_callback, F.data.startswith("remdel:"))
     return router

@@ -17,6 +17,9 @@ class ReminderRepository(Protocol):
         self, user_id: int, chat_id: int, spec: ReminderSpec, token: str, now: datetime
     ) -> Reminder: ...
     async def list_for_user(self, user_id: int, *, offset: int, limit: int) -> list[Reminder]: ...
+    async def get_for_user(self, user_id: int, reminder_id: int) -> Reminder | None: ...
+    async def delete_for_user(self, user_id: int, reminder_id: int) -> bool: ...
+    async def can_send(self, delivery: ReminderDelivery) -> bool: ...
     async def claim_due(self, now: datetime, *, limit: int) -> list[ReminderDelivery]: ...
     async def finish(
         self, delivery: ReminderDelivery, status: str, error: str | None = None
@@ -38,12 +41,21 @@ class ReminderService:
         rows = await self.repository.list_for_user(user_id, offset=max(0, page) * 3, limit=4)
         return rows[:3], len(rows) > 3
 
+    async def get(self, user_id: int, reminder_id: int) -> Reminder | None:
+        return await self.repository.get_for_user(user_id, reminder_id)
+
+    async def delete(self, user_id: int, reminder_id: int) -> bool:
+        return await self.repository.delete_for_user(user_id, reminder_id)
+
     async def send_due(self, sender: MessageSender) -> None:
         now = self.now()
         paused: set[int] = set()
         while deliveries := await self.repository.claim_due(now, limit=50):
             for delivery in deliveries:
                 try:
+                    # Deletion may happen after claiming a batch but before sending.
+                    if not await self.repository.can_send(delivery):
+                        continue
                     if delivery.user_id in paused:
                         await self.repository.finish(delivery, "failed", "recipient_blocked")
                         continue

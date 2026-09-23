@@ -491,6 +491,90 @@ async def test_weekday_grid_accepts_queued_taps_but_expires_when_leaving_step(jo
     assert (await journey.rows())[0].spec.weekdays == (0, 2)
 
 
+async def test_delete_reminder_confirmation_cancel_and_duplicate_click(journey):
+    await journey.begin("Delete this reminder")
+    await journey.click("🔁 Har kuni")
+    await journey.click("✅ Saqlash")
+    await journey.text("📋 Eslatma ro‘yxati")
+    panel_id = journey.session.last_ids[7]
+    before = len(journey.session.calls)
+    await journey.click("🗑 1. O‘chirish")
+    assert "Delete this reminder" in journey.last.text
+    assert len(await journey.rows()) == 1
+    old_confirm = journey.button("🗑 Ha, o‘chirish")
+    await journey.click("⬅️ Orqaga")
+    await journey.click(data=old_confirm)
+    assert len(await journey.rows()) == 1
+    await journey.click("🗑 1. O‘chirish")
+    confirm = await journey.click("🗑 Ha, o‘chirish")
+    assert "Hozircha eslatmalaringiz yo‘q" in journey.last.text
+    assert await journey.rows() == []
+    await journey.click(data=confirm)
+    assert await journey.rows() == []
+    assert journey.session.last_ids[7] == panel_id
+    assert not any(isinstance(c, SendMessage) for c in journey.session.calls[before:])
+
+
+async def test_delete_last_item_on_last_page_returns_to_previous_page(journey):
+    for i in range(4):
+        await journey.begin(f"Reminder {i}")
+        await journey.click("🔁 Har kuni")
+        await journey.click("✅ Saqlash")
+    await journey.text("📋 Eslatma ro‘yxati")
+    await journey.click("Keyingi ➡️")
+    await journey.click("🗑 4. O‘chirish")
+    await journey.click("🗑 Ha, o‘chirish")
+    assert "1. Reminder 0" in journey.last.text
+    assert len(await journey.rows()) == 3
+
+
+@pytest.mark.parametrize(
+    "case", ["foreign_user", "wrong_target", "wrong_message", "new_list", "new_draft", "home"]
+)
+async def test_delete_confirmation_rejects_foreign_or_stale_callbacks(journey, case):
+    await journey.begin("Keep")
+    await journey.click("🔁 Har kuni")
+    await journey.click("✅ Saqlash")
+    await journey.text("📋 Eslatma ro‘yxati")
+    await journey.click("🗑 1. O‘chirish")
+    confirmation = journey.button("🗑 Ha, o‘chirish")
+    user = 7
+    if case == "foreign_user":
+        user = 8
+        await journey.text("🔔 Eslatmalar", user=user)
+        journey.callback_ids[confirmation] = journey.session.last_ids[user]
+    elif case == "wrong_target":
+        confirmation = confirmation.rsplit(":", 1)[0] + ":999999"
+    elif case == "wrong_message":
+        journey.callback_ids[confirmation] += 10
+    elif case == "new_list":
+        await journey.text("📋 Eslatma ro‘yxati")
+    elif case == "new_draft":
+        await journey.text("➕ Eslatma qo‘shish")
+    else:
+        await journey.text("⬅️ Asosiy menyu")
+    await journey.click(data=confirmation, user=user)
+    assert journey.session.calls[-1].show_alert
+    assert len(await journey.rows()) == 1
+
+
+async def test_delete_buttons_match_only_visible_long_reminders(journey):
+    for i in range(3):
+        await journey.begin(str(i) + "😀" * 999)
+        await journey.click("🔁 Har kuni")
+        await journey.click("✅ Saqlash")
+    await journey.text("📋 Eslatma ro‘yxati")
+    assert journey.button("🗑 1. O‘chirish")
+    assert not any(
+        "2. O‘chirish" in b.text for row in journey.last.reply_markup.inline_keyboard for b in row
+    )
+    await journey.click("Keyingi ➡️")
+    await journey.click("🗑 2. O‘chirish")
+    assert "1😀" in journey.last.text
+    await journey.click("🗑 Ha, o‘chirish")
+    assert [row.spec.text[0] for row in await journey.rows()] == ["0", "2"]
+
+
 async def test_cancel_back_and_stale_menu_cannot_interrupt_draft(journey):
     await journey.text("/start")
     await journey.text("📋 Eslatma ro‘yxati")

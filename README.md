@@ -49,6 +49,13 @@ menyuga o‘tish mumkin. Eslatmalar bo‘limida faqat xabar ostidagi inline
 menyu ishlatiladi; takroriy pastki klaviatura va alohida bo‘lim sarlavhasi
 chiqarilmaydi. Asosiy menyuga qaytilganda pastki klaviatura tiklanadi.
 
+Ro‘yxatdagi **🗑 N. O‘chirish** tegishli eslatmani ko‘rsatib tasdiqlashni
+so‘raydi. **🗑 Ha, o‘chirish** eslatmani va uning yuborish tarixini bazadan
+olib tashlaydi; **⬅️ Orqaga** o‘chirmasdan ro‘yxatga qaytaradi. Faqat egasi
+o‘z eslatmasini o‘chira oladi. Navbatga olingan, lekin yuborilishi hali
+boshlanmagan xabar ham bekor qilinadi; Telegramga jo‘natish allaqachon
+boshlangan xabarni qaytarib olish kafolatlanmaydi.
+
 - Eslatmalar faqat shaxsiy chatda yaratiladi va egasiga ko‘rsatiladi.
 - Matn 1–1000 belgi; barcha eslatma vaqtlari **Asia/Tashkent** bo‘yicha.
 - Ro‘yxat uchta eslatmadan sahifalanadi; uzun Unicode matnlar
@@ -63,7 +70,7 @@ chiqarilmaydi. Asosiy menyuga qaytilganda pastki klaviatura tiklanadi.
   qayta yuborilmaydi: crash paytida xabar yetib bormasligi mumkin. Telegram
   transportining qayta urinishida dublikat ehtimoli qoladi; aniq bir marta
   yetkazish kafolatlanmaydi. Botni bloklagan foydalanuvchi eslatmalari to‘xtatiladi.
-- Hozirgi bosqichda eslatmalarni tahrirlash va o‘chirish mavjud emas.
+- Eslatmalarni o‘chirish mumkin; tahrirlash hozircha mavjud emas.
 
 ### Lokal tekshiruv
 

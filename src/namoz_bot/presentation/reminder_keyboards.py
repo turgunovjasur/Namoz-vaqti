@@ -96,7 +96,14 @@ def menu_keyboard(owner: int, *, section: bool = False) -> InlineKeyboardMarkup:
 
 
 def page_keyboard(
-    owner: int, page: int, has_more: bool, *, part: int = 0, parts: int = 1
+    owner: int,
+    page: int,
+    has_more: bool,
+    *,
+    part: int = 0,
+    parts: int = 1,
+    delete_token: str = "",
+    items: tuple[tuple[int, int], ...] = (),
 ) -> InlineKeyboardMarkup:
     row = []
     if part or page:
@@ -113,6 +120,29 @@ def page_keyboard(
                 text="Keyingi ➡️", callback_data=f"remlist:{owner}:{next_page}:{next_part}"
             )
         )
-    rows = [row] if row else []
+    rows = [
+        [
+            InlineKeyboardButton(
+                text=f"🗑 {number}. O‘chirish",
+                callback_data=f"remdel:{delete_token}:ask:{reminder_id}",
+            )
+        ]
+        for number, reminder_id in items
+    ]
+    if row:
+        rows.append(row)
     rows.extend(menu_keyboard(owner).inline_keyboard)
     return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def delete_keyboard(token: str, reminder_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text=label, callback_data=f"remdel:{token}:{action}:{reminder_id}"
+                )
+            ]
+            for label, action in (("🗑 Ha, o‘chirish", "yes"), ("⬅️ Orqaga", "back"))
+        ]
+    )

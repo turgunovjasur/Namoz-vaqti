@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime
 
-from sqlalchemy import case, select, update
+from sqlalchemy import case, delete, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -112,17 +112,58 @@ class SqlAlchemyReminderRepository:
                 )
         return claimed
 
+    async def get_for_user(self, user_id: int, reminder_id: int) -> Reminder | None:
+        async with self._factory() as session:
+            row = await session.scalar(
+                select(ReminderRecord).where(
+                    ReminderRecord.id == reminder_id, ReminderRecord.user_id == user_id
+                )
+            )
+            return _entity(row) if row is not None else None
+
+    async def delete_for_user(self, user_id: int, reminder_id: int) -> bool:
+        async with self._factory.begin() as session:
+            # Serialize against claim_due's row update before removing its ledger.
+            owned = await session.scalar(
+                select(ReminderRecord.id)
+                .where(ReminderRecord.id == reminder_id, ReminderRecord.user_id == user_id)
+                .with_for_update()
+            )
+            if owned is None:
+                return False
+            await session.execute(
+                delete(ReminderDeliveryRecord).where(
+                    ReminderDeliveryRecord.reminder_id == reminder_id
+                )
+            )
+            await session.execute(
+                delete(ReminderRecord).where(
+                    ReminderRecord.id == reminder_id, ReminderRecord.user_id == user_id
+                )
+            )
+            return True
+
+    async def can_send(self, delivery: ReminderDelivery) -> bool:
+        async with self._factory() as session:
+            return (
+                await session.scalar(
+                    select(ReminderDeliveryRecord.id)
+                    .join(ReminderRecord, ReminderRecord.id == ReminderDeliveryRecord.reminder_id)
+                    .where(
+                        ReminderDeliveryRecord.id == delivery.id,
+                        ReminderRecord.id == delivery.reminder_id,
+                        ReminderRecord.user_id == delivery.user_id,
+                        ReminderDeliveryRecord.status == "pending",
+                    )
+                )
+                is not None
+            )
+
     async def finish(
         self, delivery: ReminderDelivery, status: str, error: str | None = None
     ) -> None:
         async with self._factory.begin() as session:
-            await session.execute(
-                update(ReminderDeliveryRecord)
-                .where(
-                    ReminderDeliveryRecord.id == delivery.id,
-                )
-                .values(status=status, error_code=error[:100] if error else None)
-            )
+            # Use the same parent-before-ledger lock order as delete_for_user.
             await session.execute(
                 update(ReminderRecord)
                 .where(
@@ -130,6 +171,11 @@ class SqlAlchemyReminderRepository:
                     ReminderRecord.status == "processing",
                 )
                 .values(status="completed" if status == "sent" else "failed")
+            )
+            await session.execute(
+                update(ReminderDeliveryRecord)
+                .where(ReminderDeliveryRecord.id == delivery.id)
+                .values(status=status, error_code=error[:100] if error else None)
             )
 
     async def pause_user(self, user_id: int) -> None:

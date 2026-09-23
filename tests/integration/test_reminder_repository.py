@@ -61,6 +61,25 @@ NOW = datetime(2026, 9, 23, 14, tzinfo=UTC)
 DUE = datetime(2026, 9, 23, 15, tzinfo=UTC)
 
 
+async def test_delete_is_owner_scoped_idempotent_and_cancels_delivery(session_factory):
+    user = await add_user(session_factory)
+    other = await add_user(session_factory, 8)
+    repo = SqlAlchemyReminderRepository(session_factory)
+    reminder = await repo.create(user, 7, ReminderSpec("Delete", time(20), "daily"), "del", NOW)
+    assert await repo.get_for_user(other, reminder.id) is None
+    assert await repo.delete_for_user(other, reminder.id) is False
+    delivery = (await repo.claim_due(DUE, limit=10))[0]
+    assert await repo.can_send(delivery) is True
+    assert await repo.delete_for_user(user, reminder.id) is True
+    assert await repo.delete_for_user(user, reminder.id) is False
+    assert await repo.can_send(delivery) is False
+    await repo.finish(delivery, "sent")  # A late completion cannot recreate the reminder.
+    assert await repo.list_for_user(user, offset=0, limit=10) == []
+    assert await repo.claim_due(datetime(2026, 9, 24, 15, tzinfo=UTC), limit=10) == []
+    async with session_factory() as session:
+        assert (await session.scalars(select(ReminderDeliveryRecord))).all() == []
+
+
 async def add_user(factory, number=7):
     user = await SqlAlchemySubscriptionRepository(factory).add(
         UserSubscription(number, number, "Toshkent", True)
@@ -135,6 +154,57 @@ class CapturingSender:
         if chat_id == self.failed:
             raise RuntimeError("network")
         self.messages.append((chat_id, text))
+
+
+async def test_deleting_an_already_claimed_batch_item_prevents_send(session_factory):
+    user = await add_user(session_factory)
+    repo = SqlAlchemyReminderRepository(session_factory)
+    await repo.create(user, 7, ReminderSpec("First", time(20), "daily"), "first", NOW)
+    second = await repo.create(user, 7, ReminderSpec("Second", time(20), "daily"), "second", NOW)
+
+    class DeleteWhileSending(CapturingSender):
+        async def send(self, chat_id, text):
+            await super().send(chat_id, text)
+            await repo.delete_for_user(user, second.id)
+
+    sender = DeleteWhileSending()
+    await ReminderService(repo, now=lambda: DUE).send_due(sender)
+    assert sender.messages == [(7, "🔔 Eslatma\n\nFirst")]
+
+
+async def test_delete_can_race_claim_and_finish(session_factory):
+    user = await add_user(session_factory)
+    repo = SqlAlchemyReminderRepository(session_factory)
+    reminder = await repo.create(
+        user, 7, ReminderSpec("Concurrent", time(20), "daily"), "race", NOW
+    )
+    deliveries, deleted = await asyncio.gather(
+        repo.claim_due(DUE, limit=10), repo.delete_for_user(user, reminder.id)
+    )
+    assert deleted
+    for delivery in deliveries:
+        assert not await repo.can_send(delivery)
+    once = await repo.create(
+        user, 7, ReminderSpec("Once", time(20), "once", on_date=date(2026, 9, 23)), "once-race", NOW
+    )
+    delivery = (await repo.claim_due(DUE, limit=10))[0]
+    await asyncio.gather(repo.finish(delivery, "sent"), repo.delete_for_user(user, once.id))
+    assert await repo.list_for_user(user, offset=0, limit=10) == []
+
+
+async def test_deleted_delivery_cannot_target_a_new_reminder(session_factory):
+    user = await add_user(session_factory)
+    repo = SqlAlchemyReminderRepository(session_factory)
+    spec = ReminderSpec("Old", time(20), "once", on_date=date(2026, 9, 23))
+    old = await repo.create(user, 7, spec, "old", NOW)
+    old_delivery = (await repo.claim_due(DUE, limit=10))[0]
+    await repo.delete_for_user(user, old.id)
+    new = await repo.create(user, 7, spec, "new", NOW)
+    new_delivery = (await repo.claim_due(DUE, limit=10))[0]
+    assert not await repo.can_send(old_delivery)
+    await repo.finish(old_delivery, "sent")
+    assert await repo.can_send(new_delivery)
+    assert (await repo.get_for_user(user, new.id)).status == "processing"
 
 
 async def test_worker_isolates_failure_pauses_blocked_and_survives_restart(session_factory):
