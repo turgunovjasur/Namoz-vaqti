@@ -182,7 +182,7 @@ async def test_list_is_section_home_and_refreshes_after_add_and_number_delete(jo
     await journey.click("✅ Saqlash")
     assert "📋 Eslatma ro‘yxati" in journey.last.text
     assert "1. Suv ichish" in journey.last.text
-    assert "🕒 20:00" in journey.last.text and "📅 Har kuni" in journey.last.text
+    assert journey.last.text == "📋 Eslatma ro‘yxati\n\n1. Suv ichish\n🕒 20:00 · Har kuni"
     await journey.click("\N{HEAVY MINUS SIGN} O‘chirish")
     assert "1. Suv ichish" in journey.last.text
     assert "raqamini" in journey.last.text
@@ -270,7 +270,7 @@ async def test_date_and_weekly_creation(journey, kind):
     if kind == "weekly":
         await journey.click("📆 Har hafta")
         await journey.click("⬜ Yakshanba")
-        await journey.click("Davom etish")
+        await journey.click("Oldinga ➡️")
     else:
         await journey.click("📅 Sana tanlash")
         tomorrow = (datetime.now(TASHKENT) + timedelta(days=1)).date()
@@ -514,31 +514,31 @@ async def test_weekly_multiselect_toggle_continue_and_back(journey):
     await journey.begin()
     panel_id = journey.session.last_ids[7]
     await journey.click("📆 Har hafta")
-    assert journey.last.text == "Qaysi kunlarda takrorlansin?"
-    assert [[b.text for b in row] for row in journey.last.reply_markup.inline_keyboard[:5]] == [
-        ["⬜ Dushanba", "⬜ Seshanba"],
-        ["⬜ Chorshanba", "⬜ Payshanba"],
-        ["⬜ Juma", "⬜ Shanba"],
+    assert journey.last.text == "Qaysi kunlarda takrorlansin?\nBitta yoki bir nechta kunni tanlang."
+    assert [[b.text for b in row] for row in journey.last.reply_markup.inline_keyboard] == [
+        ["⬜ Dushanba", "⬜ Seshanba", "⬜ Chorshanba"],
+        ["⬜ Payshanba", "⬜ Juma", "⬜ Shanba"],
         ["⬜ Yakshanba"],
-        ["Davom etish"],
+        ["⬅️ Orqaga", "Oldinga ➡️"],
     ]
-    await journey.click("Davom etish")
+    await journey.click("Oldinga ➡️")
     assert "Kamida bitta kun" in journey.session.calls[-1].text
     await journey.click("⬜ Dushanba")
     await journey.click("⬜ Chorshanba")
     await journey.click("✅ Dushanba")
     await journey.click("⬜ Juma")
-    await journey.click("Davom etish")
+    await journey.click("Oldinga ➡️")
     assert "Har hafta, Chorshanba, Juma" in journey.last.text
     await journey.click("⬅️ Orqaga")
     assert journey.button("✅ Chorshanba") and journey.button("✅ Juma")
     await journey.click("⬜ Yakshanba")
-    await journey.click("Davom etish")
+    await journey.click("Oldinga ➡️")
     await journey.click("✅ Saqlash")
     rows = await journey.rows()
     assert len(rows) == 1
     assert rows[0].spec.weekdays == (2, 4, 6)
-    assert "Har hafta, Chorshanba, Juma, Yakshanba" in journey.last.text
+    assert "🕒 20:00 · Ch, Ju, Ya" in journey.last.text
+    assert "Faol" not in journey.last.text and "Ko‘rsatilmoqda" not in journey.last.text
     assert journey.session.last_ids[7] == panel_id
 
 
@@ -547,7 +547,7 @@ async def test_weekday_grid_accepts_queued_taps_but_expires_when_leaving_step(jo
     await journey.click("📆 Har hafta")
     monday = journey.button("⬜ Dushanba")
     wednesday = journey.button("⬜ Chorshanba")
-    proceed = journey.button("Davom etish")
+    proceed = journey.button("Oldinga ➡️")
     await journey.click(data=monday)
     await journey.click(data=wednesday)
     await journey.click(data=proceed)

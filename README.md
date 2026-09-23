@@ -34,9 +34,10 @@ orqali asosiy menyuga qaytiladi.
 
 Eslatma yaratish: matn → `HH:MM` soat → aniq sana / har kuni / har hafta
 → tasdiqlash. Aniq sana inline kalendardan, haftalik jadval esa hafta
-kunlaridan tanlanadi. Haftalik kunlar ikki ustunda ⬜/✅ bilan belgilanadi;
-kamida bitta kun tanlab **Davom etish** bosiladi. Eslatma har hafta barcha
-tanlangan kunlarda yuboriladi. Har bosqichda orqaga qaytish yoki bekor qilish mumkin.
+kunlaridan tanlanadi. Haftalik kunlar 3:3:1 tartibda ⬜/✅ bilan belgilanadi;
+kamida bitta kun tanlab **Oldinga ➡️** bosiladi. Bu oynaning pastida
+**⬅️ Orqaga | Oldinga ➡️** bor. Eslatma har hafta barcha
+tanlangan kunlarda yuboriladi. Har bosqichda orqaga qaytish mumkin.
 Menyuni almashtirish va buyruq yuborish tugallanmagan kiritishni bekor qiladi.
 
 Qo‘shish bosqichlari, tekshirish xabarlari, saqlash/bekor qilish natijasi va
@@ -44,8 +45,10 @@ ro‘yxat sahifalari bitta bot xabarini yangilaydi. Shu jarayonda yuborilgan
 matn, soat va menyu tanlash xabarlari qayta ishlangach o‘chiriladi. Eski
 chat tarixi va belgilangan vaqtda kelgan eslatma xabarlari tozalanmaydi.
 Faol oynani foydalanuvchi o‘chirsa, keyingi amal yangi oynani yaratadi.
-Har eslatmaning tartib raqami, matni, soati, takrorlanishi va holati alohida
-qatorda ko‘rsatiladi. Qo‘shish, bekor qilish va o‘chirishdan keyin ro‘yxat
+Har eslatmaning tartib raqami va matni bir qatorda, vaqt va jadval esa
+keyingi qatorda ko‘rsatiladi: `🕒 08:00 · Du, Ch, Ju`. Hafta kunlari
+`Du, Se, Ch, Pa, Ju, Sh, Ya` deb qisqartiriladi. Ro‘yxatda holat va
+«Ko‘rsatilmoqda» yozuvi chiqarilmaydi. Qo‘shish, bekor qilish va o‘chirishdan keyin ro‘yxat
 shu oynada avtomatik yangilanadi. Ro‘yxatdagi **⬅️ Orqaga** asosiy menyuga
 qaytaradi. Eslatmalar ichida faqat inline tugmalar ishlatiladi; asosiy
 menyuga qaytilganda pastki klaviatura tiklanadi.

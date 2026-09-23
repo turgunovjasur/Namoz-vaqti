@@ -50,8 +50,7 @@ def dialog_keyboard(
             button(token, f"{'✅' if index in weekdays else '⬜'} {label}", "weekday", str(index))
             for index, label in enumerate(WEEKDAYS)
         ]
-        rows = [days[index : index + 2] for index in range(0, len(days), 2)]
-        rows.append([button(token, "Davom etish", "continue")])
+        rows = [days[index : index + 3] for index in range(0, len(days), 3)]
     elif step == "date":
         assert month is not None and today is not None
         rows.append([button(token, f"{MONTHS[month.month - 1]} {month.year}", "noop")])
@@ -78,7 +77,10 @@ def dialog_keyboard(
             rows.append(navigation)
     elif step == "confirm":
         rows.append([button(token, "✅ Saqlash", "save")])
-    rows.append([button(token, "⬅️ Orqaga", "back"), button(token, "❌ Bekor qilish", "cancel")])
+    if step == "weekday":
+        rows.append([button(token, "⬅️ Orqaga", "back"), button(token, "Oldinga ➡️", "continue")])
+    else:
+        rows.append([button(token, "⬅️ Orqaga", "back"), button(token, "❌ Bekor qilish", "cancel")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 

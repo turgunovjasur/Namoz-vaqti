@@ -51,7 +51,7 @@ Ketma-ketlik: matn → soat → sana/takrorlanish → tasdiqlash.
    `❌ Bekor qilish`. Faqat saqlash tasdiqlanganda eslatma bazaga yoziladi.
 5. Saqlangach bot muvaffaqiyat bildirishnomasini ko‘rsatib, ro‘yxatni shu oynada yangilaydi.
 
-Har bosqichda orqaga qaytish yoki bekor qilish mumkin. Noto‘g‘ri kiritish
+Har bosqichda orqaga qaytish mumkin. Noto‘g‘ri kiritish
 joriy bosqichni saqlab qoladi va tushunarli o‘zbekcha xabar qaytaradi.
 Tasdiqlash paytida sana/soat yana tekshiriladi. Ikki marta bosilgan
 saqlash tugmasi bitta eslatma yaratadi. Eski yoki boshqa foydalanuvchining
@@ -60,7 +60,7 @@ inline tugmasi yangi jarayonni o‘zgartirmaydi.
 ## Ro‘yxat va yuboriladigan xabar
 
 Ro‘yxatda faqat shu foydalanuvchining eslatmalari ko‘rinadi: matn, soat,
-aniq sana yoki har kuni/hafta kuni va holat. Faol eslatmalar eng yaqin
+aniq sana yoki har kuni/qisqa hafta kunlari. Faol eslatmalar eng yaqin
 yuborilish vaqtiga ko‘ra saralanadi; tugagan bir martaliklar keyin turadi.
 Bo‘sh ro‘yxat uchun `Hozircha eslatmalaringiz yo‘q` chiqadi. Ro‘yxat
 sahifalanadi, shuning uchun ko‘p yoki uzun matnli eslatmalar Telegram
@@ -168,9 +168,10 @@ tozalanadi va asosiy pastki klaviatura tiklanadi.
 
 ## Haftalik kunlarni ko‘p tanlash
 
-«Har hafta» bosilganda «Qaysi kunlarda takrorlansin?» savoli chiqadi.
-Kunlar ikki ustunda, yakshanba alohida oxirgi qatorda ko‘rsatiladi. Har
-bosish ⬜/✅ holatini almashtiradi. «Davom etish» kamida bir kun talab
+«Har hafta» bosilganda «Qaysi kunlarda takrorlansin? Bitta yoki bir nechta
+kunni tanlang.» matni chiqadi. Kunlar 3:3:1 tartibida joylashadi.
+Har bosish ⬜/✅ holatini almashtiradi. Pastda bitta qatorda «⬅️ Orqaga»
+va «Oldinga ➡️» bor; bu bosqichda «Bekor qilish» yo‘q. «Oldinga ➡️» kamida bir kun talab
 qiladi; undan so‘ng tasdiqlash oynasi barcha tanlangan kunlarni ko‘rsatadi.
 Tasdiqlashdan orqaga qaytish tanlovni saqlaydi. Bir oynadan ketma-ket
 yuborilgan kun tanlash callbacklari qabul qilinadi; bosqichdan chiqilgach
@@ -204,8 +205,11 @@ xabar qaytarib olinmaydi. PostgreSQL ketma-ket identifikatorlari va
 testlarda yaratiladigan SQLite AUTOINCREMENT identifikatorlari eski
 delivery yakuni yangi eslatmaga ta’sir qilishiga yo‘l qo‘ymaydi.
 
-Ro‘yxat dizayni: sarlavha va Toshkent vaqti, har eslatma uchun raqam/matn,
-soat, takrorlanish va holat alohida qatorda, yozuvlar orasida ajratgich.
+Tasdiqlangan 1-variant: «📋 Eslatma ro‘yxati» sarlavhasi, har eslatma uchun
+raqam va matn, uning ostida `🕒 08:00 · Du, Ch, Ju`. Kundalik jadval
+`Har kuni`, aniq sana `25.09.2026, Ju` ko‘rinishida. Barcha kunlar
+`Du, Se, Ch, Pa, Ju, Sh, Ya` deb qisqartiriladi. Yozuvlar orasida bo‘sh
+qator bor; holat, «Ko‘rsatilmoqda» va chiziqli ajratgichlar chiqarilmaydi.
 Uzun matnlar qo‘shimcha sahifalanadi; raqam kiritish rejimida sahifalash
 saqlanadi. Noto‘g‘ri raqam o‘chirishga olib kelmaydi. Yaratish, bekor
 qilish va o‘chirishdan keyin ro‘yxat avtomatik ochiladi.

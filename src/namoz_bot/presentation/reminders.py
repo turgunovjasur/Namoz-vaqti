@@ -103,7 +103,7 @@ async def _prompt(
         "time": "Soat nechada eslatay? HH:MM shaklida kiriting.\nToshkent vaqti bo‘yicha.",
         "schedule": "Qachon eslatay?",
         "date": "Sanani tanlang:",
-        "weekday": "Qaysi kunlarda takrorlansin?",
+        "weekday": "Qaysi kunlarda takrorlansin?\nBitta yoki bir nechta kunni tanlang.",
     }
     text = prompts.get(step, "")
     if step == "confirm":
@@ -276,6 +276,16 @@ async def dialog_callback(
     await callback.answer()
 
 
+def _list_schedule_label(spec: ReminderSpec) -> str:
+    days = ("Du", "Se", "Ch", "Pa", "Ju", "Sh", "Ya")
+    if spec.kind == "weekly":
+        return ", ".join(days[day] for day in spec.weekdays)
+    if spec.kind == "once":
+        assert spec.on_date is not None
+        return f"{spec.on_date:%d.%m.%Y}, {days[spec.on_date.weekday()]}"
+    return "Har kuni"
+
+
 async def _show_list(
     message: Message,
     state: FSMContext,
@@ -294,21 +304,14 @@ async def _show_list(
     if not rows and page:
         page, part = 0, 0
         rows, more = await reminders.page(user.id, page)
-    statuses = {
-        "active": "🟢 Faol",
-        "processing": "⏳ Yuborilmoqda",
-        "completed": "✅ Bajarilgan",
-        "failed": "⚠️ Yuborilmadi",
-        "paused": "⏸ To‘xtatilgan",
-    }
     chunks = [""]
     chunk_items: list[list[tuple[int, int]]] = [[]]
     for i, row in enumerate(rows, 1):
         entry = (
             f"{page * 3 + i}. {row.spec.text}\n"
-            f"🕒 {row.spec.at:%H:%M}\n📅 {row.spec.schedule_label()}\n{statuses[row.status]}"
+            f"🕒 {row.spec.at:%H:%M} · {_list_schedule_label(row.spec)}"
         )
-        separator = "\n\n────────────────\n\n" if chunks[-1] else ""
+        separator = "\n\n" if chunks[-1] else ""
         if len((chunks[-1] + separator + entry).encode("utf-16-le")) // 2 > 3400:
             chunks.append("")
             chunk_items.append([])
@@ -317,10 +320,9 @@ async def _show_list(
         chunk_items[-1].append((page * 3 + i, row.id))
     selected = len(chunks) - 1 if part == -1 else min(part, len(chunks) - 1)
     items = chunk_items[selected]
-    text = "📋 Eslatma ro‘yxati\n🕒 Toshkent vaqti\n\n"
+    text = "📋 Eslatma ro‘yxati\n\n"
     if items:
         text += chunks[selected]
-        text += f"\n\nKo‘rsatilmoqda: {items[0][0]}–{items[-1][0]}"
     else:
         text += "Hozircha eslatmalaringiz yo‘q.\nBirinchi eslatmani ➕ Qo‘shish orqali yarating."
         deleting = False
