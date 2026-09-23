@@ -101,13 +101,14 @@ def build_region_group_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def build_main_menu() -> ReplyKeyboardMarkup:
+def build_prayer_menu() -> ReplyKeyboardMarkup:
     """Build the persistent main menu."""
 
     return ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text=TODAY_LABEL), KeyboardButton(text=REGION_LABEL)],
             [KeyboardButton(text=OFFSETS_LABEL), KeyboardButton(text=HELP_LABEL)],
+            [KeyboardButton(text=HOME_LABEL)],
         ],
         resize_keyboard=True,
     )
@@ -128,3 +129,27 @@ def build_region_keyboard(*, group_code: str) -> InlineKeyboardMarkup:
     rows.append([InlineKeyboardButton(text="⬅️ Viloyatlar", callback_data="region-groups")])
 
     return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+PRAYER_MENU_LABEL = "🕌 Namoz vaqti"
+REMINDERS_LABEL = "🔔 Eslatmalar"
+LIST_LABEL = "📋 Eslatma ro‘yxati"
+ADD_LABEL = "➕ Eslatma qo‘shish"
+HOME_LABEL = "⬅️ Asosiy menyu"
+
+
+def build_main_menu() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text=PRAYER_MENU_LABEL), KeyboardButton(text=REMINDERS_LABEL)]],
+        resize_keyboard=True,
+    )
+
+
+def build_reminders_menu() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text=LIST_LABEL), KeyboardButton(text=ADD_LABEL)],
+            [KeyboardButton(text=HOME_LABEL)],
+        ],
+        resize_keyboard=True,
+    )

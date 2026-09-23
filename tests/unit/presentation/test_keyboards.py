@@ -3,6 +3,7 @@ from namoz_bot.presentation.keyboards import (
     build_main_menu,
     build_offset_adjustment_keyboard,
     build_offsets_keyboard,
+    build_prayer_menu,
     build_region_keyboard,
 )
 
@@ -21,7 +22,7 @@ def test_region_group_keyboard_shows_fourteen_groups() -> None:
 
 
 def test_main_menu_has_no_notification_toggle() -> None:
-    menu = build_main_menu()
+    menu = build_prayer_menu()
 
     labels = [button.text for row in menu.keyboard for button in row]
     assert labels == [
@@ -29,8 +30,9 @@ def test_main_menu_has_no_notification_toggle() -> None:
         "📍 Hududni o‘zgartirish",
         "🕌 Masjidga moslash",
         "ℹ️ Yordam",
+        "⬅️ Asosiy menyu",
     ]
-    assert [len(row) for row in menu.keyboard] == [2, 2]
+    assert [len(row) for row in menu.keyboard] == [2, 2, 1]
     assert [button.text for button in menu.keyboard[1]] == [
         "🕌 Masjidga moslash",
         "ℹ️ Yordam",
@@ -95,3 +97,10 @@ def test_region_callbacks_use_stable_region_codes() -> None:
 
     assert callbacks["Andijon shahri"] == "region:Andijon"
     assert callbacks["Andijon tumani"] == "region:andijon"
+
+
+def test_root_menu_selects_two_sections():
+    assert [button.text for row in build_main_menu().keyboard for button in row] == [
+        "🕌 Namoz vaqti",
+        "🔔 Eslatmalar",
+    ]

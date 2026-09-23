@@ -8,22 +8,26 @@ from datetime import date
 
 import httpx
 from aiogram import Bot, Dispatcher
+from aiogram.fsm.storage.memory import SimpleEventIsolation
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from namoz_bot.application.broadcasting import BroadcastReport, BroadcastService
+from namoz_bot.application.reminders import ReminderService
 from namoz_bot.application.schedules import ScheduleService
 from namoz_bot.config import Settings
 from namoz_bot.infrastructure.db import create_database
 from namoz_bot.infrastructure.namoz_vaqti_api import NamozVaqtiApiClient
+from namoz_bot.infrastructure.reminders import SqlAlchemyReminderRepository
 from namoz_bot.infrastructure.repositories import (
     SqlAlchemyDeliveryRepository,
     SqlAlchemySubscriptionRepository,
 )
 from namoz_bot.infrastructure.telegram import TelegramMessageSender, TelegramRateLimiter
 from namoz_bot.logging import configure_logging
-from namoz_bot.presentation.handlers import router
+from namoz_bot.presentation.handlers import build_prayer_router
 from namoz_bot.presentation.middleware import ErrorHandlingMiddleware, ServicesMiddleware
+from namoz_bot.presentation.reminders import build_reminder_router
 from namoz_bot.scheduler import create_scheduler
 
 logger = logging.getLogger(__name__)
@@ -88,7 +92,7 @@ def create_application(settings: Settings) -> ApplicationResources:
     """Compose adapters and services without starting network activity."""
 
     bot = Bot(token=settings.telegram_bot_token.get_secret_value())
-    dispatcher = Dispatcher()
+    dispatcher = Dispatcher(events_isolation=SimpleEventIsolation())
     http_client = httpx.AsyncClient(
         base_url=settings.prayer_api_base_url,
         timeout=httpx.Timeout(connect=5.0, read=10.0, write=5.0, pool=5.0),
@@ -104,7 +108,8 @@ def create_application(settings: Settings) -> ApplicationResources:
     dispatcher.message.outer_middleware(middleware)
     dispatcher.callback_query.outer_middleware(ErrorHandlingMiddleware())
     dispatcher.callback_query.outer_middleware(middleware)
-    dispatcher.include_router(router)
+    dispatcher.include_router(build_prayer_router())
+    dispatcher.include_router(build_reminder_router())
 
     sender = TelegramMessageSender(
         bot,
@@ -121,6 +126,20 @@ def create_application(settings: Settings) -> ApplicationResources:
         run_broadcast,
         send_time=settings.daily_send_time,
         timezone=settings.timezone,
+    )
+    reminders = ReminderService(SqlAlchemyReminderRepository(session_factory))
+
+    async def send_reminders() -> None:
+        await reminders.send_due(sender)
+
+    scheduler.add_job(
+        send_reminders,
+        trigger="interval",
+        seconds=15,
+        id="personal-reminders",
+        replace_existing=True,
+        coalesce=True,
+        max_instances=1,
     )
     return ApplicationResources(bot, dispatcher, http_client, engine, scheduler)
 

@@ -1,6 +1,6 @@
 # Ikki bo‘limli menyu va shaxsiy eslatmalar
 
-Holat: foydalanuvchi ko‘rib chiqishi uchun. Amalga oshirish branchi: `dev1`.
+Holat: foydalanuvchi 2026-09-23 kuni tasdiqlagan; amalga oshirilgan va lokal testlardan o‘tgan. Amalga oshirish branchi: `dev1`.
 
 ## Kelishilgan maqsad
 

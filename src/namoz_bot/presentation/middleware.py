@@ -7,13 +7,17 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from aiogram import BaseMiddleware
-from aiogram.types import TelegramObject
+from aiogram.fsm.context import FSMContext
+from aiogram.types import Message, TelegramObject
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from namoz_bot.application.reminders import ReminderService
 from namoz_bot.application.schedules import ScheduleService
 from namoz_bot.application.subscriptions import SubscriptionService
+from namoz_bot.infrastructure.reminders import SqlAlchemyReminderRepository
 from namoz_bot.infrastructure.repositories import SqlAlchemySubscriptionRepository
 from namoz_bot.presentation.handlers import HandlerServices
+from namoz_bot.presentation.keyboards import HELP_LABEL, OFFSETS_LABEL, REGION_LABEL, TODAY_LABEL
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +68,21 @@ class ServicesMiddleware(BaseMiddleware):
         event: TelegramObject,
         data: dict[str, Any],
     ) -> Any:
+        state = data.get("state")
+        if (
+            isinstance(event, Message)
+            and isinstance(state, FSMContext)
+            and event.text
+            and (
+                event.text.startswith("/")
+                or event.text in {TODAY_LABEL, REGION_LABEL, OFFSETS_LABEL, HELP_LABEL}
+            )
+        ):
+            await state.clear()
+            data["raw_state"] = None
+        data["reminder_service"] = ReminderService(
+            SqlAlchemyReminderRepository(self._session_factory)
+        )
         data["handler_services"] = HandlerServices(
             subscriptions=SubscriptionService(
                 SqlAlchemySubscriptionRepository(self._session_factory)

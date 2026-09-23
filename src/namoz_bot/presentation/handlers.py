@@ -31,12 +31,12 @@ from namoz_bot.presentation.keyboards import (
     build_main_menu,
     build_offset_adjustment_keyboard,
     build_offsets_keyboard,
+    build_prayer_menu,
     build_region_group_keyboard,
     build_region_keyboard,
     format_offset_value,
 )
 
-router = Router(name="public-bot")
 _offset_locks: WeakValueDictionary[int, asyncio.Lock] = WeakValueDictionary()
 
 
@@ -63,14 +63,14 @@ async def _send_today(
     schedule = await services.schedules.get_today(subscription.region_code, services.today())
     await message.answer(
         format_schedule(schedule, offsets=subscription.offsets),
-        reply_markup=build_main_menu(),
+        reply_markup=build_prayer_menu(),
     )
 
 
 async def handle_start(message: Message, handler_services: HandlerServices) -> None:
     telegram_user_id, chat_id = _message_identity(message)
-    result = await handler_services.subscriptions.start(telegram_user_id, chat_id)
-    await _send_today(message, handler_services, result.subscription)
+    await handler_services.subscriptions.start(telegram_user_id, chat_id)
+    await message.answer("Asosiy menyu. Bo‘limni tanlang:", reply_markup=build_main_menu())
 
 
 async def handle_today(message: Message, handler_services: HandlerServices) -> None:
@@ -376,22 +376,25 @@ async def handle_help(message: Message) -> None:
     )
 
 
-router.message.register(handle_start, CommandStart())
-router.message.register(handle_today, Command("today"))
-router.message.register(handle_settings, Command("settings"))
-router.message.register(handle_offsets, Command("offsets"))
-router.message.register(handle_help, Command("help"))
-router.message.register(handle_today, F.text == TODAY_LABEL)
-router.message.register(handle_settings, F.text == REGION_LABEL)
-router.message.register(handle_offsets, F.text == OFFSETS_LABEL)
-router.message.register(handle_help, F.text == HELP_LABEL)
-router.callback_query.register(handle_region_groups, F.data == "region-groups")
-router.callback_query.register(handle_offsets_overview, F.data == "offsets")
-router.callback_query.register(handle_offset_schedule, F.data == "offset-schedule")
-router.callback_query.register(handle_offset_change, F.data.startswith("offset-change:"))
-router.callback_query.register(handle_offset_selection, F.data.startswith("offset:"))
-router.callback_query.register(
-    handle_region_group_selection,
-    F.data.startswith("region-group:"),
-)
-router.callback_query.register(handle_region_selection, F.data.startswith("region:"))
+def build_prayer_router() -> Router:
+    router = Router(name="public-bot")
+    router.message.register(handle_start, CommandStart())
+    router.message.register(handle_today, Command("today"))
+    router.message.register(handle_settings, Command("settings"))
+    router.message.register(handle_offsets, Command("offsets"))
+    router.message.register(handle_help, Command("help"))
+    router.message.register(handle_today, F.text == TODAY_LABEL)
+    router.message.register(handle_settings, F.text == REGION_LABEL)
+    router.message.register(handle_offsets, F.text == OFFSETS_LABEL)
+    router.message.register(handle_help, F.text == HELP_LABEL)
+    router.callback_query.register(handle_region_groups, F.data == "region-groups")
+    router.callback_query.register(handle_offsets_overview, F.data == "offsets")
+    router.callback_query.register(handle_offset_schedule, F.data == "offset-schedule")
+    router.callback_query.register(handle_offset_change, F.data.startswith("offset-change:"))
+    router.callback_query.register(handle_offset_selection, F.data.startswith("offset:"))
+    router.callback_query.register(
+        handle_region_group_selection,
+        F.data.startswith("region-group:"),
+    )
+    router.callback_query.register(handle_region_selection, F.data.startswith("region:"))
+    return router

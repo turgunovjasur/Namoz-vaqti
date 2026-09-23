@@ -5,6 +5,8 @@ async def test_public_user_journey() -> None:
     harness = AppHarness()
 
     await harness.start(user_id=7, chat_id=9)
+    assert "Asosiy menyu" in harness.last_message(9)
+    await harness.today_schedule(user_id=7, chat_id=9)
     assert "26.08.2026 (Chorshanba)\nToshkent shahri" in harness.last_message(9)
 
     await harness.adjust_offset(
