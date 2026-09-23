@@ -16,4 +16,13 @@ if [[ ! -f "$project_dir/.env" ]]; then
 fi
 
 cd "$project_dir"
-exec "$python_bin" -m namoz_bot.main
+case "${1:-}" in
+    "") module="namoz_bot.main" ;;
+    --local) module="namoz_bot.local" ;;
+    *) echo "Foydalanish: bash run_bot.sh [--local]" >&2; exit 2 ;;
+esac
+if [[ $# -gt 1 ]]; then
+    echo "Foydalanish: bash run_bot.sh [--local]" >&2
+    exit 2
+fi
+exec "$python_bin" -m "$module"

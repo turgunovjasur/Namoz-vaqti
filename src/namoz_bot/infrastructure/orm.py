@@ -74,3 +74,50 @@ class DeliveryRecord(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
     user: Mapped[UserRecord] = relationship(back_populates="deliveries")
+
+
+class ReminderRecord(Base):
+    __tablename__ = "reminders"
+    __table_args__ = (
+        UniqueConstraint("user_id", "creation_token", name="uq_reminder_creation"),
+        CheckConstraint("kind IN ('once', 'daily', 'weekly')", name="ck_reminder_kind"),
+        CheckConstraint(
+            "status IN ('active', 'processing', 'completed', 'failed', 'paused')",
+            name="ck_reminder_status",
+        ),
+        CheckConstraint(
+            "(kind = 'once' AND on_date IS NOT NULL AND weekdays_mask IS NULL) OR "
+            "(kind = 'daily' AND on_date IS NULL AND weekdays_mask IS NULL) OR "
+            "(kind = 'weekly' AND on_date IS NULL AND weekdays_mask BETWEEN 1 AND 127 "
+            "AND weekdays_mask IS NOT NULL)",
+            name="ck_reminder_schedule",
+        ),
+        {"sqlite_autoincrement": True},
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    chat_id: Mapped[int] = mapped_column(BigInteger)
+    text: Mapped[str] = mapped_column(String(1000))
+    at: Mapped[str] = mapped_column(String(5))
+    kind: Mapped[str] = mapped_column(String(10))
+    on_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    weekdays_mask: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    next_due: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    status: Mapped[str] = mapped_column(String(20), default="active", index=True)
+    creation_token: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ReminderDeliveryRecord(Base):
+    __tablename__ = "reminder_deliveries"
+    __table_args__ = (
+        UniqueConstraint("reminder_id", "scheduled_at", name="uq_reminder_occurrence"),
+        {"sqlite_autoincrement": True},
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    reminder_id: Mapped[int] = mapped_column(ForeignKey("reminders.id", ondelete="CASCADE"))
+    scheduled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(String(20), default="pending")
+    error_code: Mapped[str | None] = mapped_column(String(100), nullable=True)

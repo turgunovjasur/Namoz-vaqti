@@ -168,7 +168,7 @@ def make_services(
     )
 
 
-async def test_start_uses_saved_region_and_shared_schedule_format() -> None:
+async def test_start_reactivates_without_fetching_schedule() -> None:
     repository = InMemorySubscriptions(
         UserSubscription(
             7,
@@ -183,9 +183,10 @@ async def test_start_uses_saved_region_and_shared_schedule_format() -> None:
 
     await handle_start(message, make_services(repository))
 
-    assert "27.08.2026 (Payshanba)\nSamarqand" in message.answers[0].text
-    assert "19:16 — Shom (+4)" in message.answers[0].text
+    assert "Asosiy menyu" in message.answers[0].text
     assert repository.item is not None
+    assert repository.item.region_code == "Samarqand"
+    assert repository.item.offsets.shom == 4
     assert repository.item.chat_id == 9
     assert repository.item.is_active is True
 

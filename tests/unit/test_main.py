@@ -73,6 +73,7 @@ async def test_create_application_wires_daily_job_without_network_calls() -> Non
     )
 
     assert resources.scheduler.get_job("daily-prayer-schedule") is not None
+    assert resources.scheduler.get_job("personal-reminders") is not None
     assert resources.dispatcher.sub_routers
     assert resources.bot.default.parse_mode is None
     await resources.close()

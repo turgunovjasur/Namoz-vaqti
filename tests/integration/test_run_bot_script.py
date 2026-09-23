@@ -5,12 +5,19 @@ import stat
 import subprocess
 from pathlib import Path
 
+import pytest
+
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 RUN_SCRIPT = PROJECT_ROOT / "run_bot.sh"
 
 
+@pytest.mark.parametrize(
+    ("arguments", "module"), [([], "namoz_bot.main"), (["--local"], "namoz_bot.local")]
+)
 def test_run_script_starts_module_from_project_root_when_called_elsewhere(
     tmp_path: Path,
+    arguments: list[str],
+    module: str,
 ) -> None:
     assert RUN_SCRIPT.exists(), "run_bot.sh loyiha root'ida mavjud bo‘lishi kerak"
 
@@ -26,7 +33,7 @@ def test_run_script_starts_module_from_project_root_when_called_elsewhere(
     copied_script = Path(shutil.copy2(RUN_SCRIPT, fake_project / RUN_SCRIPT.name))
 
     result = subprocess.run(
-        [str(copied_script)],
+        [str(copied_script), *arguments],
         cwd=tmp_path,
         capture_output=True,
         check=False,
@@ -36,7 +43,7 @@ def test_run_script_starts_module_from_project_root_when_called_elsewhere(
     assert result.returncode == 0
     assert result.stdout.splitlines() == [
         f"cwd={fake_project}",
-        "args=-m namoz_bot.main",
+        f"args=-m {module}",
     ]
 
 

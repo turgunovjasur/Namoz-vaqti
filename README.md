@@ -6,7 +6,7 @@ Telegram foydalanuvchilariga yuboradigan asinxron bot.
 ## Ishlash tartibi
 
 - `/start` yangi foydalanuvchini standart **Toshkent** hududi bilan ro‘yxatdan o‘tkazadi
-  va bugungi to‘liq jadvalni darhol yuboradi.
+  va **🕌 Namoz vaqti** / **🔔 Eslatmalar** asosiy menyusini ochadi.
 - Foydalanuvchi sozlamalarda avval 14 ta geografik guruhdan birini, so‘ng shahar
   yoki tumanni tanlaydi. Katalog `namoz-vaqti.uz` ko‘rsatadigan 223 ta yozuvni
   qamrab oladi: 209 ta canonical hudud va provider shaharga yo‘naltiradigan 14 ta alias.
@@ -21,6 +21,126 @@ Telegram foydalanuvchilariga yuboradigan asinxron bot.
 - Ommaviy yuborish keyset sahifalarda va cheklangan parallelizm bilan bajariladi;
   bitta process Telegram’ga standart holatda soniyasiga ko‘pi bilan 25 ta xabar
   chiqaradi.
+
+
+## Menyular va eslatmalar
+
+**🕌 Namoz vaqti** bo‘limida bugungi jadval, hududni o‘zgartirish,
+masjidga moslash va yordam bor. **🔔 Eslatmalar** tanlanganda
+**📋 Eslatma ro‘yxati** va **📅 Bugungi eslatmalar** menyulari ochiladi.
+Umumiy ro‘yxat ostida **➕ Qo‘shish**, **➖ O‘chirish**, **⬅️ Orqaga** tugmalari bor.
+Bugungi ro‘yxat Toshkent sanasiga mos bir martalik, har kunlik va bugungi hafta
+kuniga belgilangan eslatmalarni soat bo‘yicha o‘sish tartibida ko‘rsatadi.
+Bugun vaqti o‘tgan yoki yuborilgan eslatmalar ham shu ro‘yxatda qoladi.
+Sarlavhada sana ko‘rsatiladi; eslatma bo‘lmasa «Bugun uchun eslatmalar yo‘q» chiqadi.
+Ikkala ro‘yxatdagi **⬅️ Orqaga** eslatmalar menyusiga qaytaradi.
+Bo‘lim tanlangach asosiy menyu xabari o‘chiriladi.
+Namoz vaqtidan **⬅️ Asosiy menyu**, eslatmalar menyusidan **⬅️ Orqaga**
+orqali asosiy menyuga qaytiladi.
+
+Eslatma yaratish: matn → ekrandan soat/daqiqa → aniq sana / har kuni / har hafta
+→ tasdiqlash. «Eslatma matnini yozing» oynasida matn Enter/yuborish bilan
+jo‘natilgach vaqt tanlash avtomatik ochiladi; «Oldinga» tugmasi yo‘q.
+Vaqt qo‘lda yozilmaydi: soat `00–23`, daqiqa `00–59` tugmalardan tanlanadi.
+Daqiqalar `00–29` va `30–59` sahifalariga bo‘lingan.
+Aniq sana inline kalendardan, haftalik jadval esa hafta
+kunlaridan tanlanadi. Haftalik kunlar 3:3:1 tartibda ⬜/✅ bilan belgilanadi;
+kamida bitta kun tanlab **Oldinga ➡️** bosiladi. Bu oynaning pastida
+**⬅️ Orqaga | Oldinga ➡️** bor. Eslatma har hafta barcha
+tanlangan kunlarda yuboriladi. Har bosqichda orqaga qaytish mumkin.
+Vaqt va sana tanlovi keyingi bosqichni avtomatik ochadi; **⬅️ Orqaga**
+oldingi bosqichga qaytaradi. «Bekor qilish» tugmasi yo‘q. Oxirida matn, vaqt, jadval va keyingi xabar
+sanasi ko‘rsatiladi; **✅ Saqlash** yuqori qatorda, **⬅️ Orqaga** uning ostida turadi.
+Menyuni almashtirish va buyruq yuborish tugallanmagan kiritishni bekor qiladi.
+
+Qo‘shish bosqichlari, tekshirish xabarlari, saqlash/bekor qilish natijasi va
+ro‘yxat sahifalari bitta bot xabarini yangilaydi. Shu jarayonda yuborilgan
+matn, soat va menyu tanlash xabarlari qayta ishlangach o‘chiriladi. Eski
+chat tarixi va belgilangan vaqtda kelgan eslatma xabarlari tozalanmaydi.
+Faol oynani foydalanuvchi o‘chirsa, keyingi amal yangi oynani yaratadi.
+Har eslatma Telegram iqtibos blokida ko‘rsatiladi. Umumiy ro‘yxatda
+tartib raqami va matni qalin, vaqt va jadval esa keyingi qatorda:
+`08:00 · Du, Ch, Ju`. Dushanbadan jumagacha jadval `Du–Ju`, bitta hafta kuni
+to‘liq nomi bilan yoziladi. Bugungi ro‘yxatda vaqt qalin, eslatma matni keyingi
+qatorda; sarlavha ostida sana va hafta kuni kursiv yoziladi.
+Ro‘yxatlarda «Toshkent vaqti» yozuvi chiqarilmaydi; hisoblash vaqt zonasi o‘zgarmaydi.
+**➕ Qo‘shish** tugmasi yashil, **➖ O‘chirish** qizil; aniq ranglar Telegram
+mavzusiga bog‘liq. Matn Telegram entities orqali formatlanadi, foydalanuvchi
+matnidagi HTML/Markdown belgilar o‘z holicha ko‘rsatiladi. Ro‘yxatda holat va
+«Ko‘rsatilmoqda» yozuvi chiqarilmaydi. Qo‘shish, bekor qilish va o‘chirishdan keyin ro‘yxat
+shu oynada avtomatik yangilanadi. Eslatmalar menyusidagi **⬅️ Orqaga** asosiy
+menyuga qaytaradi. Eslatmalar ichida faqat inline tugmalar ishlatiladi; asosiy
+menyuga qaytilganda pastki klaviatura tiklanadi.
+
+**➖ O‘chirish** bosilganda raqamlangan ro‘yxat ochiladi. Shu sahifadagi
+eslatma raqamini yozish uning matni va jadvali bilan tasdiqlashni ochadi.
+**🗑 Ha, o‘chirish** eslatmani va uning yuborish tarixini bazadan
+olib tashlaydi; **⬅️ Orqaga** o‘chirmasdan ro‘yxatga qaytaradi. Faqat egasi
+o‘z eslatmasini o‘chira oladi. Navbatga olingan, lekin yuborilishi hali
+boshlanmagan xabar ham bekor qilinadi; Telegramga jo‘natish allaqachon
+boshlangan xabarni qaytarib olish kafolatlanmaydi.
+
+- Eslatmalar faqat shaxsiy chatda yaratiladi va egasiga ko‘rsatiladi.
+- Matn 1–1000 belgi; barcha eslatma vaqtlari **Asia/Tashkent** bo‘yicha.
+- Ro‘yxat uchta eslatmadan sahifalanadi; uzun Unicode matnlar
+  qo‘shimcha sahifalarga ajratiladi. Matn formatlash kodi sifatida talqin qilinmaydi.
+- Saqlangan eslatmalar PostgreSQL’da qoladi; tugallanmagan dialog restartda
+  yo‘qoladi. Ro‘yxatga eslatma faqat `✅ Saqlash` bosilganda qo‘shiladi.
+- Scheduler 15 soniyada muddati kelgan eslatmalarni tekshiradi. Haqiqiy
+  yetkazish vaqti navbat va Telegram ulanishiga ham bog‘liq.
+- Restartdan keyin hali ajratilmagan bir martalik eslatma yuboriladi;
+  o‘tgan kunlik/haftalik takrorlar bitta xabarga birlashtiriladi.
+- Yuborishga ajratish bazada atomik. Noaniq `pending` yozuvlar avtomatik
+  qayta yuborilmaydi: crash paytida xabar yetib bormasligi mumkin. Telegram
+  transportining qayta urinishida dublikat ehtimoli qoladi; aniq bir marta
+  yetkazish kafolatlanmaydi. Botni bloklagan foydalanuvchi eslatmalari to‘xtatiladi.
+- Eslatmalarni o‘chirish mumkin; tahrirlash hozircha mavjud emas.
+
+### Lokal tekshiruv
+
+Virtual muhit bilan barcha oddiy testlar va statik tekshiruvlar:
+
+```bash
+PATH="$PWD/.venv/bin:$PATH" make check
+```
+
+PostgreSQL migratsiyasi va parallel yuborish testlari uchun alohida lokal
+baza ishlating. Testlar o‘z vaqtinchalik schemalarini yaratib, yakunda o‘chiradi:
+
+```bash
+createdb namoz_test_dev1
+NAMOZ_TEST_DATABASE_URL=postgresql+asyncpg:///namoz_test_dev1 \
+  .venv/bin/pytest -q tests/integration/test_reminder_repository.py \
+  tests/integration/test_postgres_claims.py
+```
+
+Telegram orqali qo‘lda lokal sinash uchun BotFather’dan **alohida test bot**
+tokenini oling va `.env` oxiridagi lokal test bo‘limiga kiriting:
+
+```dotenv
+TEST_TELEGRAM_BOT_TOKEN=BOTFATHER_BERGAN_TEST_TOKEN
+TEST_DATABASE_URL=postgresql+asyncpg:///namoz_test_dev1_20260923
+```
+
+Bu baza hali yaratilmagan kompyuterda bir marta
+`createdb namoz_test_dev1_20260923` bajaring. Keyin:
+
+```bash
+bash run_bot.sh --local
+```
+
+Skript test sozlamalari bilan migratsiyani bajaradi, so‘ng test botni
+ishga tushiradi. Test tokeni yoki test bazasi bo‘sh bo‘lsa, ishga tushmaydi;
+asosiy `TELEGRAM_BOT_TOKEN` va `DATABASE_URL` ga qaytmaydi. Terminalda
+eski asosiy token eksport qilingan bo‘lsa ham `TEST_` qiymatlari ishlatiladi.
+Token Git’ga kiritilmaydigan `.env` ichida qoladi.
+
+Oddiy `bash run_bot.sh` asosiy sozlamalar bilan ishlashda davom etadi.
+
+Test botga `/start` yuboring, eslatma matnini yozing, yaqin kelajakdagi
+soatni va bugungi sanani tanlang, saqlang. Ro‘yxatda paydo bo‘lishi va
+belgilangan vaqtda xabar kelishini tekshiring. Jarayonni `Ctrl+C` bilan to‘xtating.
+Avtomatik testlar haqiqiy Telegram xabarlarini yubormaydi.
 
 ## Arxitektura
 
