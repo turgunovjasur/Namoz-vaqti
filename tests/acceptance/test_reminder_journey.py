@@ -379,7 +379,7 @@ async def test_date_and_weekly_creation(journey, kind):
     if kind == "weekly":
         await journey.click("📆 Har hafta")
         await journey.click("⬜ Yakshanba")
-        await journey.click("✅ Tayyor")
+        await journey.click("Oldinga ➡️")
     else:
         await journey.click("📅 Sana tanlash")
         tomorrow = (datetime.now(TASHKENT) + timedelta(days=1)).date()
@@ -628,20 +628,20 @@ async def test_weekly_multiselect_toggle_continue_and_back(journey):
         ["⬜ Dushanba", "⬜ Seshanba", "⬜ Chorshanba"],
         ["⬜ Payshanba", "⬜ Juma", "⬜ Shanba"],
         ["⬜ Yakshanba"],
-        ["⬅️ Orqaga", "✅ Tayyor"],
+        ["⬅️ Orqaga", "Oldinga ➡️"],
     ]
-    await journey.click("✅ Tayyor")
+    await journey.click("Oldinga ➡️")
     assert "Kamida bitta kun" in journey.session.calls[-1].text
     await journey.click("⬜ Dushanba")
     await journey.click("⬜ Chorshanba")
     await journey.click("✅ Dushanba")
     await journey.click("⬜ Juma")
-    await journey.click("✅ Tayyor")
+    await journey.click("Oldinga ➡️")
     assert "Har hafta, Chorshanba, Juma" in journey.last.text
     await journey.click("⬅️ Orqaga")
     assert journey.button("✅ Chorshanba") and journey.button("✅ Juma")
     await journey.click("⬜ Yakshanba")
-    await journey.click("✅ Tayyor")
+    await journey.click("Oldinga ➡️")
     await journey.click("✅ Saqlash")
     rows = await journey.rows()
     assert len(rows) == 1
@@ -656,7 +656,7 @@ async def test_weekday_grid_accepts_queued_taps_but_expires_when_leaving_step(jo
     await journey.click("📆 Har hafta")
     monday = journey.button("⬜ Dushanba")
     wednesday = journey.button("⬜ Chorshanba")
-    proceed = journey.button("✅ Tayyor")
+    proceed = journey.button("Oldinga ➡️")
     await journey.click(data=monday)
     await journey.click(data=wednesday)
     await journey.click(data=proceed)

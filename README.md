@@ -39,8 +39,8 @@ Vaqt qo‘lda yozilmaydi: soat `00–23`, daqiqa `00–59` tugmalardan tanlanadi
 Daqiqalar `00–29` va `30–59` sahifalariga bo‘lingan.
 Aniq sana inline kalendardan, haftalik jadval esa hafta
 kunlaridan tanlanadi. Haftalik kunlar 3:3:1 tartibda ⬜/✅ bilan belgilanadi;
-kamida bitta kun tanlab **✅ Tayyor** bosiladi. Bu oynaning pastida
-**⬅️ Orqaga | ✅ Tayyor** bor. Eslatma har hafta barcha
+kamida bitta kun tanlab **Oldinga ➡️** bosiladi. Bu oynaning pastida
+**⬅️ Orqaga | Oldinga ➡️** bor. Eslatma har hafta barcha
 tanlangan kunlarda yuboriladi. Har bosqichda orqaga qaytish mumkin.
 Vaqt va sana tanlovi keyingi bosqichni avtomatik ochadi; **⬅️ Orqaga**
 oldingi bosqichga qaytaradi. «Bekor qilish» tugmasi yo‘q. Oxirida matn, vaqt, jadval va keyingi xabar

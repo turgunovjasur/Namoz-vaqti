@@ -118,7 +118,7 @@ def dialog_keyboard(
     if step == "confirm":
         rows.extend([[button(token, "✅ Saqlash", "save")], [button(token, "⬅️ Orqaga", "back")]])
     elif step == "weekday":
-        rows.append([button(token, "⬅️ Orqaga", "back"), button(token, "✅ Tayyor", "done")])
+        rows.append([button(token, "⬅️ Orqaga", "back"), button(token, "Oldinga ➡️", "done")])
     else:
         rows.append([button(token, "⬅️ Orqaga", "back")])
     return InlineKeyboardMarkup(inline_keyboard=rows)

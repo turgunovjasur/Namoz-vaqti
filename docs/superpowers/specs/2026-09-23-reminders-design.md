@@ -57,8 +57,8 @@ Ketma-ketlik: matn → soat → sana/takrorlanish → tasdiqlash.
    Faqat saqlash tasdiqlanganda eslatma bazaga yoziladi.
 5. Saqlangach bot muvaffaqiyat bildirishnomasini ko‘rsatib, ro‘yxatni shu oynada yangilaydi.
 
-«Oldinga» tugmasi yo‘q: matn yuborish va yakka tanlovlar avtomatik davom
-ettiradi. Haftalik ko‘p tanlov «✅ Tayyor» bilan yakunlanadi. «Bekor qilish»
+Matn yuborish va yakka tanlovlar avtomatik davom
+ettiradi. Haftalik ko‘p tanlov «Oldinga ➡️» bilan yakunlanadi. «Bekor qilish»
 tugmasi yo‘q. Matn bosqichidan orqaga qaytish ro‘yxatni ochadi. Boshqa
 bosqichlardan orqaga qaytish kiritilgan qiymatlarni saqlaydi. Noto‘g‘ri kiritish
 joriy bosqichni saqlab qoladi va tushunarli o‘zbekcha xabar qaytaradi.
@@ -180,7 +180,7 @@ tozalanadi va asosiy pastki klaviatura tiklanadi.
 «Har hafta» bosilganda «Qaysi kunlarda takrorlansin? Bitta yoki bir nechta
 kunni tanlang.» matni chiqadi. Kunlar 3:3:1 tartibida joylashadi.
 Har bosish ⬜/✅ holatini almashtiradi. Pastda bitta qatorda «⬅️ Orqaga»
-va «✅ Tayyor» bor; bu bosqichda «Bekor qilish» yo‘q. «✅ Tayyor» kamida bir kun talab
+va «Oldinga ➡️» bor; bu bosqichda «Bekor qilish» yo‘q. «Oldinga ➡️» kamida bir kun talab
 qiladi; undan so‘ng tasdiqlash oynasi barcha tanlangan kunlarni ko‘rsatadi.
 Tasdiqlashdan orqaga qaytish tanlovni saqlaydi. Bir oynadan ketma-ket
 yuborilgan kun tanlash callbacklari qabul qilinadi; bosqichdan chiqilgach
