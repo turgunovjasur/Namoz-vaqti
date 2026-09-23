@@ -6,6 +6,7 @@ from datetime import date
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from namoz_bot.domain.reminders import WEEKDAYS
+from namoz_bot.presentation.keyboards import ADD_LABEL, LIST_LABEL
 
 MONTHS = (
     "Yanvar",
@@ -74,6 +75,18 @@ def dialog_keyboard(
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
+def menu_keyboard(owner: int, *, section: bool = False) -> InlineKeyboardMarkup:
+    """Allow navigation even when the client hides its reply keyboard."""
+    actions = [(LIST_LABEL, "list"), (ADD_LABEL, "add")] if section else []
+    actions.append(("⬅️ Orqaga", "home" if section else "menu"))
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=label, callback_data=f"remmenu:{owner}:{action}")]
+            for label, action in actions
+        ]
+    )
+
+
 def page_keyboard(
     owner: int, page: int, has_more: bool, *, part: int = 0, parts: int = 1
 ) -> InlineKeyboardMarkup:
@@ -92,4 +105,6 @@ def page_keyboard(
                 text="Keyingi ➡️", callback_data=f"remlist:{owner}:{next_page}:{next_part}"
             )
         )
-    return InlineKeyboardMarkup(inline_keyboard=[row] if row else [])
+    rows = [row] if row else []
+    rows.extend(menu_keyboard(owner).inline_keyboard)
+    return InlineKeyboardMarkup(inline_keyboard=rows)

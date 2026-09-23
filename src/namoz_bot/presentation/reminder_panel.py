@@ -71,7 +71,5 @@ async def render_panel(
                 raise
             await _delete(message, int(panel_id))
     sent = await message.answer(text, reply_markup=markup, parse_mode=None)
-    menu_id = (await state.get_data()).get(MENU_ID)
-    await state.update_data({PANEL_ID: sent.message_id, MENU_ID: None})
-    if menu_id is not None:
-        await _delete(message, int(menu_id))
+    # Keep the reply-keyboard carrier until the user leaves this section.
+    await state.update_data({PANEL_ID: sent.message_id})

@@ -361,6 +361,7 @@ async def test_list_repeated_open_and_navigation_edit_same_message(journey):
     before = len(journey.session.calls)
     await journey.text("📋 Eslatma ro‘yxati")
     await journey.click("Keyingi ➡️")
+    assert journey.button("⬅️ Orqaga")
     await journey.click("⬅️ Oldingi")
     await journey.text("📋 Eslatma ro‘yxati")
     calls = [
@@ -370,16 +371,88 @@ async def test_list_repeated_open_and_navigation_edit_same_message(journey):
     assert len({c.message_id for c in calls}) == 1
 
 
-async def test_reminder_menu_header_is_replaced_by_interactive_panel(journey):
+async def test_reminder_keyboard_carrier_survives_panel_navigation(journey):
     await journey.text("/start")
     await journey.text("🔔 Eslatmalar")
     header_id = journey.session.last_ids[7]
+    assert journey.last.reply_markup.is_persistent is True
+    assert journey.last.reply_markup.one_time_keyboard is False
     await journey.text("📋 Eslatma ro‘yxati")
-    assert (7, header_id) not in journey.session.messages
+    assert (7, header_id) in journey.session.messages
     panel_id = journey.session.last_ids[7]
     assert (7, panel_id) in journey.session.messages
     await journey.text("➕ Eslatma qo‘shish")
     assert journey.session.last_ids[7] == panel_id
+    await journey.click("❌ Bekor qilish")
+    await journey.click("⬅️ Orqaga")
+    await journey.click("⬅️ Orqaga")
+    assert (7, header_id) not in journey.session.messages
+    assert (7, panel_id) not in journey.session.messages
+
+
+async def test_list_back_menu_add_save_back_and_home(journey):
+    await journey.text("/start")
+    await journey.text("🔔 Eslatmalar")
+    await journey.text("📋 Eslatma ro‘yxati")
+    panel_id = journey.session.last_ids[7]
+    assert "Hozircha" in journey.last.text
+    await journey.click("⬅️ Orqaga")
+    await journey.click("➕ Eslatma qo‘shish")
+    await journey.text("Inline menu reminder")
+    await journey.text("20:00")
+    await journey.click("🔁 Har kuni")
+    await journey.click("✅ Saqlash")
+    await journey.click("⬅️ Orqaga")
+    await journey.click("📋 Eslatma ro‘yxati")
+    assert "Inline menu reminder" in journey.last.text
+    await journey.click("⬅️ Orqaga")
+    assert journey.session.last_ids[7] == panel_id
+    await journey.click("⬅️ Orqaga")
+    assert [b.text for row in journey.last.reply_markup.keyboard for b in row] == [
+        "🕌 Namoz vaqti",
+        "🔔 Eslatmalar",
+    ]
+
+
+async def test_cancel_back_and_stale_menu_cannot_interrupt_draft(journey):
+    await journey.text("/start")
+    await journey.text("📋 Eslatma ro‘yxati")
+    old_back = journey.button("⬅️ Orqaga")
+    await journey.click("⬅️ Orqaga")
+    await journey.click("➕ Eslatma qo‘shish")
+    await journey.click(data=old_back)
+    assert isinstance(journey.session.calls[-1], AnswerCallbackQuery)
+    assert journey.session.calls[-1].show_alert
+    await journey.text("Still editing")
+    assert "Soat nechada" in journey.last.text
+    await journey.click("❌ Bekor qilish")
+    await journey.click("⬅️ Orqaga")
+    await journey.click("➕ Eslatma qo‘shish")
+    assert "Eslatma matnini" in journey.last.text
+
+
+@pytest.mark.parametrize("invalid", ["other_user", "other_message", "left_section"])
+async def test_menu_callback_rejects_foreign_or_retired_panel(journey, invalid):
+    await journey.text("/start")
+    await journey.text("📋 Eslatma ro‘yxati")
+    back = journey.button("⬅️ Orqaga")
+    user = 7
+    if invalid == "other_user":
+        user = 8
+        await journey.text("/start", user=user)
+        await journey.text("📋 Eslatma ro‘yxati", user=user)
+        journey.callback_ids[back] = journey.session.last_ids[user]
+    elif invalid == "other_message":
+        journey.callback_ids[back] += 100
+    else:
+        await journey.text("⬅️ Asosiy menyu")
+    before = len(journey.session.calls)
+    await journey.click(data=back, user=user)
+    assert not any(
+        isinstance(c, (SendMessage, EditMessageText, DeleteMessage))
+        for c in journey.session.calls[before:]
+    )
+    assert journey.session.calls[-1].show_alert
 
 
 async def test_removed_panel_is_recreated_once_then_reused(journey):

@@ -40,6 +40,10 @@ ro‘yxat sahifalari bitta bot xabarini yangilaydi. Shu jarayonda yuborilgan
 matn, soat va menyu tanlash xabarlari qayta ishlangach o‘chiriladi. Eski
 chat tarixi va belgilangan vaqtda kelgan eslatma xabarlari tozalanmaydi.
 Faol oynani foydalanuvchi o‘chirsa, keyingi amal yangi oynani yaratadi.
+Ro‘yxat va saqlash/bekor qilish natijasidagi **⬅️ Orqaga** tugmasi shu
+oynada eslatmalar menyusini ochadi; u yerdan qo‘shish, ro‘yxat yoki asosiy
+menyuga o‘tish mumkin. Pastki menyu doimiy ko‘rsatilishi so‘raladi va unga
+biriktirilgan bo‘lim xabari bo‘limdan chiqilguncha saqlanadi.
 
 - Eslatmalar faqat shaxsiy chatda yaratiladi va egasiga ko‘rsatiladi.
 - Matn 1–1000 belgi; barcha eslatma vaqtlari **Asia/Tashkent** bo‘yicha.

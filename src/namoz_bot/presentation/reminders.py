@@ -22,7 +22,7 @@ from namoz_bot.presentation.keyboards import (
     build_prayer_menu,
     build_reminders_menu,
 )
-from namoz_bot.presentation.reminder_keyboards import dialog_keyboard, page_keyboard
+from namoz_bot.presentation.reminder_keyboards import dialog_keyboard, menu_keyboard, page_keyboard
 from namoz_bot.presentation.reminder_panel import (
     MENU_ID,
     PANEL_ID,
@@ -118,10 +118,20 @@ async def start_reminder(
     await reset_draft(state)
     if not await _private(message) or message.from_user is None:
         return
-    user = await handler_services.subscriptions.start(message.from_user.id, message.chat.id)
+    await _start_reminder(message, state, message.from_user.id, reminder_service, handler_services)
+    await delete_input(message)
+
+
+async def _start_reminder(
+    message: Message,
+    state: FSMContext,
+    owner: int,
+    reminder_service: ReminderService,
+    handler_services: HandlerServices,
+) -> None:
+    user = await handler_services.subscriptions.start(owner, message.chat.id)
     await state.update_data(creation_token=uuid4().hex, user_id=user.subscription.id)
     await _prompt(message, state, "text", reminder_service)
-    await delete_input(message)
 
 
 async def receive_text(
@@ -187,7 +197,10 @@ async def dialog_callback(
         elif action == "cancel" or (action == "back" and step == "text"):
             await reset_draft(state)
             await render_panel(
-                message, state, "Bekor qilindi. Eslatmalar menyusidan amalni tanlang."
+                message,
+                state,
+                "Bekor qilindi. Eslatmalar menyusidan amalni tanlang.",
+                menu_keyboard(callback.from_user.id),
             )
         elif action == "back":
             previous = {
@@ -227,7 +240,9 @@ async def dialog_callback(
                 data["user_id"], message.chat.id, _spec(data), data["creation_token"]
             )
             await reset_draft(state)
-            await render_panel(message, state, "✅ Eslatma qo‘shildi.")
+            await render_panel(
+                message, state, "✅ Eslatma qo‘shildi.", menu_keyboard(callback.from_user.id)
+            )
         else:
             raise ValueError("Joriy bosqichdagi tugmadan foydalaning.")
     except (ValueError, OverflowError) as exc:
@@ -340,6 +355,47 @@ async def choose_button(
     await delete_input(message)
 
 
+async def menu_callback(
+    callback: CallbackQuery,
+    state: FSMContext,
+    handler_services: HandlerServices,
+    reminder_service: ReminderService,
+) -> None:
+    message = callback.message
+    parts = (callback.data or "").split(":")
+    data = await state.get_data()
+    if (
+        not isinstance(message, Message)
+        or message.chat.type != "private"
+        or len(parts) != 3
+        or parts[1] != str(callback.from_user.id)
+        or message.chat.id != callback.from_user.id
+        or parts[2] not in {"menu", "list", "add", "home"}
+        or data.get(PANEL_ID) != message.message_id
+        or await state.get_state() is not None
+    ):
+        await callback.answer(
+            "Bu tugma eskirgan. Joriy xabardagi tugmani tanlang.", show_alert=True
+        )
+        return
+    action = parts[2]
+    owner = callback.from_user.id
+    await reset_draft(state)
+    if action == "home":
+        await discard_panel(message, state)
+        await state.clear()
+        await message.answer("Asosiy menyu. Bo‘limni tanlang:", reply_markup=build_main_menu())
+    elif action == "menu":
+        await render_panel(
+            message, state, "🔔 Eslatmalar. Amalni tanlang:", menu_keyboard(owner, section=True)
+        )
+    elif action == "add":
+        await _start_reminder(message, state, owner, reminder_service, handler_services)
+    else:
+        await _show_list(message, state, owner, 0, handler_services, reminder_service)
+    await callback.answer()
+
+
 def build_reminder_router() -> Router:
     router = Router(name="reminders")
     router.message.register(
@@ -359,4 +415,5 @@ def build_reminder_router() -> Router:
         router.message.register(choose_button, step)
     router.callback_query.register(dialog_callback, F.data.startswith("rem:"))
     router.callback_query.register(list_callback, F.data.startswith("remlist:"))
+    router.callback_query.register(menu_callback, F.data.startswith("remmenu:"))
     return router

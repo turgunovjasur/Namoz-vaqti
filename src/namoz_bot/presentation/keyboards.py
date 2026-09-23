@@ -111,6 +111,8 @@ def build_prayer_menu() -> ReplyKeyboardMarkup:
             [KeyboardButton(text=HOME_LABEL)],
         ],
         resize_keyboard=True,
+        is_persistent=True,
+        one_time_keyboard=False,
     )
 
 
@@ -142,6 +144,8 @@ def build_main_menu() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[[KeyboardButton(text=PRAYER_MENU_LABEL), KeyboardButton(text=REMINDERS_LABEL)]],
         resize_keyboard=True,
+        is_persistent=True,
+        one_time_keyboard=False,
     )
 
 
@@ -152,4 +156,6 @@ def build_reminders_menu() -> ReplyKeyboardMarkup:
             [KeyboardButton(text=HOME_LABEL)],
         ],
         resize_keyboard=True,
+        is_persistent=True,
+        one_time_keyboard=False,
     )
