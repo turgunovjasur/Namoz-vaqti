@@ -36,10 +36,15 @@ sifatida saqlanadi.
 Ketma-ketlik: matn → soat → sana/takrorlanish → tasdiqlash.
 
 1. `➕ Qo‘shish` bosilganda bot eslatma matnini so‘raydi.
-   Matn bo‘sh bo‘lmasligi va 1000 belgidan oshmasligi kerak.
-2. Bot `HH:MM` shaklida soat so‘raydi. `00:00`–`23:59` qabul qilinadi.
-   Foydalanuvchiga vaqt Toshkent vaqti bo‘yicha ekanligi ko‘rsatiladi.
-3. `📅 Sana tanlash`, `🔁 Har kuni`, `📆 Har hafta` taklif etiladi.
+   Matn bo‘sh bo‘lmasligi va 1000 belgidan oshmasligi kerak. Kiritilgan
+   matn shu oynada ko‘rinadi; «Oldinga ➡️» vaqt tanlashga o‘tkazadi.
+2. «Xabar berish vaqtini tanlang!» oynasida soat `00–23`, daqiqa `00–59`
+   tugmalardan tanlanadi. Daqiqalar `00–29` va `30–59` sahifalarida.
+   Soat/daqiqa sarlavha tugmalari qiymatni qayta tanlash imkonini beradi.
+   Qo‘lda yozilgan vaqt qabul qilinmaydi. Ikkala qiymat tanlangach
+   «Oldinga ➡️» davom ettiradi. Vaqt Toshkent bo‘yicha ko‘rsatiladi.
+3. «Xabar berish sanasini tanlang!» oynasida `📅 Sana tanlash`,
+   `🔁 Har kuni`, `📆 Har hafta` tanlanadi; «Oldinga ➡️» davom ettiradi.
    - Sana: oylarni oldinga/orqaga almashtirish mumkin bo‘lgan inline
      kalendardan sana tanlanadi. O‘tgan sana yoki o‘tgan vaqt qabul qilinmaydi.
    - Har kuni: tanlangan soatda kundalik takrorlanadi. Bugungi soat
@@ -47,11 +52,14 @@ Ketma-ketlik: matn → soat → sana/takrorlanish → tasdiqlash.
    - Har hafta: dushanba–yakshanbadan bir yoki bir nechta kun tanlanadi.
      Birinchi yuborish — tanlangan kunlardagi eng yaqin kelajak soati.
      Bugungi soat o‘tgan bo‘lsa, keyingi tanlangan kun olinadi.
-4. Matn, soat va sana/takrorlanish ko‘rsatiladi: `✅ Saqlash` va
-   `❌ Bekor qilish`. Faqat saqlash tasdiqlanganda eslatma bazaga yoziladi.
+4. Matn, soat, sana/takrorlanish va keyingi xabar sanasi ko‘rsatiladi.
+   Pastda `⬅️ Orqaga` va `✅ Saqlash` alohida ikki qatorda turadi.
+   Faqat saqlash tasdiqlanganda eslatma bazaga yoziladi.
 5. Saqlangach bot muvaffaqiyat bildirishnomasini ko‘rsatib, ro‘yxatni shu oynada yangilaydi.
 
-Har bosqichda orqaga qaytish mumkin. Noto‘g‘ri kiritish
+Yaratish bosqichlarida `⬅️ Orqaga | Oldinga ➡️` bitta qatorda, «Bekor qilish»
+tugmasi yo‘q. Matn bosqichidan orqaga qaytish ro‘yxatni ochadi. Boshqa
+bosqichlardan orqaga qaytish kiritilgan qiymatlarni saqlaydi. Noto‘g‘ri kiritish
 joriy bosqichni saqlab qoladi va tushunarli o‘zbekcha xabar qaytaradi.
 Tasdiqlash paytida sana/soat yana tekshiriladi. Ikki marta bosilgan
 saqlash tugmasi bitta eslatma yaratadi. Eski yoki boshqa foydalanuvchining

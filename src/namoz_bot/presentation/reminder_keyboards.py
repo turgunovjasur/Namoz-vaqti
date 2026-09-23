@@ -34,17 +34,50 @@ def dialog_keyboard(
     month: date | None = None,
     today: date | None = None,
     weekdays: tuple[int, ...] = (),
+    hour: int | None = None,
+    minute: int | None = None,
+    time_view: str = "hour",
+    minute_page: int = 0,
+    kind: str | None = None,
+    selected_date: str | None = None,
 ) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = []
     if step == "schedule":
         rows = [
-            [button(token, label, "kind", kind)]
-            for label, kind in (
+            [button(token, f"✅ {label}" if value == kind else label, "kind", value)]
+            for label, value in (
                 ("📅 Sana tanlash", "once"),
                 ("🔁 Har kuni", "daily"),
                 ("📆 Har hafta", "weekly"),
             )
         ]
+    elif step == "time":
+        hour_label = f"{hour:02d}" if hour is not None else "—"
+        minute_label = f"{minute:02d}" if minute is not None else "—"
+        rows.append(
+            [
+                button(token, f"Soat: {hour_label}", "timeview", "hour"),
+                button(token, f"Daqiqa: {minute_label}", "timeview", "minute"),
+            ]
+        )
+        values = (
+            range(24) if time_view == "hour" else range(minute_page * 30, minute_page * 30 + 30)
+        )
+        selected = hour if time_view == "hour" else minute
+        choices = [
+            button(
+                token,
+                f"✅ {value:02d}" if value == selected else f"{value:02d}",
+                time_view,
+                str(value),
+            )
+            for value in values
+        ]
+        rows.extend(choices[index : index + 6] for index in range(0, len(choices), 6))
+        if time_view == "minute":
+            rows.append(
+                [button(token, "00–29", "minutes", "0"), button(token, "30–59", "minutes", "1")]
+            )
     elif step == "weekday":
         days = [
             button(token, f"{'✅' if index in weekdays else '⬜'} {label}", "weekday", str(index))
@@ -60,7 +93,14 @@ def dialog_keyboard(
         for week in calendar.monthcalendar(month.year, month.month):
             rows.append(
                 [
-                    button(token, str(day), "date", date(month.year, month.month, day).isoformat())
+                    button(
+                        token,
+                        f"✅ {day}"
+                        if selected_date == date(month.year, month.month, day).isoformat()
+                        else str(day),
+                        "date",
+                        date(month.year, month.month, day).isoformat(),
+                    )
                     if day and date(month.year, month.month, day) >= today
                     else button(token, "·", "noop")
                     for day in week
@@ -75,12 +115,10 @@ def dialog_keyboard(
             navigation.append(button(token, "Keyingi oy ➡️", "month", following.isoformat()))
         if navigation:
             rows.append(navigation)
-    elif step == "confirm":
-        rows.append([button(token, "✅ Saqlash", "save")])
-    if step == "weekday":
-        rows.append([button(token, "⬅️ Orqaga", "back"), button(token, "Oldinga ➡️", "continue")])
+    if step == "confirm":
+        rows.extend([[button(token, "⬅️ Orqaga", "back")], [button(token, "✅ Saqlash", "save")]])
     else:
-        rows.append([button(token, "⬅️ Orqaga", "back"), button(token, "❌ Bekor qilish", "cancel")])
+        rows.append([button(token, "⬅️ Orqaga", "back"), button(token, "Oldinga ➡️", "continue")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
