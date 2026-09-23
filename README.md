@@ -44,7 +44,7 @@ kamida bitta kun tanlab **✅ Tayyor** bosiladi. Bu oynaning pastida
 tanlangan kunlarda yuboriladi. Har bosqichda orqaga qaytish mumkin.
 Vaqt va sana tanlovi keyingi bosqichni avtomatik ochadi; **⬅️ Orqaga**
 oldingi bosqichga qaytaradi. «Bekor qilish» tugmasi yo‘q. Oxirida matn, vaqt, jadval va keyingi xabar
-sanasi ko‘rsatiladi; **⬅️ Orqaga** va **✅ Saqlash** alohida qatorlarda turadi.
+sanasi ko‘rsatiladi; **✅ Saqlash** yuqori qatorda, **⬅️ Orqaga** uning ostida turadi.
 Menyuni almashtirish va buyruq yuborish tugallanmagan kiritishni bekor qiladi.
 
 Qo‘shish bosqichlari, tekshirish xabarlari, saqlash/bekor qilish natijasi va

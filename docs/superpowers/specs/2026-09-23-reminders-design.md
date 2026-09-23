@@ -53,7 +53,7 @@ Ketma-ketlik: matn → soat → sana/takrorlanish → tasdiqlash.
      Birinchi yuborish — tanlangan kunlardagi eng yaqin kelajak soati.
      Bugungi soat o‘tgan bo‘lsa, keyingi tanlangan kun olinadi.
 4. Matn, soat, sana/takrorlanish va keyingi xabar sanasi ko‘rsatiladi.
-   Pastda `⬅️ Orqaga` va `✅ Saqlash` alohida ikki qatorda turadi.
+   Pastda `✅ Saqlash` yuqori qatorda, `⬅️ Orqaga` uning ostida turadi.
    Faqat saqlash tasdiqlanganda eslatma bazaga yoziladi.
 5. Saqlangach bot muvaffaqiyat bildirishnomasini ko‘rsatib, ro‘yxatni shu oynada yangilaydi.
 

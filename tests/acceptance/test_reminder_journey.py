@@ -231,8 +231,8 @@ async def test_text_submit_and_picker_advance_without_forward_buttons(journey):
     assert "Dori ichish" in journey.last.text and "23:59" in journey.last.text
     assert "Har kuni" in journey.last.text
     assert [[b.text for b in row] for row in journey.last.reply_markup.inline_keyboard] == [
-        ["⬅️ Orqaga"],
         ["✅ Saqlash"],
+        ["⬅️ Orqaga"],
     ]
     await journey.click("✅ Saqlash")
     assert (await journey.rows())[0].spec.at.strftime("%H:%M") == "23:59"
