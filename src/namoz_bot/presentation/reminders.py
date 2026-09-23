@@ -23,6 +23,14 @@ from namoz_bot.presentation.keyboards import (
     build_reminders_menu,
 )
 from namoz_bot.presentation.reminder_keyboards import dialog_keyboard, page_keyboard
+from namoz_bot.presentation.reminder_panel import (
+    MENU_ID,
+    PANEL_ID,
+    delete_input,
+    discard_panel,
+    render_panel,
+    reset_draft,
+)
 
 
 class ReminderStates(StatesGroup):
@@ -52,14 +60,17 @@ async def _private(message: Message) -> bool:
 
 
 async def show_section(message: Message, state: FSMContext) -> None:
+    await discard_panel(message, state)
     await state.clear()
     if message.text == PRAYER_MENU_LABEL:
         await message.answer("🕌 Namoz vaqti. Amalni tanlang:", reply_markup=build_prayer_menu())
     elif message.text == REMINDERS_LABEL:
         if await _private(message):
-            await message.answer(
+            menu = await message.answer(
                 "🔔 Eslatmalar. Amalni tanlang:", reply_markup=build_reminders_menu()
             )
+            await state.update_data({MENU_ID: menu.message_id})
+            await delete_input(message)
     else:
         await message.answer("Asosiy menyu. Bo‘limni tanlang:", reply_markup=build_main_menu())
 
@@ -70,6 +81,7 @@ async def _prompt(
     step: str,
     service: ReminderService,
     month: date | None = None,
+    error: str | None = None,
 ) -> None:
     data = await state.get_data()
     token = uuid4().hex[:16]
@@ -87,10 +99,13 @@ async def _prompt(
     if step == "confirm":
         spec = _spec(data)
         text = f"📝 {spec.text}\n🕒 {spec.at:%H:%M} · Toshkent\n📅 {spec.schedule_label()}"
-    await message.answer(
+    if error:
+        text = f"{error}\n\n{text}"
+    await render_panel(
+        message,
+        state,
         text,
-        reply_markup=dialog_keyboard(token, step, month=month or today.replace(day=1), today=today),
-        parse_mode=None,
+        dialog_keyboard(token, step, month=month or today.replace(day=1), today=today),
     )
 
 
@@ -100,12 +115,13 @@ async def start_reminder(
     reminder_service: ReminderService,
     handler_services: HandlerServices,
 ) -> None:
-    await state.clear()
+    await reset_draft(state)
     if not await _private(message) or message.from_user is None:
         return
     user = await handler_services.subscriptions.start(message.from_user.id, message.chat.id)
     await state.update_data(creation_token=uuid4().hex, user_id=user.subscription.id)
     await _prompt(message, state, "text", reminder_service)
+    await delete_input(message)
 
 
 async def receive_text(
@@ -115,10 +131,18 @@ async def receive_text(
         return
     value = (message.text or "").strip()
     if not 1 <= len(value) <= 1000:
-        await message.answer("Eslatma matni 1–1000 belgidan iborat bo‘lsin.")
+        await _prompt(
+            message,
+            state,
+            "text",
+            reminder_service,
+            error="Eslatma matni 1–1000 belgidan iborat bo‘lsin.",
+        )
+        await delete_input(message)
         return
     await state.update_data(text=value)
     await _prompt(message, state, "time", reminder_service)
+    await delete_input(message)
 
 
 async def receive_time(
@@ -127,10 +151,12 @@ async def receive_time(
     try:
         at = parse_time(message.text or "")
     except ValueError as exc:
-        await message.answer(str(exc))
+        await _prompt(message, state, "time", reminder_service, error=str(exc))
+        await delete_input(message)
         return
     await state.update_data(time=at.strftime("%H:%M"))
     await _prompt(message, state, "schedule", reminder_service)
+    await delete_input(message)
 
 
 async def dialog_callback(
@@ -146,6 +172,7 @@ async def dialog_callback(
         len(parts) != 4
         or parts[1] != data.get("token")
         or message.chat.id != callback.from_user.id
+        or data.get(PANEL_ID) != message.message_id
         or not await state.get_state()
     ):
         await callback.answer(
@@ -158,8 +185,10 @@ async def dialog_callback(
         if action == "noop":
             pass
         elif action == "cancel" or (action == "back" and step == "text"):
-            await state.clear()
-            await message.answer("Bekor qilindi.", reply_markup=build_reminders_menu())
+            await reset_draft(state)
+            await render_panel(
+                message, state, "Bekor qilindi. Eslatmalar menyusidan amalni tanlang."
+            )
         elif action == "back":
             previous = {
                 "time": "text",
@@ -197,8 +226,8 @@ async def dialog_callback(
             await reminder_service.create(
                 data["user_id"], message.chat.id, _spec(data), data["creation_token"]
             )
-            await state.clear()
-            await message.answer("✅ Eslatma qo‘shildi.", reply_markup=build_reminders_menu())
+            await reset_draft(state)
+            await render_panel(message, state, "✅ Eslatma qo‘shildi.")
         else:
             raise ValueError("Joriy bosqichdagi tugmadan foydalaning.")
     except (ValueError, OverflowError) as exc:
@@ -208,7 +237,13 @@ async def dialog_callback(
 
 
 async def _show_list(
-    message: Message, owner: int, page: int, services: HandlerServices, reminders: ReminderService
+    message: Message,
+    state: FSMContext,
+    owner: int,
+    page: int,
+    services: HandlerServices,
+    reminders: ReminderService,
+    part: int = 0,
 ) -> None:
     user = await services.subscriptions.get(owner)
     assert user.id is not None
@@ -232,9 +267,13 @@ async def _show_list(
         if len((chunks[-1] + entry).encode("utf-16-le")) // 2 > 3900:
             chunks.append("")
         chunks[-1] += entry + "\n\n"
-    for index, text in enumerate(chunks):
-        markup = page_keyboard(owner, page, more) if index == len(chunks) - 1 else None
-        await message.answer(text.rstrip(), reply_markup=markup, parse_mode=None)
+    selected = len(chunks) - 1 if part == -1 else min(part, len(chunks) - 1)
+    await render_panel(
+        message,
+        state,
+        chunks[selected].rstrip(),
+        page_keyboard(owner, page, more, part=selected, parts=len(chunks)),
+    )
 
 
 async def show_list(
@@ -243,11 +282,12 @@ async def show_list(
     handler_services: HandlerServices,
     reminder_service: ReminderService,
 ) -> None:
-    await state.clear()
+    await reset_draft(state)
     if not await _private(message) or message.from_user is None:
         return
     await handler_services.subscriptions.start(message.from_user.id, message.chat.id)
-    await _show_list(message, message.from_user.id, 0, handler_services, reminder_service)
+    await _show_list(message, state, message.from_user.id, 0, handler_services, reminder_service)
+    await delete_input(message)
 
 
 async def list_callback(
@@ -258,14 +298,15 @@ async def list_callback(
 ) -> None:
     message = callback.message
     try:
-        _, owner_text, page_text = (callback.data or "").split(":")
-        owner, page = int(owner_text), int(page_text)
+        _, owner_text, page_text, part_text = (callback.data or "").split(":")
+        owner, page, part = int(owner_text), int(page_text), int(part_text)
         if (
             not isinstance(message, Message)
             or message.chat.type != "private"
             or owner != callback.from_user.id
             or message.chat.id != owner
             or not 0 <= page <= 1_000_000
+            or not -1 <= part <= 2
         ):
             raise ValueError
     except ValueError:
@@ -274,12 +315,29 @@ async def list_callback(
     if await state.get_state() is not None:
         await callback.answer("Avval joriy eslatmani saqlang yoki bekor qiling.", show_alert=True)
         return
-    await _show_list(message, owner, page, handler_services, reminder_service)
+    data = await state.get_data()
+    if data.get(PANEL_ID) != message.message_id:
+        await callback.answer(
+            "Bu ro‘yxat eskirgan. Eslatma ro‘yxatini qayta oching.", show_alert=True
+        )
+        return
+    await state.update_data({PANEL_ID: message.message_id})
+    await _show_list(message, state, owner, page, handler_services, reminder_service, part)
     await callback.answer()
 
 
-async def choose_button(message: Message) -> None:
-    await message.answer("Davom etish uchun joriy xabardagi tugmani tanlang.")
+async def choose_button(
+    message: Message, state: FSMContext, reminder_service: ReminderService
+) -> None:
+    data = await state.get_data()
+    await _prompt(
+        message,
+        state,
+        data["step"],
+        reminder_service,
+        error="Davom etish uchun shu xabardagi tugmani tanlang.",
+    )
+    await delete_input(message)
 
 
 def build_reminder_router() -> Router:

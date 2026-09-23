@@ -18,6 +18,7 @@ from namoz_bot.infrastructure.reminders import SqlAlchemyReminderRepository
 from namoz_bot.infrastructure.repositories import SqlAlchemySubscriptionRepository
 from namoz_bot.presentation.handlers import HandlerServices
 from namoz_bot.presentation.keyboards import HELP_LABEL, OFFSETS_LABEL, REGION_LABEL, TODAY_LABEL
+from namoz_bot.presentation.reminder_panel import discard_panel
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +79,7 @@ class ServicesMiddleware(BaseMiddleware):
                 or event.text in {TODAY_LABEL, REGION_LABEL, OFFSETS_LABEL, HELP_LABEL}
             )
         ):
+            await discard_panel(event, state)
             await state.clear()
             data["raw_state"] = None
         data["reminder_service"] = ReminderService(

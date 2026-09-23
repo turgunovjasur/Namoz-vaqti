@@ -133,3 +133,18 @@ tavsiya etiladi.
 2026-09-23 boshlang‘ich tekshiruv: `make check` muvaffaqiyatli;
 115 test o‘tdi, 1 PostgreSQL testi `NAMOZ_TEST_DATABASE_URL` berilmagani
 uchun o‘tkazib yuborildi. Bu yangi eslatmalar funksiyasining testi emas.
+
+
+## 2026-09-23: lokal testdan keyingi UI tuzatishi
+
+Foydalanuvchi talabi: eslatma ro‘yxati va qo‘shish oqimi yangi xabarlar
+qoldirmasdan bitta xabarni yangilasin. Qo‘shishdagi matn, vaqt, kalendar,
+hafta kuni, tasdiqlash, xato kiritish, saqlash va bekor qilish shu oynada
+ko‘rinadi. Qayta ishlangan shu oqimdagi shaxsiy foydalanuvchi xabarlari
+ham o‘chiriladi; eski tarix va scheduler eslatmalari saqlanadi.
+
+Ro‘yxat sahifalari ham ayni oynada yangilanadi. Uchta uzun matn Telegram
+chegarasiga sig‘masa, matnni kesish yoki bir necha xabar yuborish o‘rniga
+qo‘shimcha sahifalar ochiladi. Eski callback joriy boshqa oynani o‘zgartirmaydi.
+Telegram oynani topa olmasa yoki tahrirlay olmasa, bitta yangi oyna yaratiladi;
+"message is not modified" takroriy yangi xabarga sabab bo‘lmaydi.

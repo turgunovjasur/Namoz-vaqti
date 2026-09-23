@@ -2,7 +2,8 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from aiogram.client.session.base import BaseSession
-from aiogram.methods import AnswerCallbackQuery, EditMessageText, SendMessage
+from aiogram.exceptions import TelegramBadRequest
+from aiogram.methods import AnswerCallbackQuery, DeleteMessage, EditMessageText, SendMessage
 from aiogram.types import Chat, Message, Update
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
@@ -18,6 +19,10 @@ class LocalSession(BaseSession):
     def __init__(self):
         super().__init__()
         self.calls = []
+        self.messages = {}
+        self.last_ids = {}
+        self.next_id = 10000
+        self.fail_edit = None
 
     async def close(self):
         pass
@@ -29,13 +34,29 @@ class LocalSession(BaseSession):
         self.calls.append(method)
         if isinstance(method, AnswerCallbackQuery):
             return True
-        return Message(
-            message_id=len(self.calls),
+        if isinstance(method, DeleteMessage):
+            self.messages.pop((method.chat_id, method.message_id), None)
+            return True
+        if isinstance(method, EditMessageText):
+            if self.fail_edit:
+                error, self.fail_edit = self.fail_edit, None
+                raise TelegramBadRequest(method=method, message=error)
+            message_id = method.message_id
+            if (method.chat_id, message_id) not in self.messages:
+                raise TelegramBadRequest(method=method, message="message to edit not found")
+        else:
+            self.next_id += 1
+            message_id = self.next_id
+        message = Message(
+            message_id=message_id,
             date=datetime.now(UTC),
             chat=Chat(id=method.chat_id, type="private"),
             text=getattr(method, "text", None),
-            reply_markup=method.reply_markup if isinstance(method, EditMessageText) else None,
+            reply_markup=(method.reply_markup if isinstance(method, EditMessageText) else None),
         )
+        self.messages[(method.chat_id, message_id)] = message
+        self.last_ids[method.chat_id] = message_id
+        return message
 
 
 class Journey:
@@ -44,6 +65,7 @@ class Journey:
         self.session = LocalSession()
         self.app.bot.session = self.session
         self.sequence = 0
+        self.callback_ids = {}
 
     @property
     def last(self):
@@ -55,12 +77,14 @@ class Journey:
 
     def button(self, label):
         markup = self.last.reply_markup
-        return next(
+        result = next(
             button.callback_data
             for row in markup.inline_keyboard
             for button in row
             if button.text == label
         )
+        self.callback_ids[result] = self.session.last_ids[self.last.chat_id]
+        return result
 
     async def text(self, text, user=7, group=False):
         self.sequence += 1
@@ -89,7 +113,9 @@ class Journey:
                         "data": data,
                         "from": {"id": user, "is_bot": False, "first_name": "Test"},
                         "message": {
-                            "message_id": 100,
+                            "message_id": self.callback_ids.get(
+                                data, self.session.last_ids.get(user, 100)
+                            ),
                             "date": datetime.now(UTC),
                             "chat": {"id": user, "type": "private"},
                             "from": {"id": 123456, "is_bot": True, "first_name": "Bot"},
@@ -213,13 +239,25 @@ async def test_long_unicode_list_fits_telegram_and_paginates(journey):
         await journey.begin(text="📚" * 1000)
         await journey.click("🔁 Har kuni")
         await journey.click("✅ Saqlash")
-    start = len(journey.session.calls)
+    before = len(journey.session.calls)
     await journey.text("📋 Eslatma ro‘yxati")
-    responses = [call for call in journey.session.calls[start:] if isinstance(call, SendMessage)]
+    total = journey.last.text.count("📚")
+    while any(
+        b.text == "Keyingi ➡️" for row in journey.last.reply_markup.inline_keyboard for b in row
+    ):
+        await journey.click("Keyingi ➡️")
+        total += journey.last.text.count("📚")
+    responses = [
+        call
+        for call in journey.session.calls[before:]
+        if isinstance(call, (SendMessage, EditMessageText))
+    ]
     assert all(len(call.text.encode("utf-16-le")) // 2 <= 4096 for call in responses)
-    assert sum(call.text.count("📚") for call in responses) == 3000
-    await journey.click("Keyingi ➡️")
-    assert journey.last.text.count("📚") == 1000
+    assert total == 4000
+    assert all(isinstance(call, EditMessageText) for call in responses)
+    assert len({call.message_id for call in responses}) == 1
+    await journey.click("⬅️ Oldingi")
+    assert "3." in journey.last.text
 
 
 async def test_past_date_and_expired_confirmation_do_not_save(journey):
@@ -283,3 +321,109 @@ async def test_scheduler_sends_saved_reminder_through_local_transport(journey):
     sends = [call for call in journey.session.calls[before:] if isinstance(call, SendMessage)]
     assert [call.text for call in sends] == ["🔔 Eslatma\n\nRuntime delivery"]
     assert (await journey.rows())[0].status == "completed"
+
+
+async def test_creation_validation_back_and_completion_edit_one_panel(journey):
+    await journey.text("/start")
+    await journey.text("🔔 Eslatmalar")
+    before = len(journey.session.calls)
+    await journey.text("➕ Eslatma qo‘shish")
+    panel_id = journey.session.last_ids[7]
+    await journey.text("Test text")
+    text_id = journey.sequence
+    await journey.text("25:00")
+    await journey.text("20:00")
+    time_id = journey.sequence
+    await journey.click("📆 Har hafta")
+    await journey.click("⬅️ Orqaga")
+    await journey.click("🔁 Har kuni")
+    await journey.click("✅ Saqlash")
+    await journey.text("📋 Eslatma ro‘yxati")
+    await journey.text("➕ Eslatma qo‘shish")
+    await journey.click("❌ Bekor qilish")
+    calls = journey.session.calls[before:]
+    sends = [c for c in calls if isinstance(c, SendMessage)]
+    edits = [c for c in calls if isinstance(c, EditMessageText)]
+    deletes = [c.message_id for c in calls if isinstance(c, DeleteMessage)]
+    assert len(sends) == 1
+    assert len(edits) >= 8
+    assert {c.message_id for c in edits} == {panel_id}
+    assert text_id in deletes and time_id in deletes
+    assert panel_id not in deletes
+    assert len(await journey.rows()) == 1
+
+
+async def test_list_repeated_open_and_navigation_edit_same_message(journey):
+    for _ in range(4):
+        await journey.begin()
+        await journey.click("🔁 Har kuni")
+        await journey.click("✅ Saqlash")
+    before = len(journey.session.calls)
+    await journey.text("📋 Eslatma ro‘yxati")
+    await journey.click("Keyingi ➡️")
+    await journey.click("⬅️ Oldingi")
+    await journey.text("📋 Eslatma ro‘yxati")
+    calls = [
+        c for c in journey.session.calls[before:] if isinstance(c, (SendMessage, EditMessageText))
+    ]
+    assert all(isinstance(c, EditMessageText) for c in calls)
+    assert len({c.message_id for c in calls}) == 1
+
+
+async def test_reminder_menu_header_is_replaced_by_interactive_panel(journey):
+    await journey.text("/start")
+    await journey.text("🔔 Eslatmalar")
+    header_id = journey.session.last_ids[7]
+    await journey.text("📋 Eslatma ro‘yxati")
+    assert (7, header_id) not in journey.session.messages
+    panel_id = journey.session.last_ids[7]
+    assert (7, panel_id) in journey.session.messages
+    await journey.text("➕ Eslatma qo‘shish")
+    assert journey.session.last_ids[7] == panel_id
+
+
+async def test_removed_panel_is_recreated_once_then_reused(journey):
+    await journey.begin()
+    previous = journey.session.last_ids[7]
+    journey.session.messages.pop((7, previous))
+    before = len(journey.session.calls)
+    await journey.click("🔁 Har kuni")
+    replacement = journey.session.last_ids[7]
+    assert replacement != previous
+    await journey.click("✅ Saqlash")
+    assert len([c for c in journey.session.calls[before:] if isinstance(c, SendMessage)]) == 1
+    assert (await journey.rows())[0].spec.text == "Kitob o‘qish"
+
+
+async def test_unchanged_panel_does_not_send_duplicate(journey):
+    await journey.text("/start")
+    await journey.text("📋 Eslatma ro‘yxati")
+    before = len(journey.session.calls)
+    journey.session.fail_edit = "Bad Request: message is not modified"
+    await journey.text("📋 Eslatma ro‘yxati")
+    assert not any(isinstance(c, SendMessage) for c in journey.session.calls[before:])
+
+
+async def test_callback_from_another_message_cannot_change_panel(journey):
+    await journey.begin()
+    callback = journey.button("🔁 Har kuni")
+    journey.callback_ids[callback] += 100
+    await journey.click(data=callback)
+    assert "eskirgan" in journey.session.calls[-1].text
+    assert await journey.rows() == []
+
+
+async def test_list_callback_after_leaving_reminders_cannot_reopen_panel(journey):
+    for _ in range(4):
+        await journey.begin()
+        await journey.click("🔁 Har kuni")
+        await journey.click("✅ Saqlash")
+    await journey.text("📋 Eslatma ro‘yxati")
+    old = journey.button("Keyingi ➡️")
+    await journey.text("⬅️ Asosiy menyu")
+    before = len(journey.session.calls)
+    await journey.click(data=old)
+    assert not any(
+        isinstance(c, (SendMessage, EditMessageText)) for c in journey.session.calls[before:]
+    )
+    assert "eskirgan" in journey.session.calls[-1].text

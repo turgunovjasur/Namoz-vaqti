@@ -35,10 +35,16 @@ Eslatma yaratish: matn → `HH:MM` soat → aniq sana / har kuni / har hafta
 kunidan tanlanadi. Har bosqichda orqaga qaytish yoki bekor qilish mumkin.
 Menyuni almashtirish va buyruq yuborish tugallanmagan kiritishni bekor qiladi.
 
+Qo‘shish bosqichlari, tekshirish xabarlari, saqlash/bekor qilish natijasi va
+ro‘yxat sahifalari bitta bot xabarini yangilaydi. Shu jarayonda yuborilgan
+matn, soat va menyu tanlash xabarlari qayta ishlangach o‘chiriladi. Eski
+chat tarixi va belgilangan vaqtda kelgan eslatma xabarlari tozalanmaydi.
+Faol oynani foydalanuvchi o‘chirsa, keyingi amal yangi oynani yaratadi.
+
 - Eslatmalar faqat shaxsiy chatda yaratiladi va egasiga ko‘rsatiladi.
 - Matn 1–1000 belgi; barcha eslatma vaqtlari **Asia/Tashkent** bo‘yicha.
-- Ro‘yxat uchta eslatmadan sahifalanadi; uzun Unicode matnlar bir nechta
-  Telegram xabariga ajratiladi. Matn formatlash kodi sifatida talqin qilinmaydi.
+- Ro‘yxat uchta eslatmadan sahifalanadi; uzun Unicode matnlar
+  qo‘shimcha sahifalarga ajratiladi. Matn formatlash kodi sifatida talqin qilinmaydi.
 - Saqlangan eslatmalar PostgreSQL’da qoladi; tugallanmagan dialog restartda
   yo‘qoladi. Ro‘yxatga eslatma faqat `✅ Saqlash` bosilganda qo‘shiladi.
 - Scheduler 15 soniyada muddati kelgan eslatmalarni tekshiradi. Haqiqiy

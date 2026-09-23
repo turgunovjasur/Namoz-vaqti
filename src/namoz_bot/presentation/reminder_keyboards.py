@@ -74,14 +74,22 @@ def dialog_keyboard(
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def page_keyboard(owner: int, page: int, has_more: bool) -> InlineKeyboardMarkup:
+def page_keyboard(
+    owner: int, page: int, has_more: bool, *, part: int = 0, parts: int = 1
+) -> InlineKeyboardMarkup:
     row = []
-    if page:
+    if part or page:
+        previous_page, previous_part = (page, part - 1) if part else (page - 1, -1)
         row.append(
-            InlineKeyboardButton(text="⬅️ Oldingi", callback_data=f"remlist:{owner}:{page - 1}")
+            InlineKeyboardButton(
+                text="⬅️ Oldingi", callback_data=f"remlist:{owner}:{previous_page}:{previous_part}"
+            )
         )
-    if has_more:
+    if part < parts - 1 or has_more:
+        next_page, next_part = (page, part + 1) if part < parts - 1 else (page + 1, 0)
         row.append(
-            InlineKeyboardButton(text="Keyingi ➡️", callback_data=f"remlist:{owner}:{page + 1}")
+            InlineKeyboardButton(
+                text="Keyingi ➡️", callback_data=f"remlist:{owner}:{next_page}:{next_part}"
+            )
         )
     return InlineKeyboardMarkup(inline_keyboard=[row] if row else [])
