@@ -1,8 +1,8 @@
 """Durable reminder storage and atomic occurrence reservations."""
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
-from sqlalchemy import case, delete, select, update
+from sqlalchemy import and_, case, delete, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -67,6 +67,30 @@ class SqlAlchemyReminderRepository:
                     ReminderRecord.next_due,
                     ReminderRecord.id,
                 )
+                .offset(max(0, offset))
+                .limit(limit)
+            )
+            return [_entity(row) for row in rows]
+
+    async def list_for_date(
+        self, user_id: int, on_date: date, *, offset: int, limit: int
+    ) -> list[Reminder]:
+        # Match the schedule, not next_due: sent occurrences still belong to this date.
+        async with self._factory() as session:
+            rows = await session.scalars(
+                select(ReminderRecord)
+                .where(
+                    ReminderRecord.user_id == user_id,
+                    or_(
+                        ReminderRecord.kind == "daily",
+                        and_(ReminderRecord.kind == "once", ReminderRecord.on_date == on_date),
+                        and_(
+                            ReminderRecord.kind == "weekly",
+                            ReminderRecord.weekdays_mask.bitwise_and(1 << on_date.weekday()) != 0,
+                        ),
+                    ),
+                )
+                .order_by(ReminderRecord.at, ReminderRecord.id)
                 .offset(max(0, offset))
                 .limit(limit)
             )

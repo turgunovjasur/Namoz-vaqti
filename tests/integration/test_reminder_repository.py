@@ -1,6 +1,6 @@
 import asyncio
 import os
-from datetime import UTC, date, datetime, time
+from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 from uuid import uuid4
 
@@ -85,6 +85,32 @@ async def add_user(factory, number=7):
         UserSubscription(number, number, "Toshkent", True)
     )
     return user.id
+
+
+async def test_date_list_includes_sent_occurrences_sorts_and_isolates_users(session_factory):
+    user = await add_user(session_factory)
+    other = await add_user(session_factory, 8)
+    repo = SqlAlchemyReminderRepository(session_factory)
+    specs = [
+        ReminderSpec("Evening", time(22), "daily"),
+        ReminderSpec("Tomorrow", time(7), "once", date(2026, 9, 24)),
+        ReminderSpec("Wednesday", time(10), "weekly", weekdays=(0, 2, 4)),
+        ReminderSpec("Sent today", time(8), "once", date(2026, 9, 23)),
+        ReminderSpec("Tuesday", time(9), "weekly", weekdays=(1,)),
+        ReminderSpec("Morning daily", time(6), "daily"),
+        ReminderSpec("Yesterday", time(7), "once", date(2026, 9, 22)),
+        ReminderSpec("Same time", time(10), "daily"),
+    ]
+    for i, spec in enumerate(specs):
+        await repo.create(user, 7, spec, str(i), NOW - timedelta(days=3))
+    await repo.create(other, 8, ReminderSpec("Private", time(5), "daily"), "other", NOW)
+    for delivery in await repo.claim_due(NOW, limit=50):
+        await repo.finish(delivery, "sent")
+    rows = await repo.list_for_date(user, date(2026, 9, 23), offset=0, limit=3)
+    assert [row.spec.text for row in rows] == ["Morning daily", "Sent today", "Wednesday"]
+    rows = await repo.list_for_date(user, date(2026, 9, 23), offset=3, limit=3)
+    assert [row.spec.text for row in rows] == ["Same time", "Evening"]
+    assert await repo.list_for_date(user, date(2026, 9, 23), offset=5, limit=3) == []
 
 
 async def test_concurrent_creation_is_idempotent_and_owner_scoped(session_factory):

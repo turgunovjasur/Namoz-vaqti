@@ -5,6 +5,7 @@ import logging
 from aiogram.exceptions import TelegramAPIError, TelegramBadRequest
 from aiogram.fsm.context import FSMContext
 from aiogram.types import InlineKeyboardMarkup, Message, ReplyKeyboardRemove
+from aiogram.utils.formatting import Text
 
 from namoz_bot.presentation.keyboards import build_main_menu
 
@@ -51,9 +52,13 @@ async def show_main_menu(message: Message, state: FSMContext) -> None:
 
 
 async def render_panel(
-    message: Message, state: FSMContext, text: str, markup: InlineKeyboardMarkup | None = None
+    message: Message,
+    state: FSMContext,
+    text: str | Text,
+    markup: InlineKeyboardMarkup | None = None,
 ) -> None:
     assert message.bot is not None
+    rendered, entities = text.render() if isinstance(text, Text) else (text, [])
     data = await state.get_data()
     if data.get(MAIN_ID) is not None:
         await _delete(message, int(data[MAIN_ID]))
@@ -62,11 +67,12 @@ async def render_panel(
     if panel_id is not None:
         try:
             await message.bot.edit_message_text(
-                text,
+                rendered,
                 chat_id=message.chat.id,
                 message_id=int(panel_id),
                 reply_markup=markup,
                 parse_mode=None,
+                entities=entities,
             )
             return
         except TelegramBadRequest as exc:
@@ -87,7 +93,9 @@ async def render_panel(
     # the inline panel in chat; the removal message must never become the panel.
     removal = await message.answer("🔔 Eslatmalar", reply_markup=ReplyKeyboardRemove())
     try:
-        sent = await message.answer(text, reply_markup=markup, parse_mode=None)
+        sent = await message.answer(
+            rendered, reply_markup=markup, parse_mode=None, entities=entities
+        )
         await state.update_data({PANEL_ID: sent.message_id})
     finally:
         await _delete(message, removal.message_id)

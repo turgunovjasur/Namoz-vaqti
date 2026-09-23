@@ -26,9 +26,15 @@ Telegram foydalanuvchilariga yuboradigan asinxron bot.
 ## Menyular va eslatmalar
 
 **🕌 Namoz vaqti** bo‘limida bugungi jadval, hududni o‘zgartirish,
-masjidga moslash va yordam bor. **🔔 Eslatmalar** tanlanganda darhol
-**📋 Eslatma ro‘yxati** ochiladi. Uning ostida **➕ Qo‘shish**, **➖ O‘chirish**,
-**⬅️ Orqaga** tugmalari bor. Bo‘lim tanlangach asosiy menyu xabari o‘chiriladi.
+masjidga moslash va yordam bor. **🔔 Eslatmalar** tanlanganda
+**📋 Eslatma ro‘yxati** va **📅 Bugungi eslatmalar** menyulari ochiladi.
+Umumiy ro‘yxat ostida **➕ Qo‘shish**, **➖ O‘chirish**, **⬅️ Orqaga** tugmalari bor.
+Bugungi ro‘yxat Toshkent sanasiga mos bir martalik, har kunlik va bugungi hafta
+kuniga belgilangan eslatmalarni soat bo‘yicha o‘sish tartibida ko‘rsatadi.
+Bugun vaqti o‘tgan yoki yuborilgan eslatmalar ham shu ro‘yxatda qoladi.
+Sarlavhada sana ko‘rsatiladi; eslatma bo‘lmasa «Bugun uchun eslatmalar yo‘q» chiqadi.
+Ikkala ro‘yxatdagi **⬅️ Orqaga** eslatmalar menyusiga qaytaradi.
+Bo‘lim tanlangach asosiy menyu xabari o‘chiriladi.
 Namoz vaqtidan **⬅️ Asosiy menyu**, eslatmalar menyusidan **⬅️ Orqaga**
 orqali asosiy menyuga qaytiladi.
 
@@ -52,12 +58,18 @@ ro‘yxat sahifalari bitta bot xabarini yangilaydi. Shu jarayonda yuborilgan
 matn, soat va menyu tanlash xabarlari qayta ishlangach o‘chiriladi. Eski
 chat tarixi va belgilangan vaqtda kelgan eslatma xabarlari tozalanmaydi.
 Faol oynani foydalanuvchi o‘chirsa, keyingi amal yangi oynani yaratadi.
-Har eslatmaning tartib raqami va matni bir qatorda, vaqt va jadval esa
-keyingi qatorda ko‘rsatiladi: `🕒 08:00 · Du, Ch, Ju`. Hafta kunlari
-`Du, Se, Ch, Pa, Ju, Sh, Ya` deb qisqartiriladi. Ro‘yxatda holat va
+Har eslatma Telegram iqtibos blokida ko‘rsatiladi. Umumiy ro‘yxatda
+tartib raqami va matni qalin, vaqt va jadval esa keyingi qatorda:
+`08:00 · Du, Ch, Ju`. Dushanbadan jumagacha jadval `Du–Ju`, bitta hafta kuni
+to‘liq nomi bilan yoziladi. Bugungi ro‘yxatda vaqt qalin, eslatma matni keyingi
+qatorda; sarlavha ostida sana va hafta kuni kursiv yoziladi.
+Ro‘yxatlarda «Toshkent vaqti» yozuvi chiqarilmaydi; hisoblash vaqt zonasi o‘zgarmaydi.
+**➕ Qo‘shish** tugmasi yashil, **➖ O‘chirish** qizil; aniq ranglar Telegram
+mavzusiga bog‘liq. Matn Telegram entities orqali formatlanadi, foydalanuvchi
+matnidagi HTML/Markdown belgilar o‘z holicha ko‘rsatiladi. Ro‘yxatda holat va
 «Ko‘rsatilmoqda» yozuvi chiqarilmaydi. Qo‘shish, bekor qilish va o‘chirishdan keyin ro‘yxat
-shu oynada avtomatik yangilanadi. Ro‘yxatdagi **⬅️ Orqaga** asosiy menyuga
-qaytaradi. Eslatmalar ichida faqat inline tugmalar ishlatiladi; asosiy
+shu oynada avtomatik yangilanadi. Eslatmalar menyusidagi **⬅️ Orqaga** asosiy
+menyuga qaytaradi. Eslatmalar ichida faqat inline tugmalar ishlatiladi; asosiy
 menyuga qaytilganda pastki klaviatura tiklanadi.
 
 **➖ O‘chirish** bosilganda raqamlangan ro‘yxat ochiladi. Shu sahifadagi

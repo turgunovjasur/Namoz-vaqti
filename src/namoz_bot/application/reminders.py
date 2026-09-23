@@ -2,7 +2,7 @@
 
 import logging
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Protocol
 
 from namoz_bot.application.ports import MessageSender
@@ -17,6 +17,9 @@ class ReminderRepository(Protocol):
         self, user_id: int, chat_id: int, spec: ReminderSpec, token: str, now: datetime
     ) -> Reminder: ...
     async def list_for_user(self, user_id: int, *, offset: int, limit: int) -> list[Reminder]: ...
+    async def list_for_date(
+        self, user_id: int, on_date: date, *, offset: int, limit: int
+    ) -> list[Reminder]: ...
     async def get_for_user(self, user_id: int, reminder_id: int) -> Reminder | None: ...
     async def delete_for_user(self, user_id: int, reminder_id: int) -> bool: ...
     async def can_send(self, delivery: ReminderDelivery) -> bool: ...
@@ -37,8 +40,15 @@ class ReminderService:
     async def create(self, user_id: int, chat_id: int, spec: ReminderSpec, token: str) -> Reminder:
         return await self.repository.create(user_id, chat_id, spec, token, self.now())
 
-    async def page(self, user_id: int, page: int) -> tuple[list[Reminder], bool]:
-        rows = await self.repository.list_for_user(user_id, offset=max(0, page) * 3, limit=4)
+    async def page(
+        self, user_id: int, page: int, *, on_date: date | None = None
+    ) -> tuple[list[Reminder], bool]:
+        if on_date is None:
+            rows = await self.repository.list_for_user(user_id, offset=max(0, page) * 3, limit=4)
+        else:
+            rows = await self.repository.list_for_date(
+                user_id, on_date, offset=max(0, page) * 3, limit=4
+            )
         return rows[:3], len(rows) > 3
 
     async def get(self, user_id: int, reminder_id: int) -> Reminder | None:

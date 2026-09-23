@@ -136,6 +136,7 @@ def build_region_keyboard(*, group_code: str) -> InlineKeyboardMarkup:
 PRAYER_MENU_LABEL = "🕌 Namoz vaqti"
 REMINDERS_LABEL = "🔔 Eslatmalar"
 LIST_LABEL = "📋 Eslatma ro‘yxati"
+TODAY_REMINDERS_LABEL = "📅 Bugungi eslatmalar"
 ADD_LABEL = "➕ Eslatma qo‘shish"
 HOME_LABEL = "⬅️ Asosiy menyu"
 

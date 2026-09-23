@@ -1,4 +1,4 @@
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 
 import pytest
 from aiogram.client.session.base import BaseSession
@@ -8,7 +8,7 @@ from aiogram.types import Chat, Message, ReplyKeyboardMarkup, ReplyKeyboardRemov
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from namoz_bot.config import Settings
-from namoz_bot.domain.reminders import TASHKENT
+from namoz_bot.domain.reminders import TASHKENT, ReminderSpec
 from namoz_bot.infrastructure.orm import Base
 from namoz_bot.infrastructure.reminders import SqlAlchemyReminderRepository
 from namoz_bot.infrastructure.repositories import SqlAlchemySubscriptionRepository
@@ -179,10 +179,177 @@ async def journey(tmp_path):
     await app.close()
 
 
-async def test_list_is_section_home_and_refreshes_after_add_and_number_delete(journey):
+async def test_reminder_section_opens_two_views_and_returns_to_main_menu(journey):
+    await journey.text("/start")
+    await journey.text("🔔 Eslatmalar")
+    panel = journey.session.last_ids[7]
+    assert [b.text for row in journey.last.reply_markup.inline_keyboard for b in row] == [
+        "📋 Eslatma ro‘yxati",
+        "📅 Bugungi eslatmalar",
+        "⬅️ Orqaga",
+    ]
+    await journey.click("📅 Bugungi eslatmalar")
+    assert "Bugun uchun eslatmalar yo‘q" in journey.last.text
+    await journey.click("⬅️ Orqaga")
+    await journey.click("📋 Eslatma ro‘yxati")
+    assert "Hozircha eslatmalaringiz yo‘q" in journey.last.text
+    await journey.click("⬅️ Orqaga")
+    assert journey.session.last_ids[7] == panel
+    await journey.click("⬅️ Orqaga")
+    assert 7 in journey.session.reply_keyboards
+
+
+def entity_texts(message, kind):
+    encoded = message.text.encode("utf-16-le")
+    return [
+        encoded[entity.offset * 2 : (entity.offset + entity.length) * 2].decode("utf-16-le")
+        for entity in message.entities or []
+        if entity.type == kind
+    ]
+
+
+@pytest.mark.parametrize("recreate", [False, True])
+async def test_styled_lists_preserve_literal_text_and_render_on_send_and_edit(journey, recreate):
+    title = "📚 <b>Kitob</b> & **reja**"
+    await journey.begin(title)
+    await journey.click("📆 Har hafta")
+    for day in ("Dushanba", "Seshanba", "Chorshanba", "Payshanba", "Juma"):
+        await journey.click(f"⬜ {day}")
+    await journey.click("Oldinga ➡️")
+    if recreate:
+        journey.session.messages.pop((7, journey.session.last_ids[7]))
+    await journey.click("✅ Saqlash")
+    message = journey.last
+    assert isinstance(message, SendMessage if recreate else EditMessageText)
+    assert entity_texts(message, "blockquote") == [f"1. {title}\n20:00 · Du–Ju"]
+    assert f"1. {title}" in entity_texts(message, "bold")
+    assert message.parse_mode is None
+    buttons = message.reply_markup.inline_keyboard[0]
+    assert [button.model_dump().get("style") for button in buttons] == ["success", "danger"]
+    # A fresh daily reminder belongs to today's list on every test date.
+    await journey.click("➕ Qo‘shish")
+    await journey.text(title)
+    await journey.choose_time()
+    await journey.click("🔁 Har kuni")
+    await journey.click("✅ Saqlash")
+    await journey.click("⬅️ Orqaga")
+    if recreate:
+        journey.session.messages.pop((7, journey.session.last_ids[7]))
+    await journey.click("📅 Bugungi eslatmalar")
+    message = journey.last
+    assert isinstance(message, SendMessage if recreate else EditMessageText)
+    assert all(block == f"20:00\n{title}" for block in entity_texts(message, "blockquote"))
+    assert "20:00" in entity_texts(message, "bold")
+    assert entity_texts(message, "italic")
+    assert "Toshkent" not in message.text
+    assert "Har kuni" not in message.text and "Du–Ju" not in message.text
+
+
+async def test_today_view_uses_tashkent_date_and_paginates_sorted_occurrences(journey, monkeypatch):
+    from namoz_bot.application import reminders as reminders_application
+
+    # UTC is still Tuesday, but it is Wednesday in Tashkent.
+    class Clock(datetime):
+        current = datetime(2026, 9, 22, 20, 30, tzinfo=UTC)
+
+        @classmethod
+        def now(cls, tz=None):
+            return cls.current.astimezone(tz)
+
+    monkeypatch.setattr(reminders_application, "datetime", Clock)
+    await journey.text("🔔 Eslatmalar")
+    factory = async_sessionmaker(journey.app.db_engine, expire_on_commit=False)
+    user = await SqlAlchemySubscriptionRepository(factory).get_by_telegram_user_id(7)
+    repo = SqlAlchemyReminderRepository(factory)
+    specs = [
+        ReminderSpec("Late", time(23), "daily"),
+        ReminderSpec("Tomorrow", time(2), "once", date(2026, 9, 24)),
+        ReminderSpec("Midnight", time(0), "once", date(2026, 9, 23)),
+        ReminderSpec("Weekly", time(10), "weekly", weekdays=(2, 4)),
+        ReminderSpec("Early", time(6), "daily"),
+        ReminderSpec("Other weekday", time(8), "weekly", weekdays=(1,)),
+        ReminderSpec("Noon", time(12), "daily"),
+    ]
+    for i, spec in enumerate(specs):
+        await repo.create(user.id, 7, spec, str(i), Clock.current - timedelta(days=1))
+    for delivery in await repo.claim_due(Clock.current, limit=50):
+        await repo.finish(delivery, "sent")
+    await journey.click("📅 Bugungi eslatmalar")
+    assert "23.09.2026" in journey.last.text
+    assert journey.last.text.index("Midnight") < journey.last.text.index("Early")
+    assert journey.last.text.index("Early") < journey.last.text.index("Weekly")
+    assert "Tomorrow" not in journey.last.text and "Other weekday" not in journey.last.text
+    next_page = journey.button("Keyingi ➡️")
+    await journey.click(data=next_page)
+    assert journey.last.text.index("Noon") < journey.last.text.index("Late")
+    await journey.click("⬅️ Oldingi")
+    assert "Midnight" in journey.last.text
+    await journey.click("⬅️ Orqaga")
+    await journey.click("📋 Eslatma ro‘yxati")
+    await journey.click(data=next_page)
+    assert journey.session.calls[-1].show_alert
+    await journey.click("⬅️ Orqaga")
+    await journey.click("📅 Bugungi eslatmalar")
+    await journey.click("Keyingi ➡️")
+    Clock.current += timedelta(days=1)
+    await journey.click("⬅️ Oldingi")
+    assert "24.09.2026" in journey.last.text and "Tomorrow" in journey.last.text
+    assert "Midnight" not in journey.last.text and "Weekly" not in journey.last.text
+
+
+async def test_today_long_unicode_entries_preserve_order_across_parts(journey):
+    for i in range(4):
+        await journey.begin(str(i) + "😀" * 999)
+        await journey.click("🔁 Har kuni")
+        await journey.click("✅ Saqlash")
+    await journey.click("⬅️ Orqaga")
+    await journey.click("📅 Bugungi eslatmalar")
+    for i in range(4):
+        assert f"20:00\n{i}😀" in journey.last.text
+        assert entity_texts(journey.last, "blockquote") == [f"20:00\n{i}" + "😀" * 999]
+        assert len(journey.last.text.encode("utf-16-le")) // 2 <= 4096
+        labels = [b.text for row in journey.last.reply_markup.inline_keyboard for b in row]
+        assert "➕ Qo‘shish" not in labels and "\N{HEAVY MINUS SIGN} O‘chirish" not in labels
+        if i < 3:
+            await journey.click("Keyingi ➡️")
+        else:
+            assert "Keyingi ➡️" not in labels
+    await journey.click("⬅️ Oldingi")
+    assert "20:00\n2😀" in journey.last.text
+
+
+@pytest.mark.parametrize("invalid", ["other_user", "other_message", "left_section"])
+async def test_today_pagination_rejects_foreign_or_retired_panel(journey, invalid):
+    for _ in range(4):
+        await journey.begin()
+        await journey.click("🔁 Har kuni")
+        await journey.click("✅ Saqlash")
+    await journey.click("⬅️ Orqaga")
+    await journey.click("📅 Bugungi eslatmalar")
+    next_page = journey.button("Keyingi ➡️")
+    user = 7
+    if invalid == "other_user":
+        user = 8
+        await journey.text("📅 Bugungi eslatmalar", user=user)
+        assert "Kitob o‘qish" not in journey.last.text
+        journey.callback_ids[next_page] = journey.session.last_ids[user]
+    elif invalid == "other_message":
+        journey.callback_ids[next_page] += 100
+    else:
+        await journey.click("⬅️ Orqaga")
+    before = len(journey.session.calls)
+    await journey.click(data=next_page, user=user)
+    assert journey.session.calls[-1].show_alert
+    assert not any(
+        isinstance(c, (SendMessage, EditMessageText)) for c in journey.session.calls[before:]
+    )
+
+
+async def test_list_refreshes_after_add_and_number_delete(journey):
     await journey.text("/start")
     root_id = journey.session.last_ids[7]
     await journey.text("🔔 Eslatmalar")
+    await journey.click("📋 Eslatma ro‘yxati")
     assert (7, root_id) not in journey.session.messages
     assert "📋 Eslatma ro‘yxati" in journey.last.text
     assert [b.text for row in journey.last.reply_markup.inline_keyboard for b in row] == [
@@ -198,7 +365,7 @@ async def test_list_is_section_home_and_refreshes_after_add_and_number_delete(jo
     await journey.click("✅ Saqlash")
     assert "📋 Eslatma ro‘yxati" in journey.last.text
     assert "1. Suv ichish" in journey.last.text
-    assert journey.last.text == "📋 Eslatma ro‘yxati\n\n1. Suv ichish\n🕒 20:00 · Har kuni"
+    assert journey.last.text == "📋 Eslatma ro‘yxati\n\n1. Suv ichish\n20:00 · Har kuni"
     await journey.click("\N{HEAVY MINUS SIGN} O‘chirish")
     assert "1. Suv ichish" in journey.last.text
     assert "raqamini" in journey.last.text
@@ -214,6 +381,7 @@ async def test_list_is_section_home_and_refreshes_after_add_and_number_delete(jo
 
 async def test_text_submit_and_picker_advance_without_forward_buttons(journey):
     await journey.text("🔔 Eslatmalar")
+    await journey.click("📋 Eslatma ro‘yxati")
     await journey.click("➕ Qo‘shish")
     assert journey.last.text == "Eslatma matnini yozing"
     assert [[b.text for b in row] for row in journey.last.reply_markup.inline_keyboard] == [
@@ -248,6 +416,7 @@ async def test_text_submit_and_picker_advance_without_forward_buttons(journey):
 @pytest.mark.parametrize(("hour", "minute"), [(0, 0), (9, 7), (12, 30)])
 async def test_picker_preserves_exact_minutes_and_text_when_going_back(journey, hour, minute):
     await journey.text("🔔 Eslatmalar")
+    await journey.click("📋 Eslatma ro‘yxati")
     await journey.click("➕ Qo‘shish")
     await journey.text("Keep my text")
     await journey.choose_time(hour=hour, minute=minute)
@@ -266,6 +435,7 @@ async def test_picker_preserves_exact_minutes_and_text_when_going_back(journey, 
 
 async def test_picker_rejects_invalid_and_stale_values(journey):
     await journey.text("🔔 Eslatmalar")
+    await journey.click("📋 Eslatma ro‘yxati")
     await journey.click("➕ Qo‘shish")
     await journey.text("Time boundaries")
     hour = journey.button("00")
@@ -323,6 +493,7 @@ async def test_empty_delete_and_repeated_start_leave_one_working_menu(journey):
     await journey.text("/start")
     assert len(journey.session.messages) == 1
     await journey.text("🔔 Eslatmalar")
+    await journey.click("📋 Eslatma ro‘yxati")
     await journey.click("\N{HEAVY MINUS SIGN} O‘chirish")
     assert "Hozircha" in journey.last.text
     assert journey.button("➕ Qo‘shish")
@@ -526,6 +697,7 @@ async def test_scheduler_sends_saved_reminder_through_local_transport(journey):
 async def test_creation_validation_back_and_completion_edit_one_panel(journey):
     await journey.text("/start")
     await journey.text("🔔 Eslatmalar")
+    await journey.click("📋 Eslatma ro‘yxati")
     before = len(journey.session.calls)
     await journey.text("➕ Eslatma qo‘shish")
     panel_id = journey.session.last_ids[7]
@@ -576,11 +748,13 @@ async def test_reminders_have_one_inline_menu_without_duplicate_reply_keyboard(j
     assert 7 in journey.session.reply_keyboards
     before = len(journey.session.calls)
     await journey.text("🔔 Eslatmalar")
+    await journey.click("📋 Eslatma ro‘yxati")
     panel_id = journey.session.last_ids[7]
     assert 7 not in journey.session.reply_keyboards
     await journey.click("➕ Qo‘shish")
     await journey.click("⬅️ Orqaga")
     await journey.text("🔔 Eslatmalar")
+    await journey.click("📋 Eslatma ro‘yxati")
     calls = journey.session.calls[before:]
     sends = [c for c in calls if isinstance(c, SendMessage)]
     assert len(sends) == 2
@@ -589,6 +763,7 @@ async def test_reminders_have_one_inline_menu_without_duplicate_reply_keyboard(j
     assert {c.message_id for c in calls if isinstance(c, EditMessageText)} == {panel_id}
     assert 7 not in journey.session.reply_keyboards
     await journey.click("⬅️ Orqaga")
+    await journey.click("⬅️ Orqaga")
     assert (7, panel_id) not in journey.session.messages
     assert 7 in journey.session.reply_keyboards
 
@@ -596,6 +771,7 @@ async def test_reminders_have_one_inline_menu_without_duplicate_reply_keyboard(j
 async def test_list_back_menu_add_save_back_and_home(journey):
     await journey.text("/start")
     await journey.text("🔔 Eslatmalar")
+    await journey.click("📋 Eslatma ro‘yxati")
     panel_id = journey.session.last_ids[7]
     assert "Hozircha" in journey.last.text
     await journey.click("➕ Qo‘shish")
@@ -606,6 +782,7 @@ async def test_list_back_menu_add_save_back_and_home(journey):
     assert "Inline menu reminder" in journey.last.text
     assert journey.session.last_ids[7] == panel_id
     await journey.click("⬅️ Orqaga")
+    await journey.click("⬅️ Orqaga")
     assert [b.text for row in journey.last.reply_markup.keyboard for b in row] == [
         "🕌 Namoz vaqti",
         "🔔 Eslatmalar",
@@ -614,6 +791,7 @@ async def test_list_back_menu_add_save_back_and_home(journey):
 
 async def test_inline_list_works_before_start_command(journey):
     await journey.text("🔔 Eslatmalar")
+    await journey.click("📋 Eslatma ro‘yxati")
     assert "Hozircha eslatmalaringiz yo‘q" in journey.last.text
     await journey.click("➕ Qo‘shish")
     assert "Eslatma matnini" in journey.last.text
@@ -646,7 +824,7 @@ async def test_weekly_multiselect_toggle_continue_and_back(journey):
     rows = await journey.rows()
     assert len(rows) == 1
     assert rows[0].spec.weekdays == (2, 4, 6)
-    assert "🕒 20:00 · Ch, Ju, Ya" in journey.last.text
+    assert "20:00 · Ch, Ju, Ya" in journey.last.text
     assert "Faol" not in journey.last.text and "Ko‘rsatilmoqda" not in journey.last.text
     assert journey.session.last_ids[7] == panel_id
 
@@ -758,6 +936,7 @@ async def test_delete_buttons_match_only_visible_long_reminders(journey):
 async def test_cancel_back_and_stale_menu_cannot_interrupt_draft(journey):
     await journey.text("/start")
     await journey.text("🔔 Eslatmalar")
+    await journey.click("📋 Eslatma ro‘yxati")
     old_back = journey.button("⬅️ Orqaga")
     await journey.click("➕ Qo‘shish")
     await journey.click(data=old_back)

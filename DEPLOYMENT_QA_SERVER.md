@@ -26,6 +26,39 @@ darajasida integratsiya qilinmagan:
 QA-Assistantning Compose, Caddy, PostgreSQL, network yoki volume'ini Namoz bot
 buyruqlarida ko'rsatish mumkin emas.
 
+## Playwright CI bot bilan bir serverda ishlash
+
+Shu Hetzner VPSda Playwright repositorysining `@smartup_ci_bot` servisi ham
+alohida Docker Compose project sifatida ishlaydi:
+
+| Narsa | Namoz bot | Playwright CI bot |
+|---|---|---|
+| Server katalogi | `/opt/namoz-vaqti` | `/opt/playwright-ci-bot` |
+| Compose project | `namoz-vaqti` | `playwright-ci-bot` |
+| Asosiy container | `namoz-vaqti-bot-1` | `playwright-ci-bot-bot-1` |
+| Docker network | `namoz-vaqti_default` | `playwright-ci-bot_default` |
+| Database/volume | Alohida PostgreSQL va persistent volume | Yo'q |
+| Host port | Yo'q | Yo'q |
+| Telegram bot | `@UzNamozTaqvimiBot` | `@smartup_ci_bot` |
+
+Playwright CI bot Namoz loyihasining `.env`, Telegram tokeni, PostgreSQL bazasi,
+volume'i, networki yoki containeridan foydalanmaydi. Namoz deploy/update/rollback
+buyruqlari ham `/opt/playwright-ci-bot` ichida bajarilmaydi.
+
+Playwright projectini boshqarish faqat uning katalogi va explicit project nomi
+bilan amalga oshiriladi:
+
+```bash
+cd /opt/playwright-ci-bot
+docker compose \
+  -f deploy/playwright-ci-bot/docker-compose.yml \
+  -p playwright-ci-bot ps
+```
+
+Playwright botni restart yoki recreate qilish Namoz bot va database containerlarini
+restart qilmaydi. Server rootida yoki `/opt` ichida project nomisiz umumiy
+`docker compose down`, container cleanup yoki volume/network prune bajarilmaydi.
+
 ## Serverga kirish
 
 ```bash

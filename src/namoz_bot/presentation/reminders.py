@@ -8,9 +8,10 @@ from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message
+from aiogram.utils.formatting import BlockQuote, Bold, Italic, Text
 
 from namoz_bot.application.reminders import ReminderService
-from namoz_bot.domain.reminders import TASHKENT, ReminderSpec, parse_time
+from namoz_bot.domain.reminders import TASHKENT, WEEKDAYS, ReminderSpec, parse_time
 from namoz_bot.presentation.handlers import HandlerServices
 from namoz_bot.presentation.keyboards import (
     ADD_LABEL,
@@ -18,12 +19,14 @@ from namoz_bot.presentation.keyboards import (
     LIST_LABEL,
     PRAYER_MENU_LABEL,
     REMINDERS_LABEL,
+    TODAY_REMINDERS_LABEL,
     build_prayer_menu,
 )
 from namoz_bot.presentation.reminder_keyboards import (
     delete_keyboard,
     dialog_keyboard,
     page_keyboard,
+    section_keyboard,
 )
 from namoz_bot.presentation.reminder_panel import (
     PANEL_ID,
@@ -70,7 +73,11 @@ async def show_section(
     reminder_service: ReminderService,
 ) -> None:
     if message.text == REMINDERS_LABEL:
-        await show_list(message, state, handler_services, reminder_service)
+        if not await _private(message) or message.from_user is None:
+            return
+        await handler_services.subscriptions.start(message.from_user.id, message.chat.id)
+        await _show_section_menu(message, state, message.from_user.id)
+        await delete_input(message)
         return
     if message.text == PRAYER_MENU_LABEL:
         await discard_panel(message, state)
@@ -79,6 +86,12 @@ async def show_section(
     else:
         await show_main_menu(message, state)
     await delete_input(message)
+
+
+async def _show_section_menu(message: Message, state: FSMContext, owner: int) -> None:
+    await reset_draft(state)
+    await state.update_data(list_view="section")
+    await render_panel(message, state, "🔔 Eslatmalar. Menyuni tanlang:", section_keyboard(owner))
 
 
 async def _prompt(
@@ -325,6 +338,12 @@ async def dialog_callback(
 def _list_schedule_label(spec: ReminderSpec) -> str:
     days = ("Du", "Se", "Ch", "Pa", "Ju", "Sh", "Ya")
     if spec.kind == "weekly":
+        if spec.weekdays == (0, 1, 2, 3, 4):
+            return "Du–Ju"
+        if len(spec.weekdays) == 7:
+            return "Har kuni"
+        if len(spec.weekdays) == 1:
+            return WEEKDAYS[spec.weekdays[0]]
         return ", ".join(days[day] for day in spec.weekdays)
     if spec.kind == "once":
         assert spec.on_date is not None
@@ -343,45 +362,77 @@ async def _show_list(
     *,
     deleting: bool = False,
     error: str | None = None,
+    today: bool = False,
 ) -> None:
     user = await services.subscriptions.get(owner)
     assert user.id is not None
-    rows, more = await reminders.page(user.id, page)
+    on_date = reminders.now().astimezone(TASHKENT).date() if today else None
+    data = await state.get_data()
+    if on_date is not None and data.get("list_date") != on_date.isoformat():
+        page, part = 0, 0
+    rows, more = await reminders.page(user.id, page, on_date=on_date)
     if not rows and page:
         page, part = 0, 0
-        rows, more = await reminders.page(user.id, page)
-    chunks = [""]
+        rows, more = await reminders.page(user.id, page, on_date=on_date)
+    chunks = [Text()]
     chunk_items: list[list[tuple[int, int]]] = [[]]
     for i, row in enumerate(rows, 1):
         entry = (
-            f"{page * 3 + i}. {row.spec.text}\n"
-            f"🕒 {row.spec.at:%H:%M} · {_list_schedule_label(row.spec)}"
+            BlockQuote(Bold(f"{row.spec.at:%H:%M}"), "\n", row.spec.text)
+            if today
+            else BlockQuote(
+                Bold(f"{page * 3 + i}. {row.spec.text}"),
+                f"\n{row.spec.at:%H:%M} · {_list_schedule_label(row.spec)}",
+            )
         )
-        separator = "\n\n" if chunks[-1] else ""
-        if len((chunks[-1] + separator + entry).encode("utf-16-le")) // 2 > 3400:
-            chunks.append("")
+        separator = "\n\n" if len(chunks[-1]) else ""
+        if len(Text(chunks[-1], separator, entry)) > 3400:
+            chunks.append(Text())
             chunk_items.append([])
             separator = ""
-        chunks[-1] += separator + entry
+        chunks[-1] = Text(chunks[-1], separator, entry)
         chunk_items[-1].append((page * 3 + i, row.id))
     selected = len(chunks) - 1 if part == -1 else min(part, len(chunks) - 1)
     items = chunk_items[selected]
-    text = "📋 Eslatma ro‘yxati\n\n"
+    text = Text(Bold("📋 Eslatma ro‘yxati"), "\n\n")
+    if on_date is not None:
+        text = Text(
+            Bold(TODAY_REMINDERS_LABEL),
+            "\n",
+            Italic(f"{on_date:%d.%m.%Y} · {WEEKDAYS[on_date.weekday()]}"),
+            "\n\n",
+        )
     if items:
-        text += chunks[selected]
+        text = Text(text, chunks[selected])
     else:
-        text += "Hozircha eslatmalaringiz yo‘q.\nBirinchi eslatmani ➕ Qo‘shish orqali yarating."
+        text = Text(
+            text,
+            (
+                "Bugun uchun eslatmalar yo‘q."
+                if today
+                else "Hozircha eslatmalaringiz yo‘q.\n"
+                "Birinchi eslatmani ➕ Qo‘shish orqali yarating."
+            ),
+        )
         deleting = False
     if deleting:
-        text += "\n\n\N{HEAVY MINUS SIGN} O‘chirish uchun shu sahifadagi eslatma raqamini yuboring."
+        text = Text(
+            text,
+            "\n\n",
+            Italic(
+                "\N{HEAVY MINUS SIGN} O‘chirish uchun shu sahifadagi eslatma raqamini yuboring."
+            ),
+        )
     if error:
-        text = f"⚠️ {error}\n\n{text}"
+        text = Text("⚠️ ", error, "\n\n", text)
     await state.update_data(
         delete_token=None,
         delete_target=None,
         delete_numbers={str(number): reminder_id for number, reminder_id in items},
         list_page=page,
         list_part=selected,
+        list_view="today" if today else "list",
+        list_date=on_date.isoformat() if on_date is not None else None,
     )
     await state.set_state(ReminderStates.delete_number if deleting else None)
     await render_panel(
@@ -395,6 +446,7 @@ async def _show_list(
             part=selected,
             parts=len(chunks),
             deleting=deleting,
+            today=today,
         ),
     )
 
@@ -409,7 +461,15 @@ async def show_list(
     if not await _private(message) or message.from_user is None:
         return
     await handler_services.subscriptions.start(message.from_user.id, message.chat.id)
-    await _show_list(message, state, message.from_user.id, 0, handler_services, reminder_service)
+    await _show_list(
+        message,
+        state,
+        message.from_user.id,
+        0,
+        handler_services,
+        reminder_service,
+        today=message.text == TODAY_REMINDERS_LABEL,
+    )
     await delete_input(message)
 
 
@@ -421,7 +481,7 @@ async def list_callback(
 ) -> None:
     message = callback.message
     try:
-        _, owner_text, page_text, part_text = (callback.data or "").split(":")
+        prefix, owner_text, page_text, part_text = (callback.data or "").split(":")
         owner, page, part = int(owner_text), int(page_text), int(part_text)
         if (
             not isinstance(message, Message)
@@ -430,6 +490,7 @@ async def list_callback(
             or message.chat.id != owner
             or not 0 <= page <= 1_000_000
             or not -1 <= part <= 2
+            or prefix not in {"remlist", "remtoday"}
         ):
             raise ValueError
     except ValueError:
@@ -440,7 +501,10 @@ async def list_callback(
         await callback.answer("Avval joriy amalni yakunlang yoki ortga qayting.", show_alert=True)
         return
     data = await state.get_data()
-    if data.get(PANEL_ID) != message.message_id:
+    today = prefix == "remtoday"
+    if data.get(PANEL_ID) != message.message_id or data.get("list_view") != (
+        "today" if today else "list"
+    ):
         await callback.answer(
             "Bu ro‘yxat eskirgan. Eslatma ro‘yxatini qayta oching.", show_alert=True
         )
@@ -455,6 +519,7 @@ async def list_callback(
         reminder_service,
         part,
         deleting=current_state == ReminderStates.delete_number.state,
+        today=today,
     )
     await callback.answer()
 
@@ -583,7 +648,7 @@ async def menu_callback(
         or len(parts) != 3
         or parts[1] != str(callback.from_user.id)
         or message.chat.id != callback.from_user.id
-        or parts[2] not in {"list", "add", "delete", "home"}
+        or parts[2] not in {"list", "today", "section", "add", "delete", "home"}
         or data.get(PANEL_ID) != message.message_id
         or (
             current_state is not None
@@ -598,6 +663,8 @@ async def menu_callback(
     await reset_draft(state)
     if action == "home":
         await show_main_menu(message, state)
+    elif action == "section":
+        await _show_section_menu(message, state, owner)
     elif action == "add":
         await _start_reminder(message, state, owner, reminder_service, handler_services)
     else:
@@ -606,11 +673,12 @@ async def menu_callback(
             message,
             state,
             owner,
-            data.get("list_page", 0),
+            data.get("list_page", 0) if action != "today" else 0,
             handler_services,
             reminder_service,
-            data.get("list_part", 0),
+            data.get("list_part", 0) if action != "today" else 0,
             deleting=action == "delete",
+            today=action == "today",
         )
     await callback.answer()
 
@@ -621,7 +689,7 @@ def build_reminder_router() -> Router:
         show_section, F.text.in_({PRAYER_MENU_LABEL, REMINDERS_LABEL, HOME_LABEL})
     )
     router.message.register(start_reminder, F.text == ADD_LABEL)
-    router.message.register(show_list, F.text == LIST_LABEL)
+    router.message.register(show_list, F.text.in_({LIST_LABEL, TODAY_REMINDERS_LABEL}))
     router.message.register(show_section, F.text.startswith("/"))
     router.message.register(receive_text, ReminderStates.text)
     router.message.register(receive_time, ReminderStates.time)
@@ -636,6 +704,7 @@ def build_reminder_router() -> Router:
         router.message.register(choose_button, step)
     router.callback_query.register(dialog_callback, F.data.startswith("rem:"))
     router.callback_query.register(list_callback, F.data.startswith("remlist:"))
+    router.callback_query.register(list_callback, F.data.startswith("remtoday:"))
     router.callback_query.register(menu_callback, F.data.startswith("remmenu:"))
     router.callback_query.register(delete_callback, F.data.startswith("remdel:"))
     return router
