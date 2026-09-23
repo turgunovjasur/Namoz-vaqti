@@ -6,14 +6,17 @@ from aiogram.exceptions import TelegramAPIError, TelegramBadRequest
 from aiogram.fsm.context import FSMContext
 from aiogram.types import InlineKeyboardMarkup, Message, ReplyKeyboardRemove
 
+from namoz_bot.presentation.keyboards import build_main_menu
+
 logger = logging.getLogger(__name__)
 PANEL_ID = "reminder_panel_id"
+MAIN_ID = "main_menu_message_id"
 
 
 async def reset_draft(state: FSMContext) -> None:
     """Forget dialog fields while retaining the reusable UI message."""
     data = await state.get_data()
-    retained = {PANEL_ID: data[PANEL_ID]} if data.get(PANEL_ID) is not None else {}
+    retained = {key: data[key] for key in (PANEL_ID, MAIN_ID) if data.get(key) is not None}
     await state.clear()
     await state.set_data(retained)
 
@@ -35,15 +38,27 @@ async def delete_input(message: Message) -> None:
 
 async def discard_panel(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
-    if data.get(PANEL_ID) is not None:
-        await _delete(message, int(data[PANEL_ID]))
+    for key in (PANEL_ID, MAIN_ID):
+        if data.get(key) is not None:
+            await _delete(message, int(data[key]))
+
+
+async def show_main_menu(message: Message, state: FSMContext) -> None:
+    await discard_panel(message, state)
+    await state.clear()
+    sent = await message.answer("Asosiy menyu. Bo‘limni tanlang:", reply_markup=build_main_menu())
+    await state.update_data({MAIN_ID: sent.message_id})
 
 
 async def render_panel(
     message: Message, state: FSMContext, text: str, markup: InlineKeyboardMarkup | None = None
 ) -> None:
     assert message.bot is not None
-    panel_id = (await state.get_data()).get(PANEL_ID)
+    data = await state.get_data()
+    if data.get(MAIN_ID) is not None:
+        await _delete(message, int(data[MAIN_ID]))
+        await state.update_data({MAIN_ID: None})
+    panel_id = data.get(PANEL_ID)
     if panel_id is not None:
         try:
             await message.bot.edit_message_text(

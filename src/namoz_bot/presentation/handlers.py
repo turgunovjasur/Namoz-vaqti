@@ -9,6 +9,7 @@ from weakref import WeakValueDictionary
 
 from aiogram import F, Router
 from aiogram.filters import Command, CommandStart
+from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
 from namoz_bot.application.schedules import ScheduleService, apply_offsets, format_schedule
@@ -67,10 +68,17 @@ async def _send_today(
     )
 
 
-async def handle_start(message: Message, handler_services: HandlerServices) -> None:
+async def handle_start(
+    message: Message, handler_services: HandlerServices, state: FSMContext | None = None
+) -> None:
     telegram_user_id, chat_id = _message_identity(message)
     await handler_services.subscriptions.start(telegram_user_id, chat_id)
-    await message.answer("Asosiy menyu. Bo‘limni tanlang:", reply_markup=build_main_menu())
+    if state is not None:
+        from namoz_bot.presentation.reminder_panel import show_main_menu
+
+        await show_main_menu(message, state)
+    else:
+        await message.answer("Asosiy menyu. Bo‘limni tanlang:", reply_markup=build_main_menu())
 
 
 async def handle_today(message: Message, handler_services: HandlerServices) -> None:

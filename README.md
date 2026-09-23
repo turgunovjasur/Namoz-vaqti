@@ -26,8 +26,9 @@ Telegram foydalanuvchilariga yuboradigan asinxron bot.
 ## Menyular va eslatmalar
 
 **🕌 Namoz vaqti** bo‘limida bugungi jadval, hududni o‘zgartirish,
-masjidga moslash va yordam bor. **🔔 Eslatmalar** bo‘limida
-**📋 Eslatma ro‘yxati** va **➕ Eslatma qo‘shish** mavjud.
+masjidga moslash va yordam bor. **🔔 Eslatmalar** tanlanganda darhol
+**📋 Eslatma ro‘yxati** ochiladi. Uning ostida **➕ Qo‘shish**, **➖ O‘chirish**,
+**⬅️ Orqaga** tugmalari bor. Bo‘lim tanlangach asosiy menyu xabari o‘chiriladi.
 Namoz vaqtidan **⬅️ Asosiy menyu**, eslatmalar menyusidan **⬅️ Orqaga**
 orqali asosiy menyuga qaytiladi.
 
@@ -43,14 +44,15 @@ ro‘yxat sahifalari bitta bot xabarini yangilaydi. Shu jarayonda yuborilgan
 matn, soat va menyu tanlash xabarlari qayta ishlangach o‘chiriladi. Eski
 chat tarixi va belgilangan vaqtda kelgan eslatma xabarlari tozalanmaydi.
 Faol oynani foydalanuvchi o‘chirsa, keyingi amal yangi oynani yaratadi.
-Ro‘yxat va saqlash/bekor qilish natijasidagi **⬅️ Orqaga** tugmasi shu
-oynada eslatmalar menyusini ochadi; u yerdan qo‘shish, ro‘yxat yoki asosiy
-menyuga o‘tish mumkin. Eslatmalar bo‘limida faqat xabar ostidagi inline
-menyu ishlatiladi; takroriy pastki klaviatura va alohida bo‘lim sarlavhasi
-chiqarilmaydi. Asosiy menyuga qaytilganda pastki klaviatura tiklanadi.
+Har eslatmaning tartib raqami, matni, soati, takrorlanishi va holati alohida
+qatorda ko‘rsatiladi. Qo‘shish, bekor qilish va o‘chirishdan keyin ro‘yxat
+shu oynada avtomatik yangilanadi. Ro‘yxatdagi **⬅️ Orqaga** asosiy menyuga
+qaytaradi. Eslatmalar ichida faqat inline tugmalar ishlatiladi; asosiy
+menyuga qaytilganda pastki klaviatura tiklanadi.
 
-Ro‘yxatdagi **🗑 N. O‘chirish** tegishli eslatmani ko‘rsatib tasdiqlashni
-so‘raydi. **🗑 Ha, o‘chirish** eslatmani va uning yuborish tarixini bazadan
+**➖ O‘chirish** bosilganda raqamlangan ro‘yxat ochiladi. Shu sahifadagi
+eslatma raqamini yozish uning matni va jadvali bilan tasdiqlashni ochadi.
+**🗑 Ha, o‘chirish** eslatmani va uning yuborish tarixini bazadan
 olib tashlaydi; **⬅️ Orqaga** o‘chirmasdan ro‘yxatga qaytaradi. Faqat egasi
 o‘z eslatmasini o‘chira oladi. Navbatga olingan, lekin yuborilishi hali
 boshlanmagan xabar ham bekor qilinadi; Telegramga jo‘natish allaqachon

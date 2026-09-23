@@ -6,7 +6,6 @@ from datetime import date
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from namoz_bot.domain.reminders import WEEKDAYS
-from namoz_bot.presentation.keyboards import ADD_LABEL, LIST_LABEL
 
 MONTHS = (
     "Yanvar",
@@ -83,18 +82,6 @@ def dialog_keyboard(
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def menu_keyboard(owner: int, *, section: bool = False) -> InlineKeyboardMarkup:
-    """Allow navigation even when the client hides its reply keyboard."""
-    actions = [(LIST_LABEL, "list"), (ADD_LABEL, "add")] if section else []
-    actions.append(("⬅️ Orqaga", "home" if section else "menu"))
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text=label, callback_data=f"remmenu:{owner}:{action}")]
-            for label, action in actions
-        ]
-    )
-
-
 def page_keyboard(
     owner: int,
     page: int,
@@ -102,8 +89,7 @@ def page_keyboard(
     *,
     part: int = 0,
     parts: int = 1,
-    delete_token: str = "",
-    items: tuple[tuple[int, int], ...] = (),
+    deleting: bool = False,
 ) -> InlineKeyboardMarkup:
     row = []
     if part or page:
@@ -120,18 +106,18 @@ def page_keyboard(
                 text="Keyingi ➡️", callback_data=f"remlist:{owner}:{next_page}:{next_part}"
             )
         )
-    rows = [
-        [
-            InlineKeyboardButton(
-                text=f"🗑 {number}. O‘chirish",
-                callback_data=f"remdel:{delete_token}:ask:{reminder_id}",
-            )
-        ]
-        for number, reminder_id in items
-    ]
-    if row:
-        rows.append(row)
-    rows.extend(menu_keyboard(owner).inline_keyboard)
+    rows = [row] if row else []
+    if not deleting:
+        rows.append(
+            [
+                InlineKeyboardButton(text="➕ Qo‘shish", callback_data=f"remmenu:{owner}:add"),
+                InlineKeyboardButton(
+                    text="\N{HEAVY MINUS SIGN} O‘chirish", callback_data=f"remmenu:{owner}:delete"
+                ),
+            ]
+        )
+    action = "list" if deleting else "home"
+    rows.append([InlineKeyboardButton(text="⬅️ Orqaga", callback_data=f"remmenu:{owner}:{action}")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 

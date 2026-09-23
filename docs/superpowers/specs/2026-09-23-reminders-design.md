@@ -21,8 +21,10 @@ sifatida saqlanadi.
   avtomatik ochmaydi va namoz API ishlashiga bog‘liq bo‘lmaydi.
 - `🕌 Namoz vaqti`: hozirgi menyuni ochadi: `📅 Bugungi jadval`,
   `📍 Hududni o‘zgartirish`, `🕌 Masjidga moslash`, `ℹ️ Yordam`.
-- `🔔 Eslatmalar`: `📋 Eslatma ro‘yxati`, `➕ Eslatma qo‘shish`.
-- Har ikkala ichki menyuda `⬅️ Asosiy menyu` bor.
+- `🔔 Eslatmalar`: to‘g‘ridan-to‘g‘ri ro‘yxat; uning ostida `➕ Qo‘shish`,
+  `➖ O‘chirish`, `⬅️ Orqaga` bor.
+- Namoz menyusida `⬅️ Asosiy menyu`, eslatmalar ro‘yxatida `⬅️ Orqaga`
+  asosiy menyuga qaytaradi. Bo‘lim tanlanganda asosiy menyu xabari o‘chiriladi.
 - Mavjud `/today`, `/settings`, `/offsets`, `/help` buyruqlari ishlaydi.
 - Asosiy menyuga chiqish, bo‘lim almashtirish yoki `/start` tugallanmagan
   eslatma kiritishni bekor qiladi; menyu nomi eslatma matniga aylanmaydi.
@@ -33,7 +35,7 @@ sifatida saqlanadi.
 
 Ketma-ketlik: matn → soat → sana/takrorlanish → tasdiqlash.
 
-1. `➕ Eslatma qo‘shish` bosilganda bot eslatma matnini so‘raydi.
+1. `➕ Qo‘shish` bosilganda bot eslatma matnini so‘raydi.
    Matn bo‘sh bo‘lmasligi va 1000 belgidan oshmasligi kerak.
 2. Bot `HH:MM` shaklida soat so‘raydi. `00:00`–`23:59` qabul qilinadi.
    Foydalanuvchiga vaqt Toshkent vaqti bo‘yicha ekanligi ko‘rsatiladi.
@@ -47,7 +49,7 @@ Ketma-ketlik: matn → soat → sana/takrorlanish → tasdiqlash.
      Bugungi soat o‘tgan bo‘lsa, keyingi tanlangan kun olinadi.
 4. Matn, soat va sana/takrorlanish ko‘rsatiladi: `✅ Saqlash` va
    `❌ Bekor qilish`. Faqat saqlash tasdiqlanganda eslatma bazaga yoziladi.
-5. Saqlangach bot muvaffaqiyat xabari va eslatmalar menyusini chiqaradi.
+5. Saqlangach bot muvaffaqiyat bildirishnomasini ko‘rsatib, ro‘yxatni shu oynada yangilaydi.
 
 Har bosqichda orqaga qaytish yoki bekor qilish mumkin. Noto‘g‘ri kiritish
 joriy bosqichni saqlab qoladi va tushunarli o‘zbekcha xabar qaytaradi.
@@ -153,8 +155,8 @@ Telegram oynani topa olmasa yoki tahrirlay olmasa, bitta yangi oyna yaratiladi;
 
 Keyingi lokal tekshiruvda ro‘yxat va natija oynalarida ortga tugmasi
 yetishmasligi hamda reply-klaviaturaga biriktirilgan xabar o‘chirilishi
-aniqlandi. Endi shu oynalardagi «⬅️ Orqaga» eslatmalar inline menyusini
-ochadi. Undan qo‘shish, ro‘yxat va asosiy menyuga qaytish mumkin.
+aniqlandi. Ro‘yxat ostidagi «⬅️ Orqaga» asosiy menyuni ochadi.
+Qo‘shish va o‘chirish ro‘yxatning o‘zidagi inline tugmalardan boshlanadi.
 Qo‘shishdagi avvalgi bosqichga qaytish saqlanadi.
 
 Foydalanuvchi skrinshotida bo‘lim sarlavhasi va menyu ikki marta ko‘ringani
@@ -183,13 +185,14 @@ sxemaga downgrade ma’lumot yo‘qotmaslik uchun rad etiladi.
 
 ## Eslatmani o‘chirish
 
-Ro‘yxatning ko‘rinib turgan qismidagi har bir eslatma uchun raqami bilan
-«🗑 N. O‘chirish» tugmasi chiqariladi. U ayni oynada matn, vaqt va takrorlanish
-bilan tasdiqlashni ochadi. «🗑 Ha, o‘chirish» eslatma va yuborish tarixini
+«➖ O‘chirish» ro‘yxatni raqam kiritish rejimida ko‘rsatadi. Foydalanuvchi
+joriy sahifadagi tartib raqamini yozadi; bot shu raqamga ko‘rsatilgan
+eslatmaning matni, vaqti va takrorlanishi bilan tasdiqlashni ochadi.
+Raqam bazadagi joriy saralashga emas, ekranda ko‘rsatilgan IDga bog‘lanadi. «🗑 Ha, o‘chirish» eslatma va yuborish tarixini
 bitta tranzaksiyada olib tashlaydi; «⬅️ Orqaga» o‘chirmasdan ro‘yxatga qaytadi.
 Bo‘shagan oxirgi sahifa o‘rniga birinchi sahifa ko‘rsatiladi.
 
-Har ko‘rinish va tasdiqlash uchun alohida token beriladi. Callback joriy
+Har o‘chirish tasdiqlashi uchun alohida token beriladi. Callback joriy
 oyna, shaxsiy chat, faol bosqich va aniq eslatmaga bog‘lanadi. Repository
 ham eslatma egasini tekshiradi. Eski, begona yoki takroriy tasdiqlash
 boshqa eslatmani o‘chirmaydi.
@@ -200,3 +203,9 @@ mavjudligini tekshiradi. Allaqachon Telegram tarmoq so‘roviga o‘tgan
 xabar qaytarib olinmaydi. PostgreSQL ketma-ket identifikatorlari va
 testlarda yaratiladigan SQLite AUTOINCREMENT identifikatorlari eski
 delivery yakuni yangi eslatmaga ta’sir qilishiga yo‘l qo‘ymaydi.
+
+Ro‘yxat dizayni: sarlavha va Toshkent vaqti, har eslatma uchun raqam/matn,
+soat, takrorlanish va holat alohida qatorda, yozuvlar orasida ajratgich.
+Uzun matnlar qo‘shimcha sahifalanadi; raqam kiritish rejimida sahifalash
+saqlanadi. Noto‘g‘ri raqam o‘chirishga olib kelmaydi. Yaratish, bekor
+qilish va o‘chirishdan keyin ro‘yxat avtomatik ochiladi.

@@ -18,13 +18,11 @@ from namoz_bot.presentation.keyboards import (
     LIST_LABEL,
     PRAYER_MENU_LABEL,
     REMINDERS_LABEL,
-    build_main_menu,
     build_prayer_menu,
 )
 from namoz_bot.presentation.reminder_keyboards import (
     delete_keyboard,
     dialog_keyboard,
-    menu_keyboard,
     page_keyboard,
 )
 from namoz_bot.presentation.reminder_panel import (
@@ -33,6 +31,7 @@ from namoz_bot.presentation.reminder_panel import (
     discard_panel,
     render_panel,
     reset_draft,
+    show_main_menu,
 )
 
 
@@ -43,6 +42,8 @@ class ReminderStates(StatesGroup):
     date = State()
     weekday = State()
     confirm = State()
+    delete_number = State()
+    delete_confirm = State()
 
 
 def _spec(data: dict[str, Any]) -> ReminderSpec:
@@ -62,24 +63,22 @@ async def _private(message: Message) -> bool:
     return True
 
 
-async def show_section(message: Message, state: FSMContext) -> None:
+async def show_section(
+    message: Message,
+    state: FSMContext,
+    handler_services: HandlerServices,
+    reminder_service: ReminderService,
+) -> None:
     if message.text == REMINDERS_LABEL:
-        if await _private(message) and message.from_user is not None:
-            await reset_draft(state)
-            await render_panel(
-                message,
-                state,
-                "🔔 Eslatmalar. Amalni tanlang:",
-                menu_keyboard(message.from_user.id, section=True),
-            )
-            await delete_input(message)
+        await show_list(message, state, handler_services, reminder_service)
         return
-    await discard_panel(message, state)
-    await state.clear()
     if message.text == PRAYER_MENU_LABEL:
+        await discard_panel(message, state)
+        await state.clear()
         await message.answer("🕌 Namoz vaqti. Amalni tanlang:", reply_markup=build_prayer_menu())
     else:
-        await message.answer("Asosiy menyu. Bo‘limni tanlang:", reply_markup=build_main_menu())
+        await show_main_menu(message, state)
+    await delete_input(message)
 
 
 async def _prompt(
@@ -187,7 +186,10 @@ async def receive_time(
 
 
 async def dialog_callback(
-    callback: CallbackQuery, state: FSMContext, reminder_service: ReminderService
+    callback: CallbackQuery,
+    state: FSMContext,
+    reminder_service: ReminderService,
+    handler_services: HandlerServices,
 ) -> None:
     message = callback.message
     if not isinstance(message, Message) or message.chat.type != "private":
@@ -213,11 +215,8 @@ async def dialog_callback(
             pass
         elif action == "cancel" or (action == "back" and step == "text"):
             await reset_draft(state)
-            await render_panel(
-                message,
-                state,
-                "Bekor qilindi. Eslatmalar menyusidan amalni tanlang.",
-                menu_keyboard(callback.from_user.id),
+            await _show_list(
+                message, state, callback.from_user.id, 0, handler_services, reminder_service
             )
         elif action == "back":
             previous = {
@@ -264,9 +263,11 @@ async def dialog_callback(
                 data["user_id"], message.chat.id, _spec(data), data["creation_token"]
             )
             await reset_draft(state)
-            await render_panel(
-                message, state, "✅ Eslatma qo‘shildi.", menu_keyboard(callback.from_user.id)
+            await _show_list(
+                message, state, callback.from_user.id, 0, handler_services, reminder_service
             )
+            await callback.answer("✅ Eslatma qo‘shildi.")
+            return
         else:
             raise ValueError("Joriy bosqichdagi tugmadan foydalaning.")
     except (ValueError, OverflowError) as exc:
@@ -283,6 +284,9 @@ async def _show_list(
     services: HandlerServices,
     reminders: ReminderService,
     part: int = 0,
+    *,
+    deleting: bool = False,
+    error: str | None = None,
 ) -> None:
     user = await services.subscriptions.get(owner)
     assert user.id is not None
@@ -291,49 +295,58 @@ async def _show_list(
         page, part = 0, 0
         rows, more = await reminders.page(user.id, page)
     statuses = {
-        "active": "Faol",
-        "processing": "Yuborilmoqda",
-        "completed": "Bajarilgan",
-        "failed": "Yuborilmadi",
-        "paused": "To‘xtatilgan",
+        "active": "🟢 Faol",
+        "processing": "⏳ Yuborilmoqda",
+        "completed": "✅ Bajarilgan",
+        "failed": "⚠️ Yuborilmadi",
+        "paused": "⏸ To‘xtatilgan",
     }
-    chunks = ["📋 Eslatma ro‘yxati\n\n"]
+    chunks = [""]
     chunk_items: list[list[tuple[int, int]]] = [[]]
-    if not rows:
-        chunks[0] += "Hozircha eslatmalaringiz yo‘q." if not page else "Bu sahifada eslatma yo‘q."
     for i, row in enumerate(rows, 1):
         entry = (
             f"{page * 3 + i}. {row.spec.text}\n"
-            f"🕒 {row.spec.at:%H:%M} · {row.spec.schedule_label()}\n"
-            f"{statuses[row.status]}"
+            f"🕒 {row.spec.at:%H:%M}\n📅 {row.spec.schedule_label()}\n{statuses[row.status]}"
         )
-        if len((chunks[-1] + entry).encode("utf-16-le")) // 2 > 3900:
+        separator = "\n\n────────────────\n\n" if chunks[-1] else ""
+        if len((chunks[-1] + separator + entry).encode("utf-16-le")) // 2 > 3400:
             chunks.append("")
             chunk_items.append([])
-        chunks[-1] += entry + "\n\n"
+            separator = ""
+        chunks[-1] += separator + entry
         chunk_items[-1].append((page * 3 + i, row.id))
     selected = len(chunks) - 1 if part == -1 else min(part, len(chunks) - 1)
-    token = uuid4().hex[:16]
+    items = chunk_items[selected]
+    text = "📋 Eslatma ro‘yxati\n🕒 Toshkent vaqti\n\n"
+    if items:
+        text += chunks[selected]
+        text += f"\n\nKo‘rsatilmoqda: {items[0][0]}–{items[-1][0]}"
+    else:
+        text += "Hozircha eslatmalaringiz yo‘q.\nBirinchi eslatmani ➕ Qo‘shish orqali yarating."
+        deleting = False
+    if deleting:
+        text += "\n\n\N{HEAVY MINUS SIGN} O‘chirish uchun shu sahifadagi eslatma raqamini yuboring."
+    if error:
+        text = f"⚠️ {error}\n\n{text}"
     await state.update_data(
-        delete_token=token,
-        delete_stage="list",
+        delete_token=None,
         delete_target=None,
-        delete_ids=[item[1] for item in chunk_items[selected]],
+        delete_numbers={str(number): reminder_id for number, reminder_id in items},
         list_page=page,
         list_part=selected,
     )
+    await state.set_state(ReminderStates.delete_number if deleting else None)
     await render_panel(
         message,
         state,
-        chunks[selected].rstrip(),
+        text,
         page_keyboard(
             owner,
             page,
             more,
             part=selected,
             parts=len(chunks),
-            delete_token=token,
-            items=tuple(chunk_items[selected]),
+            deleting=deleting,
         ),
     )
 
@@ -374,8 +387,9 @@ async def list_callback(
     except ValueError:
         await callback.answer("So‘rov noto‘g‘ri.", show_alert=True)
         return
-    if await state.get_state() is not None:
-        await callback.answer("Avval joriy eslatmani saqlang yoki bekor qiling.", show_alert=True)
+    current_state = await state.get_state()
+    if current_state not in (None, ReminderStates.delete_number.state):
+        await callback.answer("Avval joriy amalni yakunlang yoki ortga qayting.", show_alert=True)
         return
     data = await state.get_data()
     if data.get(PANEL_ID) != message.message_id:
@@ -384,7 +398,16 @@ async def list_callback(
         )
         return
     await state.update_data({PANEL_ID: message.message_id})
-    await _show_list(message, state, owner, page, handler_services, reminder_service, part)
+    await _show_list(
+        message,
+        state,
+        owner,
+        page,
+        handler_services,
+        reminder_service,
+        part,
+        deleting=current_state == ReminderStates.delete_number.state,
+    )
     await callback.answer()
 
 
@@ -398,6 +421,57 @@ async def choose_button(
         data["step"],
         reminder_service,
         error="Davom etish uchun shu xabardagi tugmani tanlang.",
+    )
+    await delete_input(message)
+
+
+async def receive_delete_number(
+    message: Message,
+    state: FSMContext,
+    handler_services: HandlerServices,
+    reminder_service: ReminderService,
+) -> None:
+    if not await _private(message) or message.from_user is None:
+        return
+    data = await state.get_data()
+    value = (message.text or "").strip()
+    reminder_id = data.get("delete_numbers", {}).get(value)
+    user = await handler_services.subscriptions.get(message.from_user.id)
+    assert user.id is not None
+    reminder = await reminder_service.get(user.id, reminder_id) if reminder_id is not None else None
+    if reminder is None:
+        await _show_list(
+            message,
+            state,
+            message.from_user.id,
+            data["list_page"],
+            handler_services,
+            reminder_service,
+            data["list_part"],
+            deleting=True,
+            error="Shu sahifada ko‘rsatilgan eslatma raqamini kiriting.",
+        )
+    else:
+        token = uuid4().hex[:16]
+        text = (
+            f"{value}-eslatma o‘chirilsinmi?\n\n📝 {reminder.spec.text}\n"
+            f"🕒 {reminder.spec.at:%H:%M} · Toshkent\n📅 {reminder.spec.schedule_label()}"
+        )
+        await state.update_data(
+            delete_token=token, delete_target=reminder_id, delete_confirmation_text=text
+        )
+        await state.set_state(ReminderStates.delete_confirm)
+        await render_panel(message, state, text, delete_keyboard(token, reminder_id))
+    await delete_input(message)
+
+
+async def delete_confirmation_input(message: Message, state: FSMContext) -> None:
+    data = await state.get_data()
+    await render_panel(
+        message,
+        state,
+        data["delete_confirmation_text"],
+        delete_keyboard(data["delete_token"], data["delete_target"]),
     )
     await delete_input(message)
 
@@ -416,55 +490,24 @@ async def delete_callback(
         or message.chat.type != "private"
         or message.chat.id != callback.from_user.id
         or data.get(PANEL_ID) != message.message_id
-        or await state.get_state() is not None
+        or await state.get_state() != ReminderStates.delete_confirm.state
         or len(parts) != 4
         or parts[1] != data.get("delete_token")
-        or not parts[3].isascii()
-        or not parts[3].isdigit()
-        or len(parts[3]) > 19
+        or parts[2] not in {"yes", "back"}
+        or parts[3] != str(data.get("delete_target"))
     ):
         await callback.answer("Bu tugma eskirgan. Ro‘yxatni qayta oching.", show_alert=True)
         return
-    action, reminder_id = parts[2], int(parts[3])
-    if (
-        action == "ask"
-        and data.get("delete_stage") == "list"
-        and reminder_id in data.get("delete_ids", [])
-    ):
+    if parts[2] == "yes":
         user = await handler_services.subscriptions.get(callback.from_user.id)
         assert user.id is not None
-        reminder = await reminder_service.get(user.id, reminder_id)
-        if reminder is not None:
-            token = uuid4().hex[:16]
-            await state.update_data(
-                delete_token=token, delete_stage="confirm", delete_target=reminder_id
-            )
-            await render_panel(
-                message,
-                state,
-                f"Shu eslatma o‘chirilsinmi?\n\n📝 {reminder.spec.text}\n"
-                f"🕒 {reminder.spec.at:%H:%M} · Toshkent\n📅 {reminder.spec.schedule_label()}",
-                delete_keyboard(token, reminder_id),
-            )
-            await callback.answer()
-            return
-    elif (
-        action in {"yes", "back"}
-        and data.get("delete_stage") == "confirm"
-        and reminder_id == data.get("delete_target")
-    ):
-        if action == "yes":
-            user = await handler_services.subscriptions.get(callback.from_user.id)
-            assert user.id is not None
-            deleted = await reminder_service.delete(user.id, reminder_id)
-            await callback.answer(
-                "Eslatma o‘chirildi." if deleted else "Eslatma allaqachon o‘chirilgan."
-            )
-        else:
-            await callback.answer()
+        deleted = await reminder_service.delete(user.id, data["delete_target"])
+        await callback.answer(
+            "Eslatma o‘chirildi." if deleted else "Eslatma allaqachon o‘chirilgan."
+        )
     else:
-        await callback.answer("Bu tugma eskirgan. Ro‘yxatni qayta oching.", show_alert=True)
-        return
+        await callback.answer()
+    await reset_draft(state)
     await _show_list(
         message,
         state,
@@ -474,8 +517,6 @@ async def delete_callback(
         reminder_service,
         data["list_part"],
     )
-    if action == "ask":
-        await callback.answer("Eslatma topilmadi.")
 
 
 async def menu_callback(
@@ -487,36 +528,42 @@ async def menu_callback(
     message = callback.message
     parts = (callback.data or "").split(":")
     data = await state.get_data()
+    current_state = await state.get_state()
     if (
         not isinstance(message, Message)
         or message.chat.type != "private"
         or len(parts) != 3
         or parts[1] != str(callback.from_user.id)
         or message.chat.id != callback.from_user.id
-        or parts[2] not in {"menu", "list", "add", "home"}
+        or parts[2] not in {"list", "add", "delete", "home"}
         or data.get(PANEL_ID) != message.message_id
-        or await state.get_state() is not None
+        or (
+            current_state is not None
+            and not (current_state == ReminderStates.delete_number.state and parts[2] == "list")
+        )
     ):
         await callback.answer(
             "Bu tugma eskirgan. Joriy xabardagi tugmani tanlang.", show_alert=True
         )
         return
-    action = parts[2]
-    owner = callback.from_user.id
+    action, owner = parts[2], callback.from_user.id
     await reset_draft(state)
     if action == "home":
-        await discard_panel(message, state)
-        await state.clear()
-        await message.answer("Asosiy menyu. Bo‘limni tanlang:", reply_markup=build_main_menu())
-    elif action == "menu":
-        await render_panel(
-            message, state, "🔔 Eslatmalar. Amalni tanlang:", menu_keyboard(owner, section=True)
-        )
+        await show_main_menu(message, state)
     elif action == "add":
         await _start_reminder(message, state, owner, reminder_service, handler_services)
     else:
         await handler_services.subscriptions.start(owner, message.chat.id)
-        await _show_list(message, state, owner, 0, handler_services, reminder_service)
+        await _show_list(
+            message,
+            state,
+            owner,
+            data.get("list_page", 0),
+            handler_services,
+            reminder_service,
+            data.get("list_part", 0),
+            deleting=action == "delete",
+        )
     await callback.answer()
 
 
@@ -530,6 +577,8 @@ def build_reminder_router() -> Router:
     router.message.register(show_section, F.text.startswith("/"))
     router.message.register(receive_text, ReminderStates.text)
     router.message.register(receive_time, ReminderStates.time)
+    router.message.register(receive_delete_number, ReminderStates.delete_number)
+    router.message.register(delete_confirmation_input, ReminderStates.delete_confirm)
     for step in (
         ReminderStates.schedule,
         ReminderStates.date,
