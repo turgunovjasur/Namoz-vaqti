@@ -33,7 +33,9 @@ orqali asosiy menyuga qaytiladi.
 
 Eslatma yaratish: matn → `HH:MM` soat → aniq sana / har kuni / har hafta
 → tasdiqlash. Aniq sana inline kalendardan, haftalik jadval esa hafta
-kunidan tanlanadi. Har bosqichda orqaga qaytish yoki bekor qilish mumkin.
+kunlaridan tanlanadi. Haftalik kunlar ikki ustunda ⬜/✅ bilan belgilanadi;
+kamida bitta kun tanlab **Davom etish** bosiladi. Eslatma har hafta barcha
+tanlangan kunlarda yuboriladi. Har bosqichda orqaga qaytish yoki bekor qilish mumkin.
 Menyuni almashtirish va buyruq yuborish tugallanmagan kiritishni bekor qiladi.
 
 Qo‘shish bosqichlari, tekshirish xabarlari, saqlash/bekor qilish natijasi va

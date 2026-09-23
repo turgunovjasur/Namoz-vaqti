@@ -46,7 +46,7 @@ def _spec(data: dict[str, Any]) -> ReminderSpec:
         parse_time(data["time"]),
         data["kind"],
         date.fromisoformat(data["date"]) if data.get("date") else None,
-        data.get("weekday"),
+        tuple(data.get("weekdays", [])),
     )
 
 
@@ -86,7 +86,11 @@ async def _prompt(
     error: str | None = None,
 ) -> None:
     data = await state.get_data()
-    token = uuid4().hex[:16]
+    # Queued taps from the same weekday grid must all update the selection.
+    # Rotate on leaving/re-entering the step so retired grids stay invalid.
+    token = (
+        data["token"] if step == "weekday" and data.get("step") == "weekday" else uuid4().hex[:16]
+    )
     await state.update_data(token=token, step=step)
     await state.set_state(getattr(ReminderStates, step))
     today = service.now().astimezone(TASHKENT).date()
@@ -95,7 +99,7 @@ async def _prompt(
         "time": "Soat nechada eslatay? HH:MM shaklida kiriting.\nToshkent vaqti bo‘yicha.",
         "schedule": "Qachon eslatay?",
         "date": "Sanani tanlang:",
-        "weekday": "Haftaning qaysi kuni eslatay?",
+        "weekday": "Qaysi kunlarda takrorlansin?",
     }
     text = prompts.get(step, "")
     if step == "confirm":
@@ -107,7 +111,13 @@ async def _prompt(
         message,
         state,
         text,
-        dialog_keyboard(token, step, month=month or today.replace(day=1), today=today),
+        dialog_keyboard(
+            token,
+            step,
+            month=month or today.replace(day=1),
+            today=today,
+            weekdays=tuple(data.get("weekdays", [])),
+        ),
     )
 
 
@@ -218,7 +228,7 @@ async def dialog_callback(
             }[step]
             await _prompt(message, state, previous, reminder_service)
         elif action == "kind" and step == "schedule" and value in ("once", "daily", "weekly"):
-            await state.update_data(kind=value, date=None, weekday=None)
+            await state.update_data(kind=value, date=None, weekdays=[])
             target = {"once": "date", "daily": "confirm", "weekly": "weekday"}[value]
             await _prompt(message, state, target, reminder_service)
         elif action == "month" and step == "date":
@@ -233,9 +243,16 @@ async def dialog_callback(
             await state.update_data(date=updated["date"])
             await _prompt(message, state, "confirm", reminder_service)
         elif action == "weekday" and step == "weekday":
-            updated = data | {"weekday": int(value)}
-            _spec(updated)
-            await state.update_data(weekday=updated["weekday"])
+            day = int(value)
+            if not 0 <= day <= 6:
+                raise ValueError("Hafta kuni noto‘g‘ri.")
+            days = set(data.get("weekdays", []))
+            days.symmetric_difference_update({day})
+            await state.update_data(weekdays=sorted(days))
+            await _prompt(message, state, "weekday", reminder_service)
+        elif action == "continue" and step == "weekday":
+            if not data.get("weekdays"):
+                raise ValueError("Kamida bitta kunni tanlang.")
             await _prompt(message, state, "confirm", reminder_service)
         elif action == "save" and step == "confirm":
             await reminder_service.create(

@@ -29,7 +29,12 @@ def button(token: str, label: str, action: str, value: str = "-") -> InlineKeybo
 
 
 def dialog_keyboard(
-    token: str, step: str, *, month: date | None = None, today: date | None = None
+    token: str,
+    step: str,
+    *,
+    month: date | None = None,
+    today: date | None = None,
+    weekdays: tuple[int, ...] = (),
 ) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = []
     if step == "schedule":
@@ -42,9 +47,12 @@ def dialog_keyboard(
             )
         ]
     elif step == "weekday":
-        rows = [
-            [button(token, label, "weekday", str(index))] for index, label in enumerate(WEEKDAYS)
+        days = [
+            button(token, f"{'✅' if index in weekdays else '⬜'} {label}", "weekday", str(index))
+            for index, label in enumerate(WEEKDAYS)
         ]
+        rows = [days[index : index + 2] for index in range(0, len(days), 2)]
+        rows.append([button(token, "Davom etish", "continue")])
     elif step == "date":
         assert month is not None and today is not None
         rows.append([button(token, f"{MONTHS[month.month - 1]} {month.year}", "noop")])

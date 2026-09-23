@@ -12,7 +12,8 @@ from namoz_bot.infrastructure.orm import ReminderDeliveryRecord, ReminderRecord
 
 
 def _spec(row: ReminderRecord) -> ReminderSpec:
-    return ReminderSpec(row.text, parse_time(row.at), row.kind, row.on_date, row.weekday)
+    days = tuple(day for day in range(7) if (row.weekdays_mask or 0) & (1 << day))
+    return ReminderSpec(row.text, parse_time(row.at), row.kind, row.on_date, days)
 
 
 def _entity(row: ReminderRecord) -> Reminder:
@@ -41,7 +42,7 @@ class SqlAlchemyReminderRepository:
                     at=spec.at.strftime("%H:%M"),
                     kind=spec.kind,
                     on_date=spec.on_date,
-                    weekday=spec.weekday,
+                    weekdays_mask=sum(1 << day for day in spec.weekdays) or None,
                     next_due=due,
                     status="active",
                     creation_token=token,

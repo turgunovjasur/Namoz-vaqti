@@ -86,10 +86,10 @@ class ReminderRecord(Base):
             name="ck_reminder_status",
         ),
         CheckConstraint(
-            "(kind = 'once' AND on_date IS NOT NULL AND weekday IS NULL) OR "
-            "(kind = 'daily' AND on_date IS NULL AND weekday IS NULL) OR "
-            "(kind = 'weekly' AND on_date IS NULL AND weekday BETWEEN 0 AND 6 "
-            "AND weekday IS NOT NULL)",
+            "(kind = 'once' AND on_date IS NOT NULL AND weekdays_mask IS NULL) OR "
+            "(kind = 'daily' AND on_date IS NULL AND weekdays_mask IS NULL) OR "
+            "(kind = 'weekly' AND on_date IS NULL AND weekdays_mask BETWEEN 1 AND 127 "
+            "AND weekdays_mask IS NOT NULL)",
             name="ck_reminder_schedule",
         ),
     )
@@ -101,7 +101,7 @@ class ReminderRecord(Base):
     at: Mapped[str] = mapped_column(String(5))
     kind: Mapped[str] = mapped_column(String(10))
     on_date: Mapped[date | None] = mapped_column(Date, nullable=True)
-    weekday: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    weekdays_mask: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     next_due: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     status: Mapped[str] = mapped_column(String(20), default="active", index=True)
     creation_token: Mapped[str] = mapped_column(String(64))

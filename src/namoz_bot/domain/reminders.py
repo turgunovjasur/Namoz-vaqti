@@ -24,7 +24,7 @@ class ReminderSpec:
     at: time
     kind: str
     on_date: date | None = None
-    weekday: int | None = None
+    weekdays: tuple[int, ...] = ()
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "text", self.text.strip())
@@ -32,15 +32,13 @@ class ReminderSpec:
             raise ValueError("Eslatma matni 1–1000 belgidan iborat bo‘lsin.")
         if self.at.second or self.at.microsecond or self.at.tzinfo:
             raise ValueError("Vaqtni HH:MM shaklida kiriting.")
+        if any(type(day) is not int or not 0 <= day <= 6 for day in self.weekdays):
+            raise ValueError("Hafta kunlari noto‘g‘ri.")
+        object.__setattr__(self, "weekdays", tuple(sorted(set(self.weekdays))))
         valid = (
-            (self.kind == "once" and self.on_date is not None and self.weekday is None)
-            or (self.kind == "daily" and self.on_date is None and self.weekday is None)
-            or (
-                self.kind == "weekly"
-                and self.on_date is None
-                and self.weekday is not None
-                and 0 <= self.weekday <= 6
-            )
+            (self.kind == "once" and self.on_date is not None and not self.weekdays)
+            or (self.kind == "daily" and self.on_date is None and not self.weekdays)
+            or (self.kind == "weekly" and self.on_date is None and bool(self.weekdays))
         )
         if not valid:
             raise ValueError("Sana yoki takrorlanish tartibi noto‘g‘ri.")
@@ -51,13 +49,19 @@ class ReminderSpec:
         local = now.astimezone(TASHKENT)
         target = self.on_date or local.date()
         if self.kind == "weekly":
-            assert self.weekday is not None
-            target += timedelta(days=(self.weekday - target.weekday()) % 7)
+            candidates = []
+            for day in self.weekdays:
+                selected = target + timedelta(days=(day - target.weekday()) % 7)
+                candidate = datetime.combine(selected, self.at, TASHKENT)
+                if candidate <= local:
+                    candidate += timedelta(days=7)
+                candidates.append(candidate)
+            return min(candidates).astimezone(UTC)
         candidate = datetime.combine(target, self.at, TASHKENT)
         if candidate <= local:
             if self.kind == "once":
                 raise ValueError("Tanlangan sana va vaqt o‘tib ketgan. Kelajak vaqtini tanlang.")
-            candidate += timedelta(days=7 if self.kind == "weekly" else 1)
+            candidate += timedelta(days=1)
         return candidate.astimezone(UTC)
 
     def schedule_label(self) -> str:
@@ -65,8 +69,7 @@ class ReminderSpec:
             assert self.on_date is not None
             return f"{self.on_date:%d.%m.%Y} · {WEEKDAYS[self.on_date.weekday()]}"
         if self.kind == "weekly":
-            assert self.weekday is not None
-            return f"Har hafta, {WEEKDAYS[self.weekday]}"
+            return "Har hafta, " + ", ".join(WEEKDAYS[day] for day in self.weekdays)
         return "Har kuni"
 
 

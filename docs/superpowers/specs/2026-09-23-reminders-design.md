@@ -42,8 +42,9 @@ Ketma-ketlik: matn → soat → sana/takrorlanish → tasdiqlash.
      kalendardan sana tanlanadi. O‘tgan sana yoki o‘tgan vaqt qabul qilinmaydi.
    - Har kuni: tanlangan soatda kundalik takrorlanadi. Bugungi soat
      o‘tgan bo‘lsa, birinchi yuborish ertaga bo‘ladi.
-   - Har hafta: dushanba–yakshanbadan bitta kun tanlanadi. Bugungi kun
-     tanlanib, soat o‘tgan bo‘lsa, birinchi yuborish keyingi haftada bo‘ladi.
+   - Har hafta: dushanba–yakshanbadan bir yoki bir nechta kun tanlanadi.
+     Birinchi yuborish — tanlangan kunlardagi eng yaqin kelajak soati.
+     Bugungi soat o‘tgan bo‘lsa, keyingi tanlangan kun olinadi.
 4. Matn, soat va sana/takrorlanish ko‘rsatiladi: `✅ Saqlash` va
    `❌ Bekor qilish`. Faqat saqlash tasdiqlanganda eslatma bazaga yoziladi.
 5. Saqlangach bot muvaffaqiyat xabari va eslatmalar menyusini chiqaradi.
@@ -161,3 +162,20 @@ qo‘shish va ortga qaytish bitta oynani yangilaydi. Kirishda avvalgi pastki
 klaviatura ReplyKeyboardRemove bilan olib tashlanadi; texnik xabar darhol
 o‘chiriladi va faqat inline oyna qoladi. Asosiy menyuga qaytishda shu oyna
 tozalanadi va asosiy pastki klaviatura tiklanadi.
+
+## Haftalik kunlarni ko‘p tanlash
+
+«Har hafta» bosilganda «Qaysi kunlarda takrorlansin?» savoli chiqadi.
+Kunlar ikki ustunda, yakshanba alohida oxirgi qatorda ko‘rsatiladi. Har
+bosish ⬜/✅ holatini almashtiradi. «Davom etish» kamida bir kun talab
+qiladi; undan so‘ng tasdiqlash oynasi barcha tanlangan kunlarni ko‘rsatadi.
+Tasdiqlashdan orqaga qaytish tanlovni saqlaydi. Bir oynadan ketma-ket
+yuborilgan kun tanlash callbacklari qabul qilinadi; bosqichdan chiqilgach
+o‘sha tugmalar eskiradi.
+
+Bitta eslatma barcha tanlangan kunlarni saqlaydi. Scheduler Toshkent
+vaqti bo‘yicha eng yaqin kelajakdagi tanlangan kunni hisoblaydi. Bazadagi
+`weekdays_mask` haftaning yetti kunini ifodalaydi; `20260923_02` migratsiyasi
+eski `weekday` qiymatini unga aylantirib, mavjud eslatmalar va yuborish
+tarixini saqlaydi. Bir nechta kunli eslatma mavjud bo‘lsa, eski bir kunli
+sxemaga downgrade ma’lumot yo‘qotmaslik uchun rad etiladi.

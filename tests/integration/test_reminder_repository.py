@@ -106,7 +106,7 @@ async def test_downtime_coalesces_and_pagination_orders_active_first(session_fac
             str(i),
             time(20),
             kind,
-            weekday=2 if kind == "weekly" else None,
+            weekdays=(2,) if kind == "weekly" else (),
             on_date=date(2026, 9, 23) if kind == "once" else None,
         )
         await repo.create(user, 7, spec, str(i), NOW)
@@ -172,3 +172,98 @@ async def test_migration_roundtrip_preserves_users(session_factory):
         await connection.run_sync(migrate)
         assert await session.scalar(text("SELECT count(*) FROM users")) == 1
         assert await session.scalar(text("SELECT count(*) FROM reminders")) == 0
+
+
+async def test_multiday_reminder_survives_restart_and_advances_between_selected_days(
+    session_factory,
+):
+    user = await add_user(session_factory)
+    repo = SqlAlchemyReminderRepository(session_factory)
+    await repo.create(
+        user, 7, ReminderSpec("Read", time(20), "weekly", weekdays=(0, 2, 4)), "days", NOW
+    )
+    sender = CapturingSender()
+    await ReminderService(repo, now=lambda: DUE).send_due(sender)
+    restarted = SqlAlchemyReminderRepository(session_factory)
+    restored = (await restarted.list_for_user(user, offset=0, limit=3))[0]
+    assert restored.spec.weekdays == (0, 2, 4)
+    friday = datetime(2026, 9, 25, 15, tzinfo=UTC)
+    assert restored.next_due == friday
+    await ReminderService(restarted, now=lambda: friday).send_due(sender)
+    await ReminderService(restarted, now=lambda: friday).send_due(sender)
+    assert sender.messages == [(7, "🔔 Eslatma\n\nRead")] * 2
+    assert (await restarted.list_for_user(user, offset=0, limit=3))[0].next_due == datetime(
+        2026, 9, 28, 15, tzinfo=UTC
+    )
+    later = datetime(2026, 10, 7, 15, 1, tzinfo=UTC)
+    await ReminderService(restarted, now=lambda: later).send_due(sender)
+    assert len(sender.messages) == 3  # Missed occurrences are coalesced.
+    assert (await restarted.list_for_user(user, offset=0, limit=3))[0].next_due == datetime(
+        2026, 10, 9, 15, tzinfo=UTC
+    )
+
+
+async def test_weekday_migration_preserves_legacy_schedules_and_deliveries(session_factory):
+    async with session_factory() as session:
+        if session.get_bind().dialect.name != "postgresql":
+            pytest.skip("Legacy Alembic data conversion is verified on PostgreSQL")
+    user = await add_user(session_factory)
+    async with session_factory.begin() as session:
+        connection = await session.connection()
+        await connection.run_sync(lambda c: migrate(c, "20260923_01", downgrade=True))
+        for day in range(7):
+            await session.execute(
+                text(
+                    "INSERT INTO reminders (user_id, chat_id, text, at, kind, weekday, next_due, "
+                    "status, creation_token) VALUES (:user, 7, 'Legacy', '20:00', 'weekly', :day, "
+                    ":due, 'active', :token)"
+                ),
+                {"user": user, "day": day, "due": DUE, "token": str(day)},
+            )
+        before = (
+            await session.execute(
+                text("SELECT id, user_id, next_due, status, weekday FROM reminders ORDER BY id")
+            )
+        ).all()
+        await session.execute(
+            text(
+                "INSERT INTO reminder_deliveries (reminder_id, scheduled_at, status) "
+                "VALUES (:id, :due, 'sent')"
+            ),
+            {"id": before[0].id, "due": NOW},
+        )
+        await connection.run_sync(migrate)
+        after = (
+            await session.execute(
+                text(
+                    "SELECT id, user_id, next_due, status, weekdays_mask FROM reminders ORDER BY id"
+                )
+            )
+        ).all()
+        assert [tuple(row[:4]) for row in before] == [tuple(row[:4]) for row in after]
+        assert [row.weekdays_mask for row in after] == [1 << day for day in range(7)]
+        assert await session.scalar(text("SELECT count(*) FROM reminder_deliveries")) == 1
+        await connection.run_sync(lambda c: migrate(c, "20260923_01", downgrade=True))
+        assert (
+            await session.scalars(text("SELECT weekday FROM reminders ORDER BY id"))
+        ).all() == list(range(7))
+        await connection.run_sync(migrate)
+    restored = await SqlAlchemyReminderRepository(session_factory).list_for_user(
+        user, offset=0, limit=10
+    )
+    assert {row.spec.weekdays for row in restored} == {(day,) for day in range(7)}
+    await SqlAlchemyReminderRepository(session_factory).create(
+        user, 7, ReminderSpec("Multi", time(20), "weekly", weekdays=(0, 2)), "multi", NOW
+    )
+    with pytest.raises(RuntimeError, match="multi-day reminders"):
+        async with session_factory.begin() as session:
+            connection = await session.connection()
+            await connection.run_sync(lambda c: migrate(c, "20260923_01", downgrade=True))
+    assert (
+        len(
+            await SqlAlchemyReminderRepository(session_factory).list_for_user(
+                user, offset=0, limit=10
+            )
+        )
+        == 8
+    )
