@@ -70,15 +70,27 @@ NAMOZ_TEST_DATABASE_URL=postgresql+asyncpg:///namoz_test_dev1 \
 ```
 
 Telegram orqali qo‘lda lokal sinash uchun BotFather’dan **alohida test bot**
-tokenini oling. Production botning tokeni bilan ikkinchi poller ochmang.
-Quyidagi buyruqlar token va bazani `.env` dagi qiymatlardan ustun qo‘yadi:
+tokenini oling va `.env` oxiridagi lokal test bo‘limiga kiriting:
+
+```dotenv
+TEST_TELEGRAM_BOT_TOKEN=BOTFATHER_BERGAN_TEST_TOKEN
+TEST_DATABASE_URL=postgresql+asyncpg:///namoz_test_dev1_20260923
+```
+
+Bu baza hali yaratilmagan kompyuterda bir marta
+`createdb namoz_test_dev1_20260923` bajaring. Keyin:
 
 ```bash
-export TELEGRAM_BOT_TOKEN='<alohida test bot tokeni>'
-export DATABASE_URL='postgresql+asyncpg:///namoz_test_dev1'
-.venv/bin/alembic upgrade head
-.venv/bin/namoz-bot
+bash run_bot.sh --local
 ```
+
+Skript test sozlamalari bilan migratsiyani bajaradi, so‘ng test botni
+ishga tushiradi. Test tokeni yoki test bazasi bo‘sh bo‘lsa, ishga tushmaydi;
+asosiy `TELEGRAM_BOT_TOKEN` va `DATABASE_URL` ga qaytmaydi. Terminalda
+eski asosiy token eksport qilingan bo‘lsa ham `TEST_` qiymatlari ishlatiladi.
+Token Git’ga kiritilmaydigan `.env` ichida qoladi.
+
+Oddiy `bash run_bot.sh` asosiy sozlamalar bilan ishlashda davom etadi.
 
 Test botga `/start` yuboring, eslatma matnini yozing, yaqin kelajakdagi
 soatni va bugungi sanani tanlang, saqlang. Ro‘yxatda paydo bo‘lishi va
