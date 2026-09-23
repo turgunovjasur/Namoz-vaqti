@@ -33,16 +33,17 @@ Namoz vaqtidan **⬅️ Asosiy menyu**, eslatmalar menyusidan **⬅️ Orqaga**
 orqali asosiy menyuga qaytiladi.
 
 Eslatma yaratish: matn → ekrandan soat/daqiqa → aniq sana / har kuni / har hafta
-→ tasdiqlash. Matn kiritilgach va har tanlovdan so‘ng **Oldinga ➡️** bosiladi.
+→ tasdiqlash. «Eslatma matnini yozing» oynasida matn Enter/yuborish bilan
+jo‘natilgach vaqt tanlash avtomatik ochiladi; «Oldinga» tugmasi yo‘q.
 Vaqt qo‘lda yozilmaydi: soat `00–23`, daqiqa `00–59` tugmalardan tanlanadi.
 Daqiqalar `00–29` va `30–59` sahifalariga bo‘lingan.
 Aniq sana inline kalendardan, haftalik jadval esa hafta
 kunlaridan tanlanadi. Haftalik kunlar 3:3:1 tartibda ⬜/✅ bilan belgilanadi;
-kamida bitta kun tanlab **Oldinga ➡️** bosiladi. Bu oynaning pastida
-**⬅️ Orqaga | Oldinga ➡️** bor. Eslatma har hafta barcha
+kamida bitta kun tanlab **✅ Tayyor** bosiladi. Bu oynaning pastida
+**⬅️ Orqaga | ✅ Tayyor** bor. Eslatma har hafta barcha
 tanlangan kunlarda yuboriladi. Har bosqichda orqaga qaytish mumkin.
-Yaratish bosqichlarida **⬅️ Orqaga | Oldinga ➡️** bitta qatorda turadi;
-«Bekor qilish» tugmasi yo‘q. Oxirida matn, vaqt, jadval va keyingi xabar
+Vaqt va sana tanlovi keyingi bosqichni avtomatik ochadi; **⬅️ Orqaga**
+oldingi bosqichga qaytaradi. «Bekor qilish» tugmasi yo‘q. Oxirida matn, vaqt, jadval va keyingi xabar
 sanasi ko‘rsatiladi; **⬅️ Orqaga** va **✅ Saqlash** alohida qatorlarda turadi.
 Menyuni almashtirish va buyruq yuborish tugallanmagan kiritishni bekor qiladi.
 

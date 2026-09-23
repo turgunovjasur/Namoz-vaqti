@@ -97,7 +97,7 @@ async def _prompt(
     )
     today = service.now().astimezone(TASHKENT).date()
     prompts = {
-        "text": "Eslatma matnini yozing (1–1000 belgi):",
+        "text": "Eslatma matnini yozing",
         "time": "Xabar berish vaqtini tanlang!",
         "schedule": "Xabar berish sanasini tanlang!",
         "date": "Sanani tanlang:",
@@ -188,7 +188,7 @@ async def receive_text(
         await delete_input(message)
         return
     await state.update_data(text=value)
-    await _prompt(message, state, "text", reminder_service)
+    await _prompt(message, state, "time", reminder_service)
     await delete_input(message)
 
 
@@ -254,7 +254,8 @@ async def dialog_callback(
         elif action == "kind" and step == "schedule" and value in ("once", "daily", "weekly"):
             if value != data.get("kind"):
                 await state.update_data(kind=value, date=None, weekdays=[], calendar_month=None)
-            await _prompt(message, state, "schedule", reminder_service)
+            target = {"once": "date", "daily": "confirm", "weekly": "weekday"}[value]
+            await _prompt(message, state, target, reminder_service)
         elif action == "timeview" and step == "time" and value in {"hour", "minute"}:
             if value == "minute" and data.get("hour") is None:
                 raise ValueError("Avval soatni tanlang.")
@@ -278,8 +279,8 @@ async def dialog_callback(
             minute = int(value)
             if not 0 <= minute <= 59 or minute // 30 != data.get("minute_page", 0):
                 raise ValueError("Shu oynadagi daqiqani tanlang.")
-            await state.update_data(minute=minute)
-            await _prompt(message, state, "time", reminder_service)
+            await state.update_data(minute=minute, time=f"{data['hour']:02d}:{minute:02d}")
+            await _prompt(message, state, "schedule", reminder_service)
         elif action == "month" and step == "date":
             month = date.fromisoformat(value).replace(day=1)
             today = reminder_service.now().astimezone(TASHKENT).date()
@@ -290,7 +291,7 @@ async def dialog_callback(
             updated = data | {"date": date.fromisoformat(value).isoformat()}
             _spec(updated).next_after(reminder_service.now())
             await state.update_data(date=updated["date"])
-            await _prompt(message, state, "date", reminder_service)
+            await _prompt(message, state, "confirm", reminder_service)
         elif action == "weekday" and step == "weekday":
             day = int(value)
             if not 0 <= day <= 6:
@@ -299,29 +300,10 @@ async def dialog_callback(
             days.symmetric_difference_update({day})
             await state.update_data(weekdays=sorted(days))
             await _prompt(message, state, "weekday", reminder_service)
-        elif action == "continue":
-            if step == "text":
-                if not data.get("text"):
-                    raise ValueError("Avval eslatma matnini yozing.")
-                target = "time"
-            elif step == "time":
-                if data.get("hour") is None or data.get("minute") is None:
-                    raise ValueError("Soat va daqiqani tanlang.")
-                await state.update_data(time=f"{data['hour']:02d}:{data['minute']:02d}")
-                target = "schedule"
-            elif step == "schedule":
-                if data.get("kind") not in {"once", "daily", "weekly"}:
-                    raise ValueError("Sana yoki takrorlanish turini tanlang.")
-                target = {"once": "date", "daily": "confirm", "weekly": "weekday"}[data["kind"]]
-            elif step in {"weekday", "date"}:
-                if step == "weekday" and not data.get("weekdays"):
-                    raise ValueError("Kamida bitta kunni tanlang.")
-                if step == "date" and not data.get("date"):
-                    raise ValueError("Sanani tanlang.")
-                target = "confirm"
-            else:
-                raise ValueError("Joriy bosqichdagi tugmadan foydalaning.")
-            await _prompt(message, state, target, reminder_service)
+        elif action == "done" and step == "weekday":
+            if not data.get("weekdays"):
+                raise ValueError("Kamida bitta kunni tanlang.")
+            await _prompt(message, state, "confirm", reminder_service)
         elif action == "save" and step == "confirm":
             await reminder_service.create(
                 data["user_id"], message.chat.id, _spec(data), data["creation_token"]

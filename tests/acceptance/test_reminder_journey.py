@@ -147,14 +147,12 @@ class Journey:
         labels = [b.text for row in self.last.reply_markup.inline_keyboard for b in row]
         label = f"{minute:02d}" if f"{minute:02d}" in labels else f"✅ {minute:02d}"
         await self.click(label, user=user)
-        await self.click("Oldinga ➡️", user=user)
 
     async def begin(self, text="Kitob o‘qish", user=7):
         await self.text("/start", user)
         await self.text("🔔 Eslatmalar", user)
         await self.text("➕ Eslatma qo‘shish", user)
         await self.text(text, user)
-        await self.click("Oldinga ➡️", user=user)
         await self.choose_time(user=user)
 
     async def rows(self, user=7):
@@ -195,10 +193,8 @@ async def test_list_is_section_home_and_refreshes_after_add_and_number_delete(jo
     panel = journey.session.last_ids[7]
     await journey.click("➕ Qo‘shish")
     await journey.text("Suv ichish")
-    await journey.click("Oldinga ➡️")
     await journey.choose_time()
     await journey.click("🔁 Har kuni")
-    await journey.click("Oldinga ➡️")
     await journey.click("✅ Saqlash")
     assert "📋 Eslatma ro‘yxati" in journey.last.text
     assert "1. Suv ichish" in journey.last.text
@@ -216,32 +212,22 @@ async def test_list_is_section_home_and_refreshes_after_add_and_number_delete(jo
     assert (7, root) not in journey.session.messages
 
 
-async def test_explicit_forward_and_button_time_picker(journey):
+async def test_text_submit_and_picker_advance_without_forward_buttons(journey):
     await journey.text("🔔 Eslatmalar")
     await journey.click("➕ Qo‘shish")
+    assert journey.last.text == "Eslatma matnini yozing"
     assert [[b.text for b in row] for row in journey.last.reply_markup.inline_keyboard] == [
-        ["⬅️ Orqaga", "Oldinga ➡️"]
+        ["⬅️ Orqaga"]
     ]
-    await journey.click("Oldinga ➡️")
-    assert journey.session.calls[-1].show_alert
     await journey.text("Dori ichish")
-    assert "Dori ichish" in journey.last.text
-    await journey.click("Oldinga ➡️")
     assert journey.last.text.startswith("Xabar berish vaqtini tanlang!")
-    await journey.click("Oldinga ➡️")
-    assert journey.session.calls[-1].show_alert
     await journey.text("12:45")
     assert "tugma" in journey.last.text
     await journey.click("23")
     await journey.click("30–59")
     await journey.click("59")
-    assert "23:59" in journey.last.text
-    await journey.click("Oldinga ➡️")
     assert journey.last.text.startswith("Xabar berish sanasini tanlang!")
-    await journey.click("Oldinga ➡️")
-    assert journey.session.calls[-1].show_alert
     await journey.click("🔁 Har kuni")
-    await journey.click("Oldinga ➡️")
     assert "Dori ichish" in journey.last.text and "23:59" in journey.last.text
     assert "Har kuni" in journey.last.text
     assert [[b.text for b in row] for row in journey.last.reply_markup.inline_keyboard] == [
@@ -250,6 +236,13 @@ async def test_explicit_forward_and_button_time_picker(journey):
     ]
     await journey.click("✅ Saqlash")
     assert (await journey.rows())[0].spec.at.strftime("%H:%M") == "23:59"
+    for call in journey.session.calls:
+        if isinstance(call, (SendMessage, EditMessageText)) and hasattr(
+            call.reply_markup, "inline_keyboard"
+        ):
+            assert all(
+                b.text != "Oldinga ➡️" for row in call.reply_markup.inline_keyboard for b in row
+            )
 
 
 @pytest.mark.parametrize(("hour", "minute"), [(0, 0), (9, 7), (12, 30)])
@@ -257,25 +250,24 @@ async def test_picker_preserves_exact_minutes_and_text_when_going_back(journey, 
     await journey.text("🔔 Eslatmalar")
     await journey.click("➕ Qo‘shish")
     await journey.text("Keep my text")
-    await journey.click("Oldinga ➡️")
     await journey.choose_time(hour=hour, minute=minute)
     await journey.click("⬅️ Orqaga")
     assert f"{hour:02d}:{minute:02d}" in journey.last.text
     await journey.click("⬅️ Orqaga")
     assert "Keep my text" in journey.last.text
-    await journey.click("Oldinga ➡️")
-    await journey.click("Oldinga ➡️")
+    await journey.text("Updated text")
+    await journey.choose_time(hour=hour, minute=minute)
     await journey.click("🔁 Har kuni")
-    await journey.click("Oldinga ➡️")
     await journey.click("✅ Saqlash")
-    assert (await journey.rows())[0].spec.at.strftime("%H:%M") == f"{hour:02d}:{minute:02d}"
+    row = (await journey.rows())[0]
+    assert row.spec.at.strftime("%H:%M") == f"{hour:02d}:{minute:02d}"
+    assert row.spec.text == "Updated text"
 
 
 async def test_picker_rejects_invalid_and_stale_values(journey):
     await journey.text("🔔 Eslatmalar")
     await journey.click("➕ Qo‘shish")
     await journey.text("Time boundaries")
-    await journey.click("Oldinga ➡️")
     hour = journey.button("00")
     await journey.click(data=hour.rsplit(":", 1)[0] + ":24")
     assert journey.session.calls[-1].show_alert
@@ -286,11 +278,10 @@ async def test_picker_rejects_invalid_and_stale_values(journey):
     await journey.click(data=hour)
     assert "eskirgan" in journey.session.calls[-1].text
     await journey.click(data=minute)
-    await journey.click("Oldinga ➡️")
     assert journey.last.text.startswith("Xabar berish sanasini tanlang!")
 
 
-async def test_expired_date_forward_keeps_calendar_usable(journey, monkeypatch):
+async def test_expired_date_save_keeps_calendar_usable(journey, monkeypatch):
     from namoz_bot.application import reminders as reminders_application
 
     class Clock(datetime):
@@ -303,13 +294,12 @@ async def test_expired_date_forward_keeps_calendar_usable(journey, monkeypatch):
     monkeypatch.setattr(reminders_application, "datetime", Clock)
     await journey.begin("Date boundary")
     await journey.click("📅 Sana tanlash")
-    await journey.click("Oldinga ➡️")
     await journey.click("1")
     Clock.current = datetime(2030, 5, 1, 16, tzinfo=UTC)
-    await journey.click("Oldinga ➡️")
+    await journey.click("✅ Saqlash")
     assert "o‘tib ketgan" in journey.session.calls[-1].text
+    await journey.click("⬅️ Orqaga")
     await journey.click("2")
-    await journey.click("Oldinga ➡️")
     assert "02.05.2030" in journey.last.text
     await journey.click("✅ Saqlash")
     assert (await journey.rows())[0].spec.on_date.isoformat() == "2030-05-02"
@@ -319,7 +309,6 @@ async def test_expired_date_forward_keeps_calendar_usable(journey, monkeypatch):
 async def test_number_delete_rejects_invalid_input_without_losing_back(journey, value):
     await journey.begin("Keep this")
     await journey.click("🔁 Har kuni")
-    await journey.click("Oldinga ➡️")
     await journey.click("✅ Saqlash")
     await journey.click("\N{HEAVY MINUS SIGN} O‘chirish")
     await journey.text(value)
@@ -349,7 +338,6 @@ async def test_number_delete_uses_displayed_identity_when_schedule_order_changes
     for name in ("First", "Second"):
         await journey.begin(name)
         await journey.click("🔁 Har kuni")
-        await journey.click("Oldinga ➡️")
         await journey.click("✅ Saqlash")
     await journey.click("\N{HEAVY MINUS SIGN} O‘chirish")
     assert "1. First" in journey.last.text
@@ -377,7 +365,6 @@ async def test_menu_and_daily_creation_list_with_duplicate_save(journey):
     assert "📅 Bugungi jadval" in labels and "⬅️ Asosiy menyu" in labels
     await journey.begin()
     await journey.click("🔁 Har kuni")
-    await journey.click("Oldinga ➡️")
     assert "20:00" in journey.last.text
     token = await journey.click("✅ Saqlash")
     await journey.click(data=token)
@@ -391,17 +378,14 @@ async def test_date_and_weekly_creation(journey, kind):
     await journey.begin()
     if kind == "weekly":
         await journey.click("📆 Har hafta")
-        await journey.click("Oldinga ➡️")
         await journey.click("⬜ Yakshanba")
-        await journey.click("Oldinga ➡️")
+        await journey.click("✅ Tayyor")
     else:
         await journey.click("📅 Sana tanlash")
-        await journey.click("Oldinga ➡️")
         tomorrow = (datetime.now(TASHKENT) + timedelta(days=1)).date()
         if tomorrow.day == 1:
             await journey.click("Keyingi oy ➡️")
         await journey.click(str(tomorrow.day))
-        await journey.click("Oldinga ➡️")
     await journey.click("✅ Saqlash")
     row = (await journey.rows())[0]
     assert row.spec.kind == kind
@@ -417,7 +401,6 @@ async def test_validation_back_cancel_old_buttons_and_navigation(journey):
     await journey.text(" ")
     assert "1–1000" in journey.last.text
     await journey.text("Original")
-    await journey.click("Oldinga ➡️")
     await journey.text("25:30")
     assert "tugmalaridan tanlang" in journey.last.text
     await journey.choose_time()
@@ -427,7 +410,6 @@ async def test_validation_back_cancel_old_buttons_and_navigation(journey):
     await journey.click(data=old)
     assert "eskirgan" in journey.session.calls[-1].text
     await journey.click("🔁 Har kuni")
-    await journey.click("Oldinga ➡️")
     await journey.click("⬅️ Orqaga")
     assert await journey.rows() == []
     await journey.begin()
@@ -446,7 +428,6 @@ async def test_private_chat_owner_and_empty_list(journey):
     await journey.click(data=old, user=8)
     assert "eskirgan" in journey.session.calls[-1].text
     await journey.click("🔁 Har kuni", user=8)
-    await journey.click("Oldinga ➡️", user=8)
     await journey.click("✅ Saqlash", user=8)
     await journey.text("📋 Eslatma ro‘yxati", user=7)
     assert "Hozircha" in journey.last.text
@@ -457,7 +438,6 @@ async def test_long_unicode_list_fits_telegram_and_paginates(journey):
     for _ in range(4):
         await journey.begin(text="📚" * 1000)
         await journey.click("🔁 Har kuni")
-        await journey.click("Oldinga ➡️")
         await journey.click("✅ Saqlash")
     before = len(journey.session.calls)
     await journey.text("📋 Eslatma ro‘yxati")
@@ -483,7 +463,6 @@ async def test_long_unicode_list_fits_telegram_and_paginates(journey):
 async def test_past_date_and_expired_confirmation_do_not_save(journey):
     await journey.begin()
     await journey.click("📅 Sana tanlash")
-    await journey.click("Oldinga ➡️")
     data = journey.button("Keyingi oy ➡️").split(":")
     yesterday = (datetime.now(TASHKENT) - timedelta(days=1)).date()
     await journey.click(data=f"rem:{data[1]}:date:{yesterday.isoformat()}")
@@ -502,7 +481,6 @@ async def test_unknown_slash_command_does_not_corrupt_draft(journey, command):
     assert set(await state.get_data()) == {"main_menu_message_id"}
     await journey.begin("New reminder")
     await journey.click("🔁 Har kuni")
-    await journey.click("Oldinga ➡️")
     await journey.click("✅ Saqlash")
     assert (await journey.rows())[0].spec.text == "New reminder"
 
@@ -511,13 +489,11 @@ async def test_old_list_callback_cannot_cancel_current_draft(journey):
     for _ in range(4):
         await journey.begin()
         await journey.click("🔁 Har kuni")
-        await journey.click("Oldinga ➡️")
         await journey.click("✅ Saqlash")
     await journey.text("📋 Eslatma ro‘yxati")
     old_list_button = journey.button("Keyingi ➡️")
     await journey.begin("Unfinished")
     await journey.click("🔁 Har kuni")
-    await journey.click("Oldinga ➡️")
     save_button = journey.button("✅ Saqlash")
     await journey.click(data=old_list_button)
     await journey.click(data=save_button)
@@ -555,15 +531,12 @@ async def test_creation_validation_back_and_completion_edit_one_panel(journey):
     panel_id = journey.session.last_ids[7]
     await journey.text("Test text")
     text_id = journey.sequence
-    await journey.click("Oldinga ➡️")
     await journey.text("25:00")
     time_id = journey.sequence
     await journey.choose_time()
     await journey.click("📆 Har hafta")
-    await journey.click("Oldinga ➡️")
     await journey.click("⬅️ Orqaga")
     await journey.click("🔁 Har kuni")
-    await journey.click("Oldinga ➡️")
     await journey.click("✅ Saqlash")
     await journey.text("📋 Eslatma ro‘yxati")
     await journey.text("➕ Eslatma qo‘shish")
@@ -584,7 +557,6 @@ async def test_list_repeated_open_and_navigation_edit_same_message(journey):
     for _ in range(4):
         await journey.begin()
         await journey.click("🔁 Har kuni")
-        await journey.click("Oldinga ➡️")
         await journey.click("✅ Saqlash")
     before = len(journey.session.calls)
     await journey.text("📋 Eslatma ro‘yxati")
@@ -628,10 +600,8 @@ async def test_list_back_menu_add_save_back_and_home(journey):
     assert "Hozircha" in journey.last.text
     await journey.click("➕ Qo‘shish")
     await journey.text("Inline menu reminder")
-    await journey.click("Oldinga ➡️")
     await journey.choose_time()
     await journey.click("🔁 Har kuni")
-    await journey.click("Oldinga ➡️")
     await journey.click("✅ Saqlash")
     assert "Inline menu reminder" in journey.last.text
     assert journey.session.last_ids[7] == panel_id
@@ -653,26 +623,25 @@ async def test_weekly_multiselect_toggle_continue_and_back(journey):
     await journey.begin()
     panel_id = journey.session.last_ids[7]
     await journey.click("📆 Har hafta")
-    await journey.click("Oldinga ➡️")
     assert journey.last.text == "Qaysi kunlarda takrorlansin?\nBitta yoki bir nechta kunni tanlang."
     assert [[b.text for b in row] for row in journey.last.reply_markup.inline_keyboard] == [
         ["⬜ Dushanba", "⬜ Seshanba", "⬜ Chorshanba"],
         ["⬜ Payshanba", "⬜ Juma", "⬜ Shanba"],
         ["⬜ Yakshanba"],
-        ["⬅️ Orqaga", "Oldinga ➡️"],
+        ["⬅️ Orqaga", "✅ Tayyor"],
     ]
-    await journey.click("Oldinga ➡️")
+    await journey.click("✅ Tayyor")
     assert "Kamida bitta kun" in journey.session.calls[-1].text
     await journey.click("⬜ Dushanba")
     await journey.click("⬜ Chorshanba")
     await journey.click("✅ Dushanba")
     await journey.click("⬜ Juma")
-    await journey.click("Oldinga ➡️")
+    await journey.click("✅ Tayyor")
     assert "Har hafta, Chorshanba, Juma" in journey.last.text
     await journey.click("⬅️ Orqaga")
     assert journey.button("✅ Chorshanba") and journey.button("✅ Juma")
     await journey.click("⬜ Yakshanba")
-    await journey.click("Oldinga ➡️")
+    await journey.click("✅ Tayyor")
     await journey.click("✅ Saqlash")
     rows = await journey.rows()
     assert len(rows) == 1
@@ -685,10 +654,9 @@ async def test_weekly_multiselect_toggle_continue_and_back(journey):
 async def test_weekday_grid_accepts_queued_taps_but_expires_when_leaving_step(journey):
     await journey.begin()
     await journey.click("📆 Har hafta")
-    await journey.click("Oldinga ➡️")
     monday = journey.button("⬜ Dushanba")
     wednesday = journey.button("⬜ Chorshanba")
-    proceed = journey.button("Oldinga ➡️")
+    proceed = journey.button("✅ Tayyor")
     await journey.click(data=monday)
     await journey.click(data=wednesday)
     await journey.click(data=proceed)
@@ -702,7 +670,6 @@ async def test_weekday_grid_accepts_queued_taps_but_expires_when_leaving_step(jo
 async def test_delete_reminder_confirmation_cancel_and_duplicate_click(journey):
     await journey.begin("Delete this reminder")
     await journey.click("🔁 Har kuni")
-    await journey.click("Oldinga ➡️")
     await journey.click("✅ Saqlash")
     await journey.text("📋 Eslatma ro‘yxati")
     panel_id = journey.session.last_ids[7]
@@ -730,7 +697,6 @@ async def test_delete_last_item_on_last_page_returns_to_previous_page(journey):
     for i in range(4):
         await journey.begin(f"Reminder {i}")
         await journey.click("🔁 Har kuni")
-        await journey.click("Oldinga ➡️")
         await journey.click("✅ Saqlash")
     await journey.text("📋 Eslatma ro‘yxati")
     await journey.click("Keyingi ➡️")
@@ -747,7 +713,6 @@ async def test_delete_last_item_on_last_page_returns_to_previous_page(journey):
 async def test_delete_confirmation_rejects_foreign_or_stale_callbacks(journey, case):
     await journey.begin("Keep")
     await journey.click("🔁 Har kuni")
-    await journey.click("Oldinga ➡️")
     await journey.click("✅ Saqlash")
     await journey.text("📋 Eslatma ro‘yxati")
     await journey.click("\N{HEAVY MINUS SIGN} O‘chirish")
@@ -777,7 +742,6 @@ async def test_delete_buttons_match_only_visible_long_reminders(journey):
     for i in range(3):
         await journey.begin(str(i) + "😀" * 999)
         await journey.click("🔁 Har kuni")
-        await journey.click("Oldinga ➡️")
         await journey.click("✅ Saqlash")
     await journey.click("\N{HEAVY MINUS SIGN} O‘chirish")
     assert "1. 0😀" in journey.last.text
@@ -800,7 +764,9 @@ async def test_cancel_back_and_stale_menu_cannot_interrupt_draft(journey):
     assert isinstance(journey.session.calls[-1], AnswerCallbackQuery)
     assert journey.session.calls[-1].show_alert
     await journey.text("Still editing")
-    assert "Eslatma matnini" in journey.last.text
+    assert "Xabar berish vaqtini" in journey.last.text
+    await journey.click("⬅️ Orqaga")
+    assert "Still editing" in journey.last.text
     await journey.click("⬅️ Orqaga")
     assert "📋 Eslatma ro‘yxati" in journey.last.text
     await journey.click("➕ Qo‘shish")
@@ -837,7 +803,6 @@ async def test_removed_panel_is_recreated_once_then_reused(journey):
     journey.session.messages.pop((7, previous))
     before = len(journey.session.calls)
     await journey.click("🔁 Har kuni")
-    await journey.click("Oldinga ➡️")
     replacement = journey.session.last_ids[7]
     assert replacement != previous
     await journey.click("✅ Saqlash")
@@ -869,7 +834,6 @@ async def test_list_callback_after_leaving_reminders_cannot_reopen_panel(journey
     for _ in range(4):
         await journey.begin()
         await journey.click("🔁 Har kuni")
-        await journey.click("Oldinga ➡️")
         await journey.click("✅ Saqlash")
     await journey.text("📋 Eslatma ro‘yxati")
     old = journey.button("Keyingi ➡️")
