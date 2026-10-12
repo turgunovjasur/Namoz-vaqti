@@ -5,7 +5,8 @@
 - Server: Hetzner VPS (`qa-assistant.uz`)
 - Server katalogi: `/opt/namoz-vaqti`
 - Docker Compose project: `namoz-vaqti`
-- Deploy holati: productionda ishlayapti (oxirgi yangilanish: 2026-10-09)
+- Deploy holati: productionda ishlayapti (oxirgi yangilanish: 2026-10-12)
+- Production kod commit: `8a8c96de8ca84bc7ddda20932c3793b96d43ef4f`
 - Ma'lumotlar bazasi: alohida PostgreSQL 17 va alohida persistent volume
 - Servislar: `namoz-vaqti-bot-1`, `namoz-vaqti-db-1`
 
@@ -134,12 +135,15 @@ PostgreSQL sozlamalarini saqlab, zarur Gemini qiymatlarini alohida yangilang:
 
 ```dotenv
 GEMINI_MODEL=gemini-3.8-flash
+GEMINI_VOICE_MODEL=gemini-3.5-flash-lite
 GEMINI_BOOK_CORPUS_PATH=/app/data/books/current_book.json
 GEMINI_REMINDER_INTERVAL_HOURS=24
 GEMINI_BUTTON_COOLDOWN_SECONDS=60
 ```
 
 `GEMINI_API_KEY` ham shu server `.env`ida saqlanadi; uni log yoki Gitga yozmang.
+`GEMINI_VOICE_MODEL` ovozli eslatmalar va kirim-chiqim matn/ovoz tahlili uchun
+alohida ishlatiladi. `GEMINI_MODEL` kitob asosidagi diniy nasihatlarga tegishli.
 
 Shaxsiy interval qo'shilgan yangi versiyada `GEMINI_REMINDER_INTERVAL_HOURS`
 boshlang'ich qiymatdir: foydalanuvchilar o'z intervalini bot menyusida o'zgartiradi.
@@ -165,6 +169,31 @@ docker compose -p namoz-vaqti logs bot --tail 100
 Bitta token bilan faqat bitta polling process ishlashi kerak. Server botini yoqishdan
 oldin shu production token bilan ishlayotgan lokal processni to'xtating.
 `run_local_bot.sh` boshqa test tokenidan foydalansa, server botiga to'qnashmaydi.
+
+## 2026-10-12 16:54 ovozli eslatmalar va kirim-chiqim deploy verifikatsiyasi
+
+- Kod: `8a8c96de8ca84bc7ddda20932c3793b96d43ef4f`; GitHub `main`ga yuborildi.
+  Serverga aynan shu commitning arxivi ko'chirildi. `.release_commit` shu SHAni saqlaydi.
+- Production bot `@UzNamozTaqvimiBot` yangi image bilan pollingni boshladi;
+  restart soni `0`. Telegram `getMe`, asosiy menyudagi `💰 Kirim-chiqim` tugmasi
+  va scheduler bajarilishi tekshirildi.
+- Alembic `20261009_03` dan `20261012_01` gacha bajarildi;
+  `finance_entries` jadvali yaratildi. Migratsiya oldi/keyingi foydalanuvchi
+  yozuvlarining digestlari teng; mavjud 5 foydalanuvchi saqlandi.
+- Ovozli eslatmalar va kirim-chiqim uchun `GEMINI_VOICE_MODEL=gemini-3.5-flash-lite`.
+  Nasihat modeli `gemini-3.8-flash`. Production Gemini bilan o'zbekcha
+  «Oktyabrda menga qancha oylik tushdi?» so'rovi `report/salary` sifatida ajratildi.
+  Sinov operatsiyasi bazaga yozilmadi va Telegram xabari yuborilmadi.
+- Production `.env`dagi boshqa sozlamalar va secretlar avvalgi nusxaga teng.
+  Namoz DB va boshqa loyihalarning 6 konteynerining ID, start vaqti, status
+  va health holati deploy oldingi snapshot bilan bir xil qoldi.
+- Kod, `.env`, baza dumpi, migratsiya oldidagi yakuniy dump va konteyner snapshoti:
+  `/opt/namoz-vaqti/backups/deploy-20261012T114756Z/` (private permissions).
+  Eski image: `namoz-vaqti-bot:rollback-20261012T114756Z`.
+- Lokal verifikatsiya: 420 test o'tdi, 3 SQLite migratsiya varianti skip qilindi
+  (PostgreSQL variantlari o'tdi); Ruff check/format va mypy o'tdi.
+- Test qilish: production botda `/start` → `💰 Kirim-chiqim`, so'ng ovoz yoki matn.
+  Eski inline tugma o'rniga joriy bot xabaridagi tugmani ishlating.
 
 ## 2026-10-09 16:49 shaxsiy sozlamalar deploy verifikatsiyasi
 
