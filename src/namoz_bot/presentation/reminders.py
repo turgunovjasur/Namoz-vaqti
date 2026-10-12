@@ -1,16 +1,25 @@
 """Private reminder dialog and two-section navigation."""
 
+import asyncio
 from datetime import date
+from io import BytesIO
 from typing import Any
 from uuid import uuid4
 
 from aiogram import F, Router
+from aiogram.exceptions import TelegramAPIError
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message
 from aiogram.utils.formatting import BlockQuote, Bold, Italic, Text
 
 from namoz_bot.application.reminders import ReminderService
+from namoz_bot.application.voice_reminders import (
+    MAX_VOICE_BYTES,
+    MAX_VOICE_SECONDS,
+    VoiceReminderService,
+)
+from namoz_bot.domain.errors import ExternalServiceError
 from namoz_bot.domain.reminders import TASHKENT, WEEKDAYS, ReminderSpec, parse_time
 from namoz_bot.presentation.handlers import HandlerServices
 from namoz_bot.presentation.keyboards import (
@@ -29,6 +38,7 @@ from namoz_bot.presentation.reminder_keyboards import (
     section_keyboard,
 )
 from namoz_bot.presentation.reminder_panel import (
+    KEEP_MAIN_MENU,
     PANEL_ID,
     delete_input,
     discard_panel,
@@ -91,7 +101,13 @@ async def show_section(
 async def _show_section_menu(message: Message, state: FSMContext, owner: int) -> None:
     await reset_draft(state)
     await state.update_data(list_view="section")
-    await render_panel(message, state, "🔔 Eslatmalar. Menyuni tanlang:", section_keyboard(owner))
+    await render_panel(
+        message,
+        state,
+        "🔔 Eslatmalar. Menyuni tanlang:\n\n"
+        "🎙 Yangi eslatma uchun matni, kuni va soatini ovozli xabarda ayting.",
+        section_keyboard(owner),
+    )
 
 
 async def _prompt(
@@ -135,6 +151,18 @@ async def _prompt(
         spec = _spec(data)
         text = f"📝 {spec.text}\n🕒 {spec.at:%H:%M} · Toshkent\n📅 {spec.schedule_label()}"
         text += f"\n🗓 Keyingi xabar: {spec.next_after(service.now()).astimezone(TASHKENT):%d.%m.%Y}"
+    if data.get("voice_draft"):
+        if step != "confirm":
+            if step != "text" and data.get("text"):
+                text += f"\n\n📝 {data['text']}"
+            if step != "time" and data.get("time"):
+                text += f"\n🕒 {data['time']} · Toshkent"
+            if step != "date" and data.get("date"):
+                text += f"\n📅 {date.fromisoformat(data['date']):%d.%m.%Y}"
+            if data.get("voice_clarification"):
+                text += f"\n\n{data['voice_clarification']}"
+        if data.get("voice_transcript"):
+            text += f"\n\n🎙 Eshitilgan matn: {data['voice_transcript']}"
     if error:
         text = f"{error}\n\n{text}"
     await state.update_data(token=token, step=step)
@@ -155,8 +183,106 @@ async def _prompt(
             minute_page=data.get("minute_page", 0),
             kind=data.get("kind"),
             selected_date=data.get("date"),
+            voice_draft=bool(data.get("voice_draft")),
         ),
     )
+
+
+async def _advance_voice_draft(
+    message: Message, state: FSMContext, service: ReminderService
+) -> None:
+    """Skip fields already extracted from voice; validate before confirmation."""
+    data = await state.get_data()
+    if not data.get("text"):
+        step = "text"
+    elif not data.get("time"):
+        step = "time"
+    elif not data.get("kind"):
+        step = "schedule"
+    elif data["kind"] == "once" and not data.get("date"):
+        step = "date"
+    elif data["kind"] == "weekly" and not data.get("weekdays"):
+        step = "weekday"
+    else:
+        try:
+            _spec(data).next_after(service.now())
+        except ValueError as exc:
+            # A past one-time target must be corrected, never silently moved.
+            await state.update_data(date=None, calendar_month=None)
+            await _prompt(message, state, "date", service, error=str(exc))
+            return
+        step = "confirm"
+    await _prompt(message, state, step, service)
+
+
+async def receive_voice(
+    message: Message,
+    state: FSMContext,
+    reminder_service: ReminderService,
+    handler_services: HandlerServices,
+    voice_reminders: VoiceReminderService | None = None,
+) -> None:
+    if not await _private(message) or message.from_user is None or message.voice is None:
+        return
+    if voice_reminders is None:
+        await message.answer("Ovozli eslatma xizmati hali sozlanmagan. Hozircha matn kiriting.")
+        return
+    voice = message.voice
+    if voice.duration > MAX_VOICE_SECONDS or (voice.file_size or 0) > MAX_VOICE_BYTES:
+        await message.answer(
+            "Iltimos, 2 daqiqagacha va 5 MB dan kichik qisqa ovozli xabar yuboring."
+        )
+        return
+    progress = await message.answer("🎙 Ovozli xabaringizdan eslatma tayyorlanmoqda…")
+    try:
+        assert message.bot is not None
+        # Keep audio in memory only and bound both download time and actual size.
+        audio = BytesIO()
+        await asyncio.wait_for(message.bot.download(voice.file_id, destination=audio), timeout=20)
+        draft = await voice_reminders.extract(
+            message.from_user.id,
+            audio.getvalue(),
+            mime_type=voice.mime_type or "audio/ogg",
+            now=message.date,
+        )
+    except ValueError as exc:
+        await message.answer(str(exc))
+        return
+    except (ExternalServiceError, TelegramAPIError, TimeoutError, OSError):
+        await message.answer(
+            "Ovozli xabarni qayta ishlay olmadim. Birozdan keyin qayta yuboring "
+            "yoki eslatmani matn orqali kiriting."
+        )
+        return
+    finally:
+        await delete_input(progress)
+    if draft.intent != "create_reminder":
+        await message.answer(
+            "Bu ovozli xabardan bitta yangi eslatma aniqlanmadi. "
+            "Masalan: «Ertaga kechqurun soat sakkizda kitob o‘qishni eslat» deb yuboring. "
+            "Birinchi versiya ovoz orqali faqat eslatma yaratadi."
+        )
+        return
+    # Do not discard a previous draft until extraction succeeds.
+    user = await handler_services.subscriptions.start(message.from_user.id, message.chat.id)
+    await reset_draft(state)
+    at = parse_time(draft.time) if draft.time else None
+    await state.update_data(
+        {KEEP_MAIN_MENU: True},
+        creation_token=uuid4().hex,
+        user_id=user.subscription.id,
+        text=draft.text,
+        time=draft.time,
+        hour=at.hour if at else None,
+        minute=at.minute if at else None,
+        kind=draft.kind,
+        date=draft.date,
+        weekdays=draft.weekdays,
+        voice_draft=True,
+        voice_transcript=draft.transcript[:1000],
+        voice_clarification=draft.clarification,
+    )
+    await _advance_voice_draft(message, state, reminder_service)
 
 
 async def start_reminder(
@@ -201,7 +327,10 @@ async def receive_text(
         await delete_input(message)
         return
     await state.update_data(text=value)
-    await _prompt(message, state, "time", reminder_service)
+    if (await state.get_data()).get("voice_draft"):
+        await _advance_voice_draft(message, state, reminder_service)
+    else:
+        await _prompt(message, state, "time", reminder_service)
     await delete_input(message)
 
 
@@ -246,6 +375,14 @@ async def dialog_callback(
     try:
         if action == "noop":
             pass
+        elif action == "cancel" and data.get("voice_draft"):
+            await reset_draft(state)
+            await _show_list(
+                message, state, callback.from_user.id, 0, handler_services, reminder_service
+            )
+        elif action == "edit" and step == "confirm" and data.get("voice_draft"):
+            await state.update_data(voice_clarification=None)
+            await _prompt(message, state, "text", reminder_service)
         elif action == "back" and step == "text":
             await reset_draft(state)
             await _show_list(
@@ -268,7 +405,11 @@ async def dialog_callback(
             if value != data.get("kind"):
                 await state.update_data(kind=value, date=None, weekdays=[], calendar_month=None)
             target = {"once": "date", "daily": "confirm", "weekly": "weekday"}[value]
-            await _prompt(message, state, target, reminder_service)
+            if data.get("voice_draft"):
+                await state.update_data(voice_clarification=None)
+                await _advance_voice_draft(message, state, reminder_service)
+            else:
+                await _prompt(message, state, target, reminder_service)
         elif action == "timeview" and step == "time" and value in {"hour", "minute"}:
             if value == "minute" and data.get("hour") is None:
                 raise ValueError("Avval soatni tanlang.")
@@ -293,7 +434,11 @@ async def dialog_callback(
             if not 0 <= minute <= 59 or minute // 30 != data.get("minute_page", 0):
                 raise ValueError("Shu oynadagi daqiqani tanlang.")
             await state.update_data(minute=minute, time=f"{data['hour']:02d}:{minute:02d}")
-            await _prompt(message, state, "schedule", reminder_service)
+            if data.get("voice_draft"):
+                await state.update_data(voice_clarification=None)
+                await _advance_voice_draft(message, state, reminder_service)
+            else:
+                await _prompt(message, state, "schedule", reminder_service)
         elif action == "month" and step == "date":
             month = date.fromisoformat(value).replace(day=1)
             today = reminder_service.now().astimezone(TASHKENT).date()
@@ -681,6 +826,13 @@ async def menu_callback(
             today=action == "today",
         )
     await callback.answer()
+
+
+def build_voice_reminder_router() -> Router:
+    """Handle voice before other menus' broad text-input FSM handlers."""
+    router = Router(name="voice-reminders")
+    router.message.register(receive_voice, F.voice)
+    return router
 
 
 def build_reminder_router() -> Router:

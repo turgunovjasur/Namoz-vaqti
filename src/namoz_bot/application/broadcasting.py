@@ -53,7 +53,9 @@ class BroadcastService:
         self._batch_size = batch_size
         self._semaphore = asyncio.Semaphore(max_concurrency)
 
-    async def send_next_day(self, target_date: date) -> BroadcastReport:
+    async def send_next_day(
+        self, target_date: date, *, recipients: list[UserSubscription] | None = None
+    ) -> BroadcastReport:
         schedule_cache: dict[str, PrayerSchedule | Exception] = {}
         failed_regions: list[str] = []
         cursor = 0
@@ -63,10 +65,13 @@ class BroadcastService:
         failed = 0
 
         while True:
-            page = await self._subscriptions.list_active_page(
-                after_id=cursor,
-                limit=self._batch_size,
-            )
+            if recipients is None:
+                page = await self._subscriptions.list_active_page(
+                    after_id=cursor,
+                    limit=self._batch_size,
+                )
+            else:
+                page, recipients = recipients[: self._batch_size], recipients[self._batch_size :]
             if not page:
                 break
             page_ids = [item.id for item in page if item.id is not None]

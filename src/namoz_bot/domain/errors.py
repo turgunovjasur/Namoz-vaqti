@@ -17,6 +17,14 @@ class ExternalServiceError(NamozBotError):
     """Raised when an external provider is unavailable or malformed."""
 
 
+class ReligiousReminderCooldownError(NamozBotError):
+    """Reject repeated manual generations before the user may try again."""
+
+    def __init__(self, remaining_seconds: int) -> None:
+        self.remaining_seconds = remaining_seconds
+        super().__init__(f"Yangi nasihat olish uchun {remaining_seconds} soniya kuting.")
+
+
 class ScheduleDateMismatchError(ScheduleValidationError):
     """Raised when a provider returns a schedule for another date."""
 

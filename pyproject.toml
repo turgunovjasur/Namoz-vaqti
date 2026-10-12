@@ -19,6 +19,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+books = ["pdfplumber>=0.11,<1"]
 dev = [
   "aiosqlite>=0.21,<1",
   "mypy>=1.17,<2",

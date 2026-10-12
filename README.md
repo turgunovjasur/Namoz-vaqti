@@ -6,12 +6,14 @@ Telegram foydalanuvchilariga yuboradigan asinxron bot.
 ## Ishlash tartibi
 
 - `/start` yangi foydalanuvchini standart **Toshkent** hududi bilan ro‘yxatdan o‘tkazadi
-  va **🕌 Namoz vaqti** / **🔔 Eslatmalar** asosiy menyusini ochadi.
+  va **🕌 Namoz vaqti** / **🔔 Eslatmalar** / **💰 Kirim-chiqim** /
+  **⚙️ Sozlamalar** asosiy menyusini ochadi.
 - Foydalanuvchi sozlamalarda avval 14 ta geografik guruhdan birini, so‘ng shahar
   yoki tumanni tanlaydi. Katalog `namoz-vaqti.uz` ko‘rsatadigan 223 ta yozuvni
   qamrab oladi: 209 ta canonical hudud va provider shaharga yo‘naltiradigan 14 ta alias.
-- Har kuni `21:00` da `Asia/Tashkent` vaqt zonasi bo‘yicha ertangi kunning
-  Bomdod, Quyosh, Peshin, Asr, Shom va Xufton vaqtlari yuboriladi.
+- Har kuni foydalanuvchi tanlagan vaqtda (standart `21:00`), `Asia/Tashkent`
+  vaqt zonasi bo‘yicha ertangi kunning Bomdod, Quyosh, Peshin, Asr, Shom va
+  Xufton vaqtlari yuboriladi.
 - Har bir foydalanuvchi Bomdod, Quyosh, Peshin, Asr, Shom va Xufton vaqtlarini
   mahalliy masjid jadvaliga moslab `−30…+30` daqiqa oralig‘ida alohida sozlaydi.
   Saqlangan farqlar bugungi va kunlik jadvallarga qo‘llanadi.
@@ -25,8 +27,46 @@ Telegram foydalanuvchilariga yuboradigan asinxron bot.
 
 ## Menyular va eslatmalar
 
+### Kirim-chiqim — 1-versiya
+
+Asosiy menyuda **💰 Kirim-chiqim**ni tanlang. Shu bo‘limda ovoz yoki matn yuboring:
+«Oktyabrda 10 million oylik tushdi», «120 mingga kiyim oldim», «Balansim qancha?»,
+«Oktyabrda qancha oylik tushdi?» yoki «Oktyabrda qancha sarfladim?».
+Gemini `GEMINI_VOICE_MODEL` orqali mazmunni ajratadi; hisob-kitoblar bazadagi
+yozuvlardan aniq butun so‘mda olinadi. Yozuvlar faqat egasiga tegishli.
+
+Aniq bitta kirim/chiqim darhol saqlanadi va yangi balans ko‘rsatiladi.
+**↩️ Yozuvni bekor qilish** shu yozuvni hisobdan chiqaradi, tarixda belgilangan holda
+saqlaydi. Takror bosish yoki takror kelgan Telegram xabari balansni ikki marta
+o‘zgartirmaydi. Noaniq summa, kelajak rejasi, boshqa valyuta yoki bir xabardagi bir
+nechta operatsiya saqlanmaydi: bitta amalga oshgan operatsiyani aniq qayta ayting.
+
+**💳 Balans**, **📊 Shu oy hisoboti** va **📒 Tarix** AI chaqirmasdan ishlaydi.
+Hisobot jami kirim, oylik tushumi, jami chiqim, oy farqi, oldingi oylar qoldig‘i
+va oy yakunidagi qoldiqni ko‘rsatadi. Balans oy boshida nollanmaydi.
+Tarix beshta yozuvdan sahifalanadi va oldingi faol yozuvlarni ham bekor qilish mumkin.
+Balans boshlanishi 0; mavjud pulni boshlang‘ich kirim sifatida qayd etish mumkin.
+Qayd qilinmagan xarajat yoki tushum hisobga kirmaydi; bank ulanishi mavjud emas.
+
+Sana aytilmagan yozuv Toshkentdagi xabar sanasiga tegishli. Faqat oy aytilsa,
+kun to‘qilmaydi va tarixda «kun aytilmagan» ko‘rsatiladi. Oy aytilib yil aytilmasa,
+xabar yuborilgan yil ishlatiladi. Avvalgi yil uchun yilni ham ayting.
+Bo‘limdan chiqilgach ovozli kiritish yana eslatma yaratishga qaytadi; restartdan
+keyin **💰 Kirim-chiqim**ni qayta oching. Asosiy menyu ochiq qoladi.
+Audio chegarasi 2 daqiqa/5 MB. Moliyaviy ovoz, transkript va summalar ilova logiga
+yozilmaydi; bazada izoh, summa, kategoriya, sana/oy va bekor qilish holati saqlanadi.
+Bu versiyada so‘m, bitta umumiy balans va oylik hisobotlar bor.
+
+**⚙️ Sozlamalar** bo‘limida **⚙️ Nasihat intervali** va **📅 Kunlik jadval** bor.
+Kunlik jadval uchun tayyor vaqt tanlanadi yoki **✍️ Boshqa vaqt** orqali `07:30`
+kabi `HH:MM` kiritiladi. Standart vaqt `21:00`; xabar ertangi namoz jadvalini
+ko‘rsatadi. Tanlov va keyingi yuborish vaqti bazada saqlanadi. Scheduler har daqiqada
+vaqti kelganlarni tekshiradi. O‘tgan kunlar xabarlari yig‘ib yuborilmaydi; kechikkan
+yuborishda ertangi jadval bir marta yuboriladi. Bir kun ichida vaqtni yana o‘zgartirish
+o‘sha jadvalni takror yubormaydi. Nasihat intervali va jadval vaqti mustaqil sozlanadi.
+
 **🕌 Namoz vaqti** bo‘limida bugungi jadval, hududni o‘zgartirish,
-masjidga moslash va yordam bor. **🔔 Eslatmalar** tanlanganda
+masjidga moslash, **📖 Diniy eslatma** va yordam bor. **🔔 Eslatmalar** tanlanganda
 **📋 Eslatma ro‘yxati** va **📅 Bugungi eslatmalar** menyulari ochiladi.
 Umumiy ro‘yxat ostida **➕ Qo‘shish**, **➖ O‘chirish**, **⬅️ Orqaga** tugmalari bor.
 Bugungi ro‘yxat Toshkent sanasiga mos bir martalik, har kunlik va bugungi hafta
@@ -37,6 +77,87 @@ Ikkala ro‘yxatdagi **⬅️ Orqaga** eslatmalar menyusiga qaytaradi.
 Bo‘lim tanlangach asosiy menyu xabari o‘chiriladi.
 Namoz vaqtidan **⬅️ Asosiy menyu**, eslatmalar menyusidan **⬅️ Orqaga**
 orqali asosiy menyuga qaytiladi.
+
+**📖 Diniy eslatma** kutish oralig‘i o‘tgach bosilganda Gemini berilgan kitobdan
+kundalik nasihat uchun mos qisqa parchani tanlaydi. Javob kutilayotganda
+«tayyorlanmoqda» ko‘rsatiladi, so‘ng parcha yuborilib, kutish xabari tozalanadi.
+Matn mahalliy kitob faylidan aynan olinadi; Gemini matni foydalanuvchiga yuborilmaydi.
+Manbada kitob nomi, muallif, tarjimon va PDF sahifasi ko‘rsatiladi.
+Bu tugma avtomatik yuborish jadvalini qo‘shmaydi.
+API xatosi yoki javob kelmasa, foydalanuvchiga qayta urinib ko‘rish xabari chiqadi.
+Ketma-ket bosish cheklangan: har bir foydalanuvchi yangi so‘rovdan oldin
+`GEMINI_BUTTON_COOLDOWN_SECONDS` soniya kutadi (standart: 60 soniya).
+So‘rov hali bajarilayotgan bo‘lsa ham ikkinchi Gemini chaqiruvi boshlanmaydi.
+Kutish vaqtida tugma qayta bosilsa, «Yangi nasihat olish uchun ... soniya kuting»
+xabarining o‘zi tahrirlanadi; har bosishda yangi bot xabari yuborilmaydi.
+Kutish xabari o‘chirilsa, yangisi yaratiladi. Kutish tugagach u tozalanadi.
+
+`.env` sozlamalari (kalitni Git’ga yoki chatga joylamang):
+
+```dotenv
+GEMINI_API_KEY=GOOGLE_AI_STUDIO_KALITI
+GEMINI_MODEL=gemini-3.8-flash
+GEMINI_BOOK_CORPUS_PATH=data/books/current_book.json
+GEMINI_REMINDER_INTERVAL_HOURS=24
+GEMINI_BUTTON_COOLDOWN_SECONDS=60
+```
+
+`GEMINI_MODEL` ixtiyoriy; standart model `gemini-3.5-flash-lite`.
+`.env` ichida `gemini-3.8-flash` qo‘yilsa, parcha tanlash uchun shu model ishlatiladi.
+`GEMINI_BOOK_CORPUS_PATH` kitob metama’lumotlari va parchalar saqlangan JSON faylini
+belgilaydi. Kitob nomi Gemini vazifasiga qotirib yozilmagan: barcha ma’lumotlar shu
+fayldan olinadi. Boshqa kitobning JSON faylini ko‘rsatib, botni qayta ishga tushiring.
+Fayl sozlanmasa diniy eslatma xizmati yoqilmaydi; noto‘g‘ri yoki bo‘sh faylda bot
+aniq sozlama xatosi bilan to‘xtaydi. Erkin AI nasihatiga qaytish mavjud emas.
+`GEMINI_REMINDER_INTERVAL_HOURS` hali shaxsiy interval tanlamagan foydalanuvchilar
+uchun boshlang‘ich intervalni **soatda** belgilaydi. Standart qiymat `24` — kuniga
+bir marta; `0` boshlang‘ich avtomatik yuborishni o‘chiradi. Bu parametrni o‘zgartirish
+bazada saqlangan shaxsiy tanlovlarni almashtirmaydi.
+Foydalanuvchi `⚙️ Sozlamalar → ⚙️ Nasihat intervali` orqali 1, 2, 4, 6, 12 yoki
+24 soatni tanlaydi, `✍️ Boshqa interval` orqali 1–168 oralig‘ida butun soat yozadi
+yoki avtomatik nasihatni o‘chiradi. Bu namoz xabarlari va qo‘lda `📖 Diniy eslatma`
+olishga ta’sir qilmaydi. Interval joriy soatning `00` daqiqasidan hisoblanadi:
+`15:40` da 6 soat tanlansa, keyingi vaqtlar `21:00 → 03:00 → 09:00` bo‘ladi.
+Interval va keyingi yuborish vaqti bazada saqlanadi, restartda qayta hisoblanmaydi.
+Kompyuter uyquda bo‘lsa lokal bot o‘sha payt ishlay olmaydi. Uyg‘ongach kechikkan
+intervallar uchun bitta nasihat yuboriladi, so‘ng navbatdagi jadval davom etadi.
+Scheduler har soatning `00` daqiqasida vaqti kelgan faol foydalanuvchilarni tekshiradi. Shu tekshiruvda
+Gemini kitobdan bitta parcha tanlaydi va u faqat yuborish vaqti kelganlarga yuboriladi.
+Vaqti kelgan foydalanuvchi bo‘lmasa Gemini chaqirilmaydi. Gemini ishlamay qolsa
+foydalanuvchining vaqti surilmaydi; keyingi tekshiruvda qayta uriniladi.
+Telegramga yuborishdan oldin interval navbatdagi vaqtga surilib, takror yuborishdan
+himoya qilinadi; Telegram xatosi yoki shu paytdagi process uzilishi bir yuborishni
+o‘tkazib yuborishi mumkin.
+Bot `logs/namoz_bot.log` fayliga boshlang‘ich interval, jadval tekshiruvi vaqti,
+tarqatish boshlanishi, natijalari va xatolarini yozadi. Log 5 MB ga yetganda
+aylantiriladi, ikkita oldingi nusxa saqlanadi. Bu fayllar Git’ga kiritilmaydi.
+Log fayliga yozish huquqi bo‘lmasa (masalan, Docker’da), bot terminal loglari bilan
+ishlashda davom etadi.
+Qo‘lda tugma bosish cooldowni process xotirasida va restartda qaytadan hisoblanadi.
+Bir bot uchun bitta process ishlating; avtomatik nasihatning saqlangan keyingi vaqti
+restartda o‘zgarmaydi.
+Tugma bosilishi avtomatik jadvalni o‘zgartirmaydi.
+Gemini faqat taklif qilingan parchalar ID raqamidan birini qaytarishi mumkin.
+Noto‘g‘ri javob yoki boshqa ID yuborilmaydi. Keyingi so‘rovda oldingi tanlangan parcha
+variantlar orasidan chiqariladi (kitobda kamida ikkita parcha bo‘lsa).
+Kalit yoki kitob yo‘li bo‘lmasa bot ishlashda davom etadi, tugma xizmat sozlanmaganini bildiradi.
+Sozlamalar o‘zgargach botni qayta ishga tushiring. Ulanish Google’ning
+[Structured Output qo‘llanmasi](https://ai.google.dev/gemini-api/docs/generate-content/structured-output)
+asosida HTTP orqali bajariladi.
+
+Yangi PDF kitob uchun mahalliy parcha faylini tayyorlash:
+
+```bash
+.venv/bin/pip install -e '.[books]'
+.venv/bin/python scripts/build_book_corpus.py data/books/kitob.pdf data/books/current_book.json \
+  --title 'Kitob nomi' --author 'Muallif' --translator 'Tarjimon'
+```
+
+Skript raqamlangan hadislarni yoki boshqa kitoblardagi to‘liq paragraflarni ajratadi;
+80–900 belgilik to‘liq parchalar saqlanadi, uzun matn kesilmaydi. PDF matni tanilmagan,
+paragraf chegaralari yo‘q yoki murakkab tuzilishga ega bo‘lsa, avval OCR yoki qo‘lda
+tekshirilgan JSON kerak. Ajratilgan matnni asl PDF bilan tekshiring. PDF va JSON
+`data/books/` ichida mahalliy saqlanadi, Git’ga kiritilmaydi.
 
 Eslatma yaratish: matn → ekrandan soat/daqiqa → aniq sana / har kuni / har hafta
 → tasdiqlash. «Eslatma matnini yozing» oynasida matn Enter/yuborish bilan
@@ -52,6 +173,52 @@ Vaqt va sana tanlovi keyingi bosqichni avtomatik ochadi; **⬅️ Orqaga**
 oldingi bosqichga qaytaradi. «Bekor qilish» tugmasi yo‘q. Oxirida matn, vaqt, jadval va keyingi xabar
 sanasi ko‘rsatiladi; **✅ Saqlash** yuqori qatorda, **⬅️ Orqaga** uning ostida turadi.
 Menyuni almashtirish va buyruq yuborish tugallanmagan kiritishni bekor qiladi.
+
+### Ovoz orqali eslatma yaratish — 1-versiya
+
+Bot bilan shaxsiy chatga ovozli xabar yuboring. Masalan:
+«Ertaga kechqurun soat sakkizda onamga qo‘ng‘iroq qilishni eslat» yoki
+«Har dushanba va juma ertalab soat to‘qqizda kitob o‘qishni eslat».
+Menyudan eslatma qo‘shishni boshlash shart emas. Gemini nutq matni, eslatma mazmuni,
+sana, vaqt va takrorlanishni ajratadi. Sana-vaqt xabar yuborilgan payt va
+`Asia/Tashkent` bo‘yicha hisoblanadi. Yetishmagan ma’lumotlar mavjud matn,
+vaqt, kalendar yoki hafta kunlari oynasida to‘ldiriladi; ovozdan olingan boshqa
+maydonlar saqlanadi. O‘tgan sana avtomatik ertaga ko‘chirilmaydi: yangi sana so‘raladi.
+
+Bot eshitilgan matn va eslatma jadvalini ko‘rsatadi. **✅ Saqlash** bosilmaguncha
+bazaga eslatma yozilmaydi. **✏️ Tahrirlash** matnni o‘zgartirishga,
+**⬅️ Orqaga** jadvalni tuzatishga, **❌ Bekor qilish** qoralamani tashlashga xizmat qiladi.
+Yangi muvaffaqiyatli ovozli xabar avvalgi tugallanmagan eslatma qoralamasini almashtiradi.
+Ovoz tushunilmasa yoki xizmat xatosida avvalgi qoralama saqlanadi.
+
+Bu versiya bitta xabardan bitta yangi eslatma yaratadi. Ovoz bilan o‘chirish,
+o‘zgartirish yoki bir nechta alohida eslatma yaratish hali qo‘llanmaydi.
+Audio 2 daqiqagacha va 5 MB gacha bo‘lsin. Audio vaqtincha xotirada qayta ishlanadi,
+Geminiga yuboriladi va diskka yozilmaydi. Ovozdan olingan matn qoralama restart
+bo‘lguncha process xotirasida turadi; saqlangan eslatmaning matni va jadvali bazada qoladi.
+Ovoz va transkript ilova loglariga yozilmaydi.
+
+Ovozli xizmat uchun `GEMINI_API_KEY` yetarli; kitob fayli talab qilinmaydi.
+Ovozli model `GEMINI_VOICE_MODEL` orqali alohida sozlanadi;
+standart qiymati `gemini-3.5-flash-lite`. `GEMINI_MODEL` kitobdan nasihat tanlashga
+tegishli. Ovozli model audio kirish va JSON javoblarni qo‘llashi kerak.
+Ovozli eslatma oynasi ochilganda asosiy menyu saqlanadi yoki qayta ko‘rsatiladi.
+Matnni tahrirlash, saqlash va bekor qilishda pastki menyu yopilmaydi;
+tasdiqlash va jadval tanlash tugmalari alohida inline oynada ishlaydi.
+`VOICE_REMINDER_COOLDOWN_SECONDS` bir foydalanuvchining yangi ovozli so‘rovlari
+oralig‘ini belgilaydi (standart 20 soniya). Xizmat ishlamasa qo‘lda kiritish mavjud.
+
+Local test botni `.env` dagi `TEST_TELEGRAM_BOT_TOKEN` va `TEST_DATABASE_URL`
+bilan ishga tushirish:
+
+```bash
+bash run_local_bot.sh
+```
+
+Shu kompyuterda bir token uchun bitta polling jarayoni ishlaydi. Ikkinchi nusxa
+ochishga urinish aniq xabar bilan to‘xtaydi; boshqa tokenli botlar mustaqil ishlaydi.
+Bot to‘xtaganda OS qulfni avtomatik bo‘shatadi. Restartdan keyin eski chatdagi
+inline tugmalar o‘rniga `/start` orqali yangi menyu oching: qoralamalar process xotirasida.
 
 Qo‘shish bosqichlari, tekshirish xabarlari, saqlash/bekor qilish natijasi va
 ro‘yxat sahifalari bitta bot xabarini yangilaydi. Shu jarayonda yuborilgan
@@ -126,9 +293,11 @@ Bu baza hali yaratilmagan kompyuterda bir marta
 `createdb namoz_test_dev1_20260923` bajaring. Keyin:
 
 ```bash
-bash run_bot.sh --local
+bash run_local_bot.sh
 ```
 
+`run_local_bot.sh` mavjud `run_bot.sh --local` buyrug‘ini chaqiradi.
+Uni loyiha papkasidan `./run_local_bot.sh` bilan ham ishga tushirish mumkin.
 Skript test sozlamalari bilan migratsiyani bajaradi, so‘ng test botni
 ishga tushiradi. Test tokeni yoki test bazasi bo‘sh bo‘lsa, ishga tushmaydi;
 asosiy `TELEGRAM_BOT_TOKEN` va `DATABASE_URL` ga qaytmaydi. Terminalda

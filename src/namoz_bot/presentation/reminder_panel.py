@@ -12,12 +12,15 @@ from namoz_bot.presentation.keyboards import build_main_menu
 logger = logging.getLogger(__name__)
 PANEL_ID = "reminder_panel_id"
 MAIN_ID = "main_menu_message_id"
+KEEP_MAIN_MENU = "reminder_keep_main_menu"
 
 
 async def reset_draft(state: FSMContext) -> None:
     """Forget dialog fields while retaining the reusable UI message."""
     data = await state.get_data()
-    retained = {key: data[key] for key in (PANEL_ID, MAIN_ID) if data.get(key) is not None}
+    retained = {
+        key: data[key] for key in (PANEL_ID, MAIN_ID, KEEP_MAIN_MENU) if data.get(key) is not None
+    }
     await state.clear()
     await state.set_data(retained)
 
@@ -60,7 +63,13 @@ async def render_panel(
     assert message.bot is not None
     rendered, entities = text.render() if isinstance(text, Text) else (text, [])
     data = await state.get_data()
-    if data.get(MAIN_ID) is not None:
+    keep_menu = bool(data.get(KEEP_MAIN_MENU))
+    if keep_menu and data.get(MAIN_ID) is None:
+        main = await message.answer(
+            "Asosiy menyu. Bo‘limni tanlang:", reply_markup=build_main_menu()
+        )
+        await state.update_data({MAIN_ID: main.message_id})
+    elif not keep_menu and data.get(MAIN_ID) is not None:
         await _delete(message, int(data[MAIN_ID]))
         await state.update_data({MAIN_ID: None})
     panel_id = data.get(PANEL_ID)
@@ -89,13 +98,18 @@ async def render_panel(
             ):
                 raise
             await _delete(message, int(panel_id))
-    # Telegram requires a separate send to remove a reply keyboard. Keep only
-    # the inline panel in chat; the removal message must never become the panel.
-    removal = await message.answer("🔔 Eslatmalar", reply_markup=ReplyKeyboardRemove())
+    # Manual entry uses only the inline panel. Voice entry keeps the main menu
+    # alongside it, including when rendering a fresh panel after deletion.
+    removal = (
+        None
+        if keep_menu
+        else await message.answer("🔔 Eslatmalar", reply_markup=ReplyKeyboardRemove())
+    )
     try:
         sent = await message.answer(
             rendered, reply_markup=markup, parse_mode=None, entities=entities
         )
         await state.update_data({PANEL_ID: sent.message_id})
     finally:
-        await _delete(message, removal.message_id)
+        if removal is not None:
+            await _delete(message, removal.message_id)

@@ -213,6 +213,7 @@ async def test_help_explains_daily_delivery_and_each_user_action() -> None:
         "soat 21:00 da ertangi jadvalni yuboradi.\n\n"
         "📅 Bugungi jadval — bugungi namoz vaqtlarini ko‘rsatadi.\n"
         "📍 Hududni o‘zgartirish — kerakli hududni tanlash uchun.\n"
+        "📖 Diniy eslatma — qisqa islomiy nasihat olish uchun.\n"
         "🕌 Masjidga moslash — bot va masjid vaqti farq qilsa, daqiqa qo‘shish "
         "yoki ayirish uchun.\n\n"
         "Hudud o‘zgartirilganda masjidga moslash sozlamalari 0 ga qaytadi.\n\n"

@@ -41,6 +41,7 @@ def dialog_keyboard(
     minute_page: int = 0,
     kind: str | None = None,
     selected_date: str | None = None,
+    voice_draft: bool = False,
 ) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = []
     if step == "schedule":
@@ -118,10 +119,14 @@ def dialog_keyboard(
             rows.append(navigation)
     if step == "confirm":
         rows.extend([[button(token, "✅ Saqlash", "save")], [button(token, "⬅️ Orqaga", "back")]])
+        if voice_draft:
+            rows.insert(1, [button(token, "✏️ Tahrirlash", "edit")])
     elif step == "weekday":
         rows.append([button(token, "⬅️ Orqaga", "back"), button(token, "Oldinga ➡️", "done")])
     else:
         rows.append([button(token, "⬅️ Orqaga", "back")])
+    if voice_draft:
+        rows.append([button(token, "❌ Bekor qilish", "cancel")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 

@@ -1,1 +1,1 @@
-"""Test package for cross-suite acceptance helpers."""
+"""Test package and shared fixtures."""

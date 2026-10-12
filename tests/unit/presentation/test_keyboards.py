@@ -30,9 +30,10 @@ def test_main_menu_has_no_notification_toggle() -> None:
         "📍 Hududni o‘zgartirish",
         "🕌 Masjidga moslash",
         "ℹ️ Yordam",
+        "📖 Diniy eslatma",
         "⬅️ Asosiy menyu",
     ]
-    assert [len(row) for row in menu.keyboard] == [2, 2, 1]
+    assert [len(row) for row in menu.keyboard] == [2, 2, 1, 1]
     assert [button.text for button in menu.keyboard[1]] == [
         "🕌 Masjidga moslash",
         "ℹ️ Yordam",
@@ -99,8 +100,10 @@ def test_region_callbacks_use_stable_region_codes() -> None:
     assert callbacks["Andijon tumani"] == "region:andijon"
 
 
-def test_root_menu_selects_two_sections():
+def test_root_menu_selects_four_sections():
     assert [button.text for row in build_main_menu().keyboard for button in row] == [
         "🕌 Namoz vaqti",
         "🔔 Eslatmalar",
+        "💰 Kirim-chiqim",
+        "⚙️ Sozlamalar",
     ]

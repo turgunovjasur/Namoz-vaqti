@@ -202,6 +202,9 @@ cython_debug/
 # .vscode/
 # Temporary file for partial code execution
 tempCodeRunnerFile.py
+data/books/
+tmp/pdfs/
+logs/
 
 # Ruff stuff:
 .ruff_cache/

@@ -1,0 +1,13 @@
+# Only application files belong in the build context; secrets and books stay outside.
+**
+!Dockerfile
+!.dockerignore
+!pyproject.toml
+!README.md
+!alembic.ini
+!alembic/
+!alembic/**
+!src/
+!src/**
+**/__pycache__/
+**/*.pyc

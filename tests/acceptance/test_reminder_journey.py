@@ -530,7 +530,7 @@ async def test_number_delete_uses_displayed_identity_when_schedule_order_changes
 async def test_menu_and_daily_creation_list_with_duplicate_save(journey):
     await journey.text("/start")
     labels = [b.text for row in journey.last.reply_markup.keyboard for b in row]
-    assert labels == ["🕌 Namoz vaqti", "🔔 Eslatmalar"]
+    assert labels == ["🕌 Namoz vaqti", "🔔 Eslatmalar", "💰 Kirim-chiqim", "⚙️ Sozlamalar"]
     await journey.text("🕌 Namoz vaqti")
     labels = [b.text for row in journey.last.reply_markup.keyboard for b in row]
     assert "📅 Bugungi jadval" in labels and "⬅️ Asosiy menyu" in labels
@@ -786,6 +786,8 @@ async def test_list_back_menu_add_save_back_and_home(journey):
     assert [b.text for row in journey.last.reply_markup.keyboard for b in row] == [
         "🕌 Namoz vaqti",
         "🔔 Eslatmalar",
+        "💰 Kirim-chiqim",
+        "⚙️ Sozlamalar",
     ]
 
 

@@ -11,13 +11,27 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, TelegramObject
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from namoz_bot.application.daily_schedule import DailyScheduleSettingsService
+from namoz_bot.application.religious_reminders import (
+    ReligiousIntervalService,
+    ReligiousReminderService,
+)
 from namoz_bot.application.reminders import ReminderService
 from namoz_bot.application.schedules import ScheduleService
 from namoz_bot.application.subscriptions import SubscriptionService
 from namoz_bot.infrastructure.reminders import SqlAlchemyReminderRepository
 from namoz_bot.infrastructure.repositories import SqlAlchemySubscriptionRepository
-from namoz_bot.presentation.handlers import HandlerServices
-from namoz_bot.presentation.keyboards import HELP_LABEL, OFFSETS_LABEL, REGION_LABEL, TODAY_LABEL
+from namoz_bot.presentation.handlers import RELIGIOUS_COOLDOWN_ID, HandlerServices
+from namoz_bot.presentation.keyboards import (
+    DAILY_SCHEDULE_LABEL,
+    HELP_LABEL,
+    OFFSETS_LABEL,
+    REGION_LABEL,
+    RELIGIOUS_INTERVAL_LABEL,
+    RELIGIOUS_REMINDER_LABEL,
+    SETTINGS_LABEL,
+    TODAY_LABEL,
+)
 from namoz_bot.presentation.reminder_panel import discard_panel
 
 logger = logging.getLogger(__name__)
@@ -58,10 +72,16 @@ class ServicesMiddleware(BaseMiddleware):
         schedule_service: ScheduleService,
         *,
         timezone: str,
+        religious_reminders: ReligiousReminderService | None = None,
+        religious_intervals: ReligiousIntervalService | None = None,
+        daily_settings: DailyScheduleSettingsService | None = None,
     ) -> None:
         self._session_factory = session_factory
         self._schedule_service = schedule_service
         self._timezone = ZoneInfo(timezone)
+        self._religious_reminders = religious_reminders
+        self._religious_intervals = religious_intervals
+        self._daily_settings = daily_settings
 
     async def __call__(
         self,
@@ -76,11 +96,28 @@ class ServicesMiddleware(BaseMiddleware):
             and event.text
             and (
                 event.text.startswith("/")
-                or event.text in {TODAY_LABEL, REGION_LABEL, OFFSETS_LABEL, HELP_LABEL}
+                or event.text
+                in {
+                    TODAY_LABEL,
+                    REGION_LABEL,
+                    OFFSETS_LABEL,
+                    HELP_LABEL,
+                    RELIGIOUS_REMINDER_LABEL,
+                    RELIGIOUS_INTERVAL_LABEL,
+                    SETTINGS_LABEL,
+                    DAILY_SCHEDULE_LABEL,
+                }
             )
         ):
+            wait_id = (
+                (await state.get_data()).get(RELIGIOUS_COOLDOWN_ID)
+                if event.text == RELIGIOUS_REMINDER_LABEL
+                else None
+            )
             await discard_panel(event, state)
             await state.clear()
+            if wait_id is not None:
+                await state.update_data({RELIGIOUS_COOLDOWN_ID: wait_id})
             data["raw_state"] = None
         data["reminder_service"] = ReminderService(
             SqlAlchemyReminderRepository(self._session_factory)
@@ -91,5 +128,8 @@ class ServicesMiddleware(BaseMiddleware):
             ),
             schedules=self._schedule_service,
             today=lambda: datetime.now(self._timezone).date(),
+            religious_reminders=self._religious_reminders,
+            religious_intervals=self._religious_intervals,
+            daily_settings=self._daily_settings,
         )
         return await handler(event, data)

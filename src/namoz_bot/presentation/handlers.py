@@ -1,6 +1,7 @@
 """Thin aiogram handlers delegating all business rules to services."""
 
 import asyncio
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
@@ -8,13 +9,25 @@ from typing import Any, cast
 from weakref import WeakValueDictionary
 
 from aiogram import F, Router
+from aiogram.exceptions import TelegramAPIError, TelegramBadRequest
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
+from namoz_bot.application.daily_schedule import DailyScheduleSettingsService
+from namoz_bot.application.religious_reminders import (
+    ReligiousIntervalService,
+    ReligiousReminderService,
+    format_religious_reminder,
+)
 from namoz_bot.application.schedules import ScheduleService, apply_offsets, format_schedule
 from namoz_bot.application.subscriptions import SubscriptionService
-from namoz_bot.domain.errors import ScheduleValidationError, UnsupportedRegionError
+from namoz_bot.domain.errors import (
+    ExternalServiceError,
+    ReligiousReminderCooldownError,
+    ScheduleValidationError,
+    UnsupportedRegionError,
+)
 from namoz_bot.domain.models import (
     PRAYER_KEYS,
     OffsetAction,
@@ -28,6 +41,7 @@ from namoz_bot.presentation.keyboards import (
     OFFSETS_LABEL,
     PRAYER_LABELS,
     REGION_LABEL,
+    RELIGIOUS_REMINDER_LABEL,
     TODAY_LABEL,
     build_main_menu,
     build_offset_adjustment_keyboard,
@@ -39,6 +53,8 @@ from namoz_bot.presentation.keyboards import (
 )
 
 _offset_locks: WeakValueDictionary[int, asyncio.Lock] = WeakValueDictionary()
+logger = logging.getLogger(__name__)
+RELIGIOUS_COOLDOWN_ID = "religious_cooldown_message_id"
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,6 +64,9 @@ class HandlerServices:
     subscriptions: SubscriptionService
     schedules: ScheduleService
     today: Callable[[], date]
+    religious_reminders: ReligiousReminderService | None = None
+    religious_intervals: ReligiousIntervalService | None = None
+    daily_settings: DailyScheduleSettingsService | None = None
 
 
 def _message_identity(message: Any) -> tuple[int, int]:
@@ -85,6 +104,78 @@ async def handle_today(message: Message, handler_services: HandlerServices) -> N
     telegram_user_id, _ = _message_identity(message)
     subscription = await handler_services.subscriptions.get(telegram_user_id)
     await _send_today(message, handler_services, subscription)
+
+
+async def _render_religious_cooldown(message: Message, state: FSMContext, text: str) -> None:
+    """A reply-keyboard-free message can be edited without hiding the menu."""
+    assert message.bot is not None
+    message_id = (await state.get_data()).get(RELIGIOUS_COOLDOWN_ID)
+    if message_id is not None:
+        try:
+            await message.bot.edit_message_text(
+                text, chat_id=message.chat.id, message_id=int(message_id), parse_mode=None
+            )
+            return
+        except TelegramBadRequest as exc:
+            description = exc.message.lower()
+            if "message is not modified" in description:
+                return
+            if not any(
+                reason in description
+                for reason in (
+                    "message to edit not found",
+                    "message can't be edited",
+                    "message_id_invalid",
+                )
+            ):
+                raise
+    sent = await message.answer(text, parse_mode=None)
+    await state.update_data({RELIGIOUS_COOLDOWN_ID: sent.message_id})
+
+
+async def handle_religious_reminder(
+    message: Message, handler_services: HandlerServices, state: FSMContext
+) -> None:
+    provider = handler_services.religious_reminders
+    if provider is None:
+        await message.answer(
+            "Diniy eslatmalar hozircha sozlanmagan. Keyinroq qayta urinib ko‘ring.",
+            reply_markup=build_prayer_menu(),
+        )
+        return
+    telegram_user_id, _ = _message_identity(message)
+    try:
+        provider.check_cooldown(telegram_user_id)
+    except ReligiousReminderCooldownError as exc:
+        await _render_religious_cooldown(message, state, str(exc))
+        return
+    assert message.bot is not None
+    wait_id = (await state.get_data()).get(RELIGIOUS_COOLDOWN_ID)
+    if wait_id is not None:
+        try:
+            await message.bot.delete_message(message.chat.id, int(wait_id))
+        except TelegramAPIError:
+            pass
+        await state.update_data({RELIGIOUS_COOLDOWN_ID: None})
+    pending = await message.answer("📖 Diniy eslatma tayyorlanmoqda…")
+    try:
+        try:
+            reminder = await provider.generate(telegram_user_id)
+            text = format_religious_reminder(reminder)
+        except ReligiousReminderCooldownError as exc:
+            await _render_religious_cooldown(message, state, str(exc))
+            return
+        except ExternalServiceError:
+            text = (
+                "Diniy eslatmani hozir tayyorlab bo‘lmadi. "
+                "Iltimos, birozdan keyin qayta urinib ko‘ring."
+            )
+        await message.answer(text, reply_markup=build_prayer_menu(), parse_mode=None)
+    finally:
+        try:
+            await message.bot.delete_message(message.chat.id, pending.message_id)
+        except TelegramAPIError as exc:
+            logger.info("religious_reminder_cleanup_failed error=%s", type(exc).__name__)
 
 
 async def handle_settings(message: Message, handler_services: HandlerServices) -> None:
@@ -371,6 +462,7 @@ async def handle_help(message: Message) -> None:
         "soat 21:00 da ertangi jadvalni yuboradi.\n\n"
         "📅 Bugungi jadval — bugungi namoz vaqtlarini ko‘rsatadi.\n"
         "📍 Hududni o‘zgartirish — kerakli hududni tanlash uchun.\n"
+        "📖 Diniy eslatma — qisqa islomiy nasihat olish uchun.\n"
         "🕌 Masjidga moslash — bot va masjid vaqti farq qilsa, daqiqa qo‘shish "
         "yoki ayirish uchun.\n\n"
         "Hudud o‘zgartirilganda masjidga moslash sozlamalari 0 ga qaytadi.\n\n"
@@ -395,6 +487,7 @@ def build_prayer_router() -> Router:
     router.message.register(handle_settings, F.text == REGION_LABEL)
     router.message.register(handle_offsets, F.text == OFFSETS_LABEL)
     router.message.register(handle_help, F.text == HELP_LABEL)
+    router.message.register(handle_religious_reminder, F.text == RELIGIOUS_REMINDER_LABEL)
     router.callback_query.register(handle_region_groups, F.data == "region-groups")
     router.callback_query.register(handle_offsets_overview, F.data == "offsets")
     router.callback_query.register(handle_offset_schedule, F.data == "offset-schedule")

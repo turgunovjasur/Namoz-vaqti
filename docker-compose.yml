@@ -32,6 +32,8 @@ services:
   bot:
     build: .
     env_file: .env
+    volumes:
+      - ./data/books:/app/data/books:ro
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-namoz}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@db:5432/${POSTGRES_DB:-namoz}
     depends_on:

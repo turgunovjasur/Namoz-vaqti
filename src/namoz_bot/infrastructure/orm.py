@@ -8,7 +8,9 @@ from sqlalchemy import (
     CheckConstraint,
     Date,
     DateTime,
+    Float,
     ForeignKey,
+    Index,
     Integer,
     SmallInteger,
     String,
@@ -52,6 +54,38 @@ class UserRecord(Base):
     deliveries: Mapped[list["DeliveryRecord"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+
+
+class DailyScheduleRecord(Base):
+    __tablename__ = "daily_schedule_preferences"
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    at: Mapped[str] = mapped_column(String(5))
+    next_due: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+
+class ReligiousIntervalRecord(Base):
+    __tablename__ = "religious_intervals"
+    __table_args__ = (
+        CheckConstraint("interval_hours BETWEEN 0 AND 168", name="ck_religious_interval_range"),
+        CheckConstraint(
+            "interval_hours = CAST(interval_hours AS INTEGER)",
+            name="ck_religious_interval_whole_hours",
+        ),
+        CheckConstraint(
+            "(interval_hours = 0 AND next_due IS NULL) OR "
+            "(interval_hours > 0 AND next_due IS NOT NULL)",
+            name="ck_religious_interval_due",
+        ),
+    )
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    interval_hours: Mapped[float] = mapped_column(Float)
+    next_due: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
 
 
 class DeliveryRecord(Base):
@@ -121,3 +155,27 @@ class ReminderDeliveryRecord(Base):
     scheduled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     status: Mapped[str] = mapped_column(String(20), default="pending")
     error_code: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
+
+class FinanceEntryRecord(Base):
+    __tablename__ = "finance_entries"
+    __table_args__ = (
+        UniqueConstraint("user_id", "source_key", name="uq_finance_source"),
+        CheckConstraint("kind IN ('income', 'expense')", name="ck_finance_kind"),
+        CheckConstraint("amount BETWEEN 1 AND 1000000000000000", name="ck_finance_amount"),
+        Index("ix_finance_owner_period", "user_id", "period"),
+        Index("ix_finance_owner_history", "user_id", "id"),
+        {"sqlite_autoincrement": True},
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    kind: Mapped[str] = mapped_column(String(10))
+    amount: Mapped[int] = mapped_column(BigInteger)
+    category: Mapped[str] = mapped_column(String(32))
+    description: Mapped[str] = mapped_column(String(300))
+    period: Mapped[date] = mapped_column(Date)
+    occurred_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    source_key: Mapped[str] = mapped_column(String(64))
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
