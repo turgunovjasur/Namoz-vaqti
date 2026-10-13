@@ -97,3 +97,27 @@ Bu bosqich native bajariladi; yana umumiy start/permission savoli berilmaydi.
   Single active bot process verified, PID `82075`. No new migration was required.
 - No merge, push, or server deployment performed. Runtime version can be reverted
   through `MAIN_AGENT_VERSION=1` followed by the usual restart.
+
+## Follow-up: independent Nasihat section — 2026-10-13
+
+User requested extracting Nasihat from Prayer into its own fourth business section.
+Implemented in `261995d`, with legacy pending-session compatibility fixed in `5d76f34`.
+The four business sections are Prayer, Nasihat, Reminders and Accounting. Settings
+remains a service menu. Nasihat has a scoped agent, prompt, model override and menu;
+its actions are book-backed `religious_excerpt` and interval `open_settings`.
+Prayer V2 cannot execute either Nasihat action. Book corpus, cooldown, stored
+intervals and broadcast schedule continue through the existing services.
+
+Independent read-only review identified old Prayer/Settings Nasihat drafts failing
+resume after the split. Normalize those drafts at the store-loading boundary while
+preserving operation ID, revision, origin and expiry. Nine upgrade regressions were
+observed failing before the fix and passing afterward, covering resume, followup
+and pending receipt replay. No schema migration or data rewrite was needed.
+
+Final configured isolated PostgreSQL suite: **562 passed, 3 expected SQLite
+migration skips** in 31.55s. Ruff and mypy (61 source files) clean. Live synthetic
+Gemini validated Nasihat excerpt routing, Nasihat interval routing and Prayer
+schedule routing without business database effects. Local test bot was restarted
+gracefully through the existing launcher; at **11:45:15 Asia/Tashkent** startup
+confirmed `version=2 menus=prayer,nasihat,reminder,accounting,settings` and polling
+for `@TestUzNamozTaqvimiBot` (ID `8922089476`). No server deploy, merge or push.
