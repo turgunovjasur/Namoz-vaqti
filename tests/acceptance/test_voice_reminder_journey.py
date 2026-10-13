@@ -73,6 +73,16 @@ class VoiceJourney(Journey):
         context = self.app.dispatcher.fsm.get_context(bot=self.app.bot, chat_id=user, user_id=user)
         return await context.get_data()
 
+    async def approved_voice(self, **kwargs):
+        await self.voice(**kwargs)
+        markup = getattr(self.last, "reply_markup", None)
+        if markup and any(
+            (button.callback_data or "").startswith("vr:")
+            for row in getattr(markup, "inline_keyboard", [])
+            for button in row
+        ):
+            await self.click("✅ Ha", user=kwargs.get("user", 7))
+
 
 @pytest.fixture
 async def voice_journey(tmp_path, request):

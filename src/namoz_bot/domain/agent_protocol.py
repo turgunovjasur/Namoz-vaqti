@@ -293,7 +293,7 @@ class AgentResult(StrictModel):
         return self
 
 
-class AgentSessionState(StrictModel):
+class AgentDraftState(StrictModel):
     operation_id: str = Field(min_length=1, max_length=32)
     origin_source_key: str = Field(min_length=1, max_length=64)
     origin_time: datetime
@@ -308,6 +308,20 @@ class AgentSessionState(StrictModel):
 
     _origin = field_validator("origin_time")(_aware_time)
     _expiry = field_validator("expires_at")(_aware_time)
+
+
+class AgentVoiceReview(StrictModel):
+    decision: AgentDecision
+    context: AgentContext
+    source_key: str = Field(min_length=1, max_length=100)
+    prior: AgentDraftState | None = None
+    expires_at: datetime
+
+    _expiry = field_validator("expires_at")(_aware_time)
+
+
+class AgentSessionState(AgentDraftState):
+    voice_review: AgentVoiceReview | None = None
 
 
 class AgentRevisionConflict(Exception):

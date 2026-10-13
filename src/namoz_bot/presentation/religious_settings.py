@@ -76,7 +76,10 @@ async def show_interval(
 
 
 async def choose_interval(
-    callback: CallbackQuery, handler_services: HandlerServices, state: FSMContext
+    callback: CallbackQuery,
+    handler_services: HandlerServices,
+    state: FSMContext,
+    hybrid_menu: bool = False,
 ) -> None:
     if not isinstance(callback.message, Message) or callback.message.chat.type != "private":
         await callback.answer()
@@ -107,6 +110,15 @@ async def choose_interval(
         return
     await state.clear()
     await state.update_data({INTERVAL_PANEL_ID: callback.message.message_id})
+    if hybrid_menu:
+        panel = await callback.message.answer(
+            interval_text(item),
+            reply_markup=interval_keyboard(),
+            parse_mode=None,
+        )
+        await state.update_data({INTERVAL_PANEL_ID: panel.message_id})
+        await callback.answer("Saqlandi")
+        return
     try:
         await callback.message.edit_text(
             interval_text(item), reply_markup=interval_keyboard(), parse_mode=None

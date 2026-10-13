@@ -1,4 +1,4 @@
-"""Default voice conversation with text replies and explicitly opened hidden menus."""
+"""Visible menus, main-agent voice approvals and fresh text result messages."""
 
 import asyncio
 from datetime import UTC, date, datetime
@@ -13,15 +13,17 @@ from aiogram.types import CallbackQuery, Message
 from pydantic import JsonValue
 
 from namoz_bot.application.main_agent import MainAgent
+from namoz_bot.application.voice_approval import VoiceApproval
 from namoz_bot.application.voice_reminders import MAX_VOICE_BYTES, MAX_VOICE_SECONDS
 from namoz_bot.domain.accounting import format_money
 from namoz_bot.domain.agent_protocol import AgentResult
 from namoz_bot.domain.models import PrayerKey
 from namoz_bot.domain.reminders import ReminderSpec, parse_time
 from namoz_bot.presentation.handlers import HandlerServices, handle_start
-from namoz_bot.presentation.keyboards import HELP_LABEL, PRAYER_LABELS, build_voice_menu
+from namoz_bot.presentation.keyboards import HELP_LABEL, PRAYER_LABELS, build_main_menu
 from namoz_bot.presentation.main_agent import MENU_MODE_KEY, agent_context, legacy_menu_input
 from namoz_bot.presentation.reminder_panel import discard_panel
+from namoz_bot.presentation.voice_approval import approval_buttons, interpretation_text
 
 VOICE_HELP = (
     "Ovozli xabar yuboring — kerakli bo‘limni o‘zim aniqlayman. Javoblar matnda keladi.\n\n"
@@ -36,13 +38,16 @@ VOICE_HELP = (
     "📊 «Shu oy qancha sarfladim?», «Yozuvlar tarixini ko‘rsat»\n"
     "↩️ «Oxirgi yozuvni bekor qil»\n"
     "⚙️ «Kunlik jadval ertalab 7 da kelsin»\n\n"
-    "Tasdiq so‘ralsa «Ha, tasdiqlayman» deng. Vazifa uchun «Davom et» yoki «Bekor qil» deng.\n"
-    "Matnli buyruq ham ishlaydi. Tugma bosish shart emas. Vaqtlar Toshkent vaqti bo‘yicha."
+    "Ovozdan nima tushunganimni ko‘rsataman. "
+    "To‘g‘ri bo‘lsa «✅ Ha», aks holda «❌ Yo‘q»ni bosing.\n"
+    "Menyu va matnli buyruqlar ham ishlaydi. Vaqtlar Toshkent vaqti bo‘yicha."
 )
 
 
 def response_text(output: AgentResult) -> str:
     data = output.data
+    if data.get("voice_review"):
+        return interpretation_text(output)
     if output.status == "needs_input":
         return output.question or "Xabarni aniqlashtiring."
     if output.status == "needs_confirmation":
@@ -127,7 +132,18 @@ def response_text(output: AgentResult) -> str:
 async def send_text(message: Message, state: FSMContext, text: str) -> None:
     await discard_panel(message, state)
     await state.clear()
-    await message.answer(text, reply_markup=build_voice_menu(), parse_mode=None)
+    await state.update_data({MENU_MODE_KEY: True})
+    await message.answer(text, reply_markup=build_main_menu(), parse_mode=None)
+
+
+async def send_output(message: Message, state: FSMContext, output: AgentResult) -> None:
+    if output.status == "needs_confirmation":
+        await send_text(message, state, "Buyruqni tekshiring va tasdiqlang.")
+        await message.answer(
+            response_text(output), reply_markup=approval_buttons(output), parse_mode=None
+        )
+    else:
+        await send_text(message, state, response_text(output))
 
 
 async def help_message(message: Message, state: FSMContext) -> None:
@@ -141,7 +157,7 @@ async def start_conversation(
     await send_text(message, state, VOICE_HELP)
     if await main_agent.has_pending(context.user_id, datetime.now(UTC)):
         output = await main_agent.resume(context=context, request_id=f"start:{message.message_id}")
-        await send_text(message, state, response_text(output))
+        await send_output(message, state, output)
 
 
 async def open_hidden_menu(
@@ -152,7 +168,7 @@ async def open_hidden_menu(
     context = await agent_context(message, handler_services)
     if await main_agent.has_pending(context.user_id, datetime.now(UTC)):
         output = await main_agent.resume(context=context, request_id=f"menu:{message.message_id}")
-        await send_text(message, state, response_text(output))
+        await send_output(message, state, output)
         return
     await handle_start(message, handler_services, state)
     await state.update_data({MENU_MODE_KEY: True})
@@ -197,6 +213,16 @@ async def receive_conversation(
             await help_message(message, state)
             return
     context = await agent_context(message, handler_services)
+    if audio is not None:
+        assert message.voice is not None
+        output = await VoiceApproval(main_agent).preview(
+            context=context,
+            request_id=f"{context.bot_id}:{message.chat.id}:m:{message.message_id}",
+            audio=audio,
+            mime_type=message.voice.mime_type or "audio/ogg",
+        )
+        await send_output(message, state, output)
+        return
     output = await main_agent.respond(
         context=context,
         request_id=f"{context.bot_id}:{message.chat.id}:m:{message.message_id}",
@@ -204,7 +230,55 @@ async def receive_conversation(
         audio=audio,
         mime_type=(message.voice.mime_type or "audio/ogg") if message.voice else "audio/ogg",
     )
-    await send_text(message, state, response_text(output))
+    await send_output(message, state, output)
+
+
+async def approve_callback(
+    callback: CallbackQuery,
+    state: FSMContext,
+    handler_services: HandlerServices,
+    main_agent: MainAgent,
+) -> None:
+    if (
+        not isinstance(callback.message, Message)
+        or callback.message.chat.id != callback.from_user.id
+    ):
+        await callback.answer("Bu tasdiq sizga tegishli emas.", show_alert=True)
+        return
+    parts = (callback.data or "").split(":")
+    if (
+        len(parts) != 4
+        or parts[0] not in {"vr", "ag"}
+        or not parts[2].isdigit()
+        or parts[3] not in {"y", "n"}
+    ):
+        await callback.answer("Bu tasdiq eskirgan.", show_alert=True)
+        return
+    source = callback.message.model_copy(
+        update={"from_user": callback.from_user, "date": datetime.now(UTC)}
+    )
+    context = await agent_context(source, handler_services)
+    request_id = f"{context.bot_id}:{context.chat_id}:c:{callback.id}"
+    if parts[0] == "vr":
+        output = await VoiceApproval(main_agent).decide(
+            context=context,
+            request_id=request_id,
+            operation_id=parts[1],
+            revision=int(parts[2]),
+            accept=parts[3] == "y",
+        )
+    else:
+        method = main_agent.confirm if parts[3] == "y" else main_agent.cancel
+        output = await method(
+            context=context, request_id=request_id, operation_id=parts[1], revision=int(parts[2])
+        )
+    await callback.answer()
+    if output.status != "error":
+        try:
+            await callback.message.edit_reply_markup(reply_markup=None)
+        except TelegramAPIError:
+            pass
+    await send_output(callback.message, state, output)
 
 
 async def retired_callback(callback: CallbackQuery, state: FSMContext) -> None:
@@ -236,6 +310,11 @@ def build_voice_conversation_router(main_agent: MainAgent) -> Router:
     router.message.register(open_hidden_menu, Command("menu"))
     router.message.register(
         receive_conversation, private, F.voice | F.text, ConversationInputFilter()
+    )
+    router.callback_query.register(
+        approve_callback,
+        F.message.chat.type == "private",
+        F.data.startswith("vr:") | F.data.startswith("ag:"),
     )
     router.callback_query.register(
         retired_callback, F.message.chat.type == "private", RetiredCallbackFilter()

@@ -166,6 +166,10 @@ class MainAgent:
             return cached
         await self.store.cleanup(self._now())
         pending = await self.store.get_session(context.user_id, self._now())
+        if pending and pending.voice_review:
+            from namoz_bot.application.voice_approval import VoiceApproval
+
+            return VoiceApproval(self).pending_result(pending, request_id)
         if self.voice_first:
             context = context.model_copy(
                 update={
@@ -261,6 +265,22 @@ class MainAgent:
                 except AgentRevisionConflict:
                     pass
             return self._error(context, request_id, "provider_unavailable")
+        return await self.apply_decision(
+            context=context, request_id=request_id, decision=decision, pending=pending
+        )
+
+    async def apply_decision(
+        self,
+        *,
+        context: AgentContext,
+        request_id: str,
+        decision: AgentDecision,
+        pending: AgentSessionState | None,
+        approval_revision: int | None = None,
+        approve_effect: bool = False,
+        source_key: str | None = None,
+    ) -> AgentResult:
+        """Apply an internally validated decision, including a stored voice approval."""
         if decision.domain == "assistant" and decision.action == "resume":
             return await self.resume(context=context, request_id=request_id)
         if self.voice_first and decision.domain == "assistant" and decision.action == "confirm":
@@ -325,8 +345,9 @@ class MainAgent:
             )
         try:
             request = self._request(
-                context, request_id, decision, None if resolution_read else pending
+                context, source_key or request_id, decision, None if resolution_read else pending
             )
+            request.request_id = request_id
             prepared = await self._adapters.prepare(request)
         except ReligiousReminderCooldownError as exc:
             return result(request, "unsupported", data={"text": str(exc)})
@@ -338,10 +359,18 @@ class MainAgent:
             return prepared
         try:
             async with self.store.transaction(
-                context.user_id, pending.revision if pending else None, now=self._now()
+                context.user_id,
+                approval_revision
+                if approval_revision is not None
+                else (pending.revision if pending else None),
+                now=self._now(),
             ) as transaction:
                 output = prepared
-                if prepared.status in {"needs_input", "needs_confirmation"}:
+                if approve_effect and prepared.status == "needs_confirmation":
+                    confirmed = request.model_copy(update={"parameters": prepared.data["draft"]})
+                    output = await self._adapters.execute(confirmed, transaction)
+                    await transaction.save_session(None)
+                elif prepared.status in {"needs_input", "needs_confirmation"}:
                     state = AgentSessionState(
                         operation_id=request.operation_id,
                         origin_source_key=pending.origin_source_key
@@ -366,9 +395,9 @@ class MainAgent:
                 elif prepared.status == "done":
                     if not prepared.data:
                         output = await self._adapters.execute(request, transaction)
-                    if pending and not resolution_read:
+                    if not resolution_read and (pending or approval_revision is not None):
                         await transaction.save_session(None)
-                    elif pending and resolution_read and pending.choices:
+                    elif pending and resolution_read and (pending.choices or approval_revision):
                         await transaction.save_session(
                             pending.model_copy(
                                 update={
@@ -386,6 +415,12 @@ class MainAgent:
                 ):
                     # A rejected replacement must never leave the previous target confirmed.
                     await transaction.save_session(None)
+                elif approval_revision is not None:
+                    await transaction.save_session(
+                        pending.model_copy(update={"revision": transaction.revision + 1})
+                        if pending
+                        else None
+                    )
                 await transaction.save_receipt(output)
         except AgentRevisionConflict:
             return await self._replay(context, request_id) or self._error(
@@ -409,6 +444,10 @@ class MainAgent:
         request_id: str,
         pending: AgentSessionState,
     ) -> AgentResult:
+        if pending.voice_review:
+            from namoz_bot.application.voice_approval import VoiceApproval
+
+            return VoiceApproval(self).pending_result(pending, request_id)
         if self.voice_first:
             context = context.model_copy(
                 update={

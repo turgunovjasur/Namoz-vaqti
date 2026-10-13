@@ -3,7 +3,13 @@ from datetime import UTC, date, datetime, time, timedelta
 import pytest
 from aiogram.client.session.base import BaseSession
 from aiogram.exceptions import TelegramBadRequest
-from aiogram.methods import AnswerCallbackQuery, DeleteMessage, EditMessageText, SendMessage
+from aiogram.methods import (
+    AnswerCallbackQuery,
+    DeleteMessage,
+    EditMessageReplyMarkup,
+    EditMessageText,
+    SendMessage,
+)
 from aiogram.types import Chat, Message, ReplyKeyboardMarkup, ReplyKeyboardRemove, Update
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
@@ -40,6 +46,11 @@ class LocalSession(BaseSession):
                 self.reply_keyboards.pop(method.chat_id, None)
         if isinstance(method, AnswerCallbackQuery):
             return True
+        if isinstance(method, EditMessageReplyMarkup):
+            message = self.messages[(method.chat_id, method.message_id)]
+            message = message.model_copy(update={"reply_markup": method.reply_markup})
+            self.messages[(method.chat_id, method.message_id)] = message
+            return message
         if isinstance(method, DeleteMessage):
             self.messages.pop((method.chat_id, method.message_id), None)
             return True

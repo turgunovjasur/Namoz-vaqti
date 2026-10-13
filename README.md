@@ -10,9 +10,11 @@ Telegram foydalanuvchilariga yuboradigan asinxron bot.
 Standart oqim: **user → main/router agent → menu agent → xizmat → main agent**.
 To‘rtta asosiy bo‘lim — **Namoz, Nasihat, Eslatma va Kirim-chiqim** — o‘z ko‘rsatma
 hamda vakolatiga ega yordamchi agent orqali ishlaydi. Umumiy sozlamalarni settings
-agenti boshqaradi. Foydalanuvchi faqat asosiy agent bilan gaplashadi; V2 da vizual
-bo‘lim menyulari yoki inline boshqaruvlar yo‘q. Klaviaturada faqat **ℹ️ Yordam** bor.
-Buyruqlar ovoz orqali beriladi, javoblar matnda keladi. Matnli buyruq ham ishlaydi.
+agenti boshqaradi. Ovozli buyruqlarni asosiy agent qabul qiladi. V2 da bo‘lim menyulari
+ham doim mavjud: foydalanuvchi menyu, matn yoki ovozdan foydalanishi mumkin.
+Har bir ovozli xabardan so‘ng bot nima tushunganini ko‘rsatadi va **✅ Ha / ❌ Yo‘q**
+tugmalarini chiqaradi. **Ha** bosilgach ish bajariladi, **Yo‘q** uni bekor qiladi.
+Javoblar matnda, bajarilgan amal natijasi chat oxirida yangi xabar bo‘lib keladi.
 Router faqat yo‘nalish va transkriptni aniqlaydi; tafsilotlarni tanlangan agent
 ajratadi. Boshqa yordamchi agentlar chaqirilmaydi. Yangi matn/ovozli so‘rov odatda
 router va bitta yordamchi uchun **ikki AI chaqiruvi** qiladi; kitobdan nasihat
@@ -26,15 +28,15 @@ Asosiy agent so‘rovni namoz, nasihat, eslatma yoki kirim-chiqim xizmatiga yo�
 Namoz vaqti provider jadvalidan, balans va hisobot
 bazadan olinadi; AI bu raqamlarni hisoblamaydi.
 
-Yetishmayotgan ma’lumot ovozli javob bilan to‘ldiriladi. Eslatma yaratish/o‘chirish va
-moliyaviy yozuvni bekor qilish oldidan bot vazifani ko‘rsatib tasdiq so‘raydi:
-**«Ha, tasdiqlayman»** deng. To‘liq bo‘lmagan qoralama «ha» bilan saqlanmaydi.
-Aniq amalga oshgan kirim/chiqim darhol yoziladi. **«Oxirgi yozuvni bekor qil»** yoki
+Yetishmayotgan ma’lumot ovozli javob bilan to‘ldiriladi va uning talqini ham tugma bilan
+tasdiqlanadi. To‘liq bo‘lmagan buyruq tasdiqlansa, bot kerakli ma’lumotni so‘raydi.
+Ovozdan ajratilgan kirim/chiqim ham tasdiqdan keyin yoziladi. Matnli aniq kirim/chiqim
+avvalgi tartibda saqlanadi. **«Oxirgi yozuvni bekor qil»** yoki
 aniq ID/nomi orqali bekor qilish so‘raladi. Bir nechta mos yozuv bo‘lsa ID aniqlashtiriladi.
 Ro‘yxat/tarix uchun **«Keyingi sahifa»**, yozuv tanlash uchun **«Ikkinchisini o‘chir»**
 deyish mumkin; tanlov oxirgi 30 daqiqadagi ko‘rsatilgan, o‘zingizga tegishli ro‘yxatga bog‘lanadi.
 
-Sozlamalar ham bevosita ovoz bilan saqlanadi:
+Sozlamalar ham ovozli talqinni tasdiqlagandan keyin saqlanadi:
 **«Kunlik jadval ertalab 7 da kelsin»**, **«Nasihat har 6 soatda kelsin»**,
 **«Avtomatik nasihatni o‘chir»**, **«Hududni Samarqand shahriga o‘zgartir»**,
 **«Shom vaqtini 4 daqiqa keyinga sur»**, **«Barcha farqlarni nolga qaytar»**.
@@ -42,7 +44,9 @@ Noaniq vaqt/hudud taxmin qilinmaydi, bot savol beradi. Hudud o‘zgarganda eski
 masjid farqlari nolga qaytadi. Sozlamalar va receipt bitta transactionda saqlanadi.
 Bitta xabarda bir nechta mustaqil vazifa bo‘lsa, avval bittasini alohida ayting.
 Tugallanmagan vazifada boshqa bo‘limga o‘tishdan oldin «Bekor qil» deb yozing.
-«Davom et» va `/start` saqlangan qoralamani qayta ochadi; qoralama oxirgi
+Ovozli tasdiq 15 daqiqa amal qiladi va faqat o‘sha foydalanuvchiga tegishli.
+Yangi ovoz oldingi tasdiqni almashtiradi. Tasdiq bot restartida saqlanadi; tugmani
+takror bosish amalni qaytarmaydi. «Davom et» va `/start` qoralamani qayta ochadi; qoralama oxirgi
 yangilanishdan 24 soat o‘tgach eskiradi. Restart qoralamani yo‘qotmaydi.
 
 Sozlamalar:
@@ -78,7 +82,7 @@ migratsiya kerak emas; V1 migratsiyasi bazada bo‘lishi kerak.
 [request/result protokoli](docs/superpowers/specs/2026-10-13-main-agent-v1-design.md).
 
 Quyidagi vizual boshqaruvlar V1 yoki agent o‘chirilgan legacy rejimga tegishli.
-V2 da `/start` faqat ovozli foydalanish yordamchisini va **ℹ️ Yordam** tugmasini ko‘rsatadi.
+V2 da `/start` ovozli foydalanish yordamchisi va bo‘lim menyularini ko‘rsatadi.
 
 - Legacy `/start` foydalanuvchini **Toshkent** bilan ro‘yxatdan o‘tkazadi va bo‘lim menyularini ochadi.
 - Foydalanuvchi sozlamalarda avval 14 ta geografik guruhdan birini, so‘ng shahar

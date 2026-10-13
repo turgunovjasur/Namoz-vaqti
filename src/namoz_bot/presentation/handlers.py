@@ -313,6 +313,7 @@ async def handle_offset_selection(
 async def handle_offset_change(
     callback: CallbackQuery,
     handler_services: HandlerServices,
+    hybrid_menu: bool = False,
 ) -> None:
     parsed = _parse_offset_change(callback.data)
     if callback.message is None or parsed is None:
@@ -360,6 +361,10 @@ async def handle_offset_change(
             return
         text, keyboard = _build_offset_detail(schedule, subscription, prayer)
         message = cast(Any, callback.message)
+        if hybrid_menu:
+            await message.answer(text, reply_markup=keyboard)
+            await callback.answer()
+            return
         await message.edit_text(
             text,
             reply_markup=keyboard,
@@ -423,6 +428,7 @@ async def handle_region_group_selection(callback: CallbackQuery) -> None:
 async def handle_region_selection(
     callback: CallbackQuery,
     handler_services: HandlerServices,
+    hybrid_menu: bool = False,
 ) -> None:
     if callback.data is None or callback.message is None:
         await callback.answer("So‘rov noto‘g‘ri", show_alert=True)
@@ -451,6 +457,13 @@ async def handle_region_selection(
             region.code,
         )
         message = cast(Any, callback.message)
+        if hybrid_menu:
+            await message.answer(
+                format_schedule(schedule, offsets=subscription.offsets),
+                reply_markup=build_main_menu(),
+            )
+            await callback.answer("Hudud saqlandi")
+            return
         await message.edit_text(
             format_schedule(schedule, offsets=subscription.offsets),
         )

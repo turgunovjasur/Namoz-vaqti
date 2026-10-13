@@ -202,6 +202,7 @@ class GeminiMainAgentClient:
                     "revision",
                     "expires_at",
                     "choices",
+                    "voice_review",
                 },
             )
             if pending

@@ -24,14 +24,16 @@ routes = _routes_fixture
 
 def assert_voice_ui(journey):
     labels = [b.text for row in journey.session.reply_keyboards[7].keyboard for b in row]
-    assert labels == ["ℹ️ Yordam"]
-    assert not any(
-        getattr(getattr(call, "reply_markup", None), "inline_keyboard", None)
-        for call in journey.session.calls
-    )
+    assert labels == [
+        "🕌 Namoz vaqti",
+        "📖 Nasihat",
+        "🔔 Eslatmalar",
+        "💰 Kirim-chiqim",
+        "⚙️ Sozlamalar",
+    ]
 
 
-async def test_start_and_help_expose_only_help_without_agent_calls(conversation, routes):
+async def test_start_and_help_keep_menu_without_agent_calls(conversation, routes):
     assert_voice_ui(conversation)
     await conversation.text("ℹ️ Yordam")
     assert "ovoz" in conversation.last.text.lower()
@@ -44,7 +46,7 @@ async def test_daily_time_saves_directly_from_command(conversation, routes, voic
     routes[0].respond(200, json=route_response("settings", "Kunlik jadval ertalab 7 da kelsin"))
     routes[4].respond(200, json=response("settings", "set_daily", {"time": "07:00"}))
     if voice:
-        await conversation.voice()
+        await conversation.approved_voice()
     else:
         await conversation.text("Kunlik jadval ertalab 7 da kelsin")
     async with async_sessionmaker(conversation.app.db_engine)() as session:
@@ -61,23 +63,22 @@ async def test_voice_time_clarification_survives_old_manual_state(conversation, 
     await state.set_state(DailySettingsStates.custom_time)
     routes[0].respond(200, json=route_response("settings", "Kunlik jadval vaqtini o‘zgartir"))
     routes[4].respond(200, json=response("settings", "set_daily", {}))
-    await conversation.voice()
+    await conversation.approved_voice()
     assert "qaysi vaqtda" in conversation.last.text.lower()
     routes[4].respond(200, json=response("settings", "set_daily", {"time": "07:00"}))
-    await conversation.voice()
+    await conversation.approved_voice()
     assert "07:00" in conversation.last.text and await state.get_state() is None
     assert_voice_ui(conversation)
 
 
-async def test_reminder_confirmed_by_immediate_voice_yes_without_button(conversation, routes):
+async def test_reminder_confirmed_by_button_without_second_execution(conversation, routes):
     routes[0].respond(200, json=route_response("reminder", "Har kuni 9 da kitobni eslat"))
     await conversation.voice()
-    assert not await conversation.rows() and "tasdiq" in conversation.last.text.lower()
+    assert not await conversation.rows()
     assert_voice_ui(conversation)
-    routes[0].respond(200, json=route_response("assistant", "Ha, saqla", control="confirm"))
-    await conversation.voice()
+    await conversation.click("✅ Ha")
     assert len(await conversation.rows()) == 1 and "saqlandi" in conversation.last.text
-    assert [r.call_count for r in routes] == [2, 0, 0, 1, 0]
+    assert [r.call_count for r in routes] == [1, 0, 0, 1, 0]
     assert_voice_ui(conversation)
 
 
@@ -87,7 +88,7 @@ async def test_nasihat_interval_updated_by_voice(conversation, routes, respx_moc
     helper = respx_mock.post(url("nasihat-model")).respond(
         200, json=response("nasihat", "set_interval", {"hours": hours})
     )
-    await conversation.voice()
+    await conversation.approved_voice()
     async with async_sessionmaker(conversation.app.db_engine)() as session:
         item = await session.scalar(select(ReligiousIntervalRecord))
     assert item.interval_hours == hours and helper.call_count == 1
@@ -97,11 +98,11 @@ async def test_nasihat_interval_updated_by_voice(conversation, routes, respx_moc
 async def test_region_and_offsets_updated_by_voice(conversation, routes):
     routes[0].respond(200, json=route_response("prayer", "Hududim Samarqand shahri"))
     routes[2].respond(200, json=response("prayer", "set_region", {"region": "Samarqand shahri"}))
-    await conversation.voice()
+    await conversation.approved_voice()
     routes[2].respond(
         200, json=response("prayer", "set_offset", {"prayer": "shom", "minutes": 4, "mode": "set"})
     )
-    await conversation.voice()
+    await conversation.approved_voice()
     async with async_sessionmaker(conversation.app.db_engine)() as session:
         user = await session.scalar(select(UserRecord))
     assert user.region_code == "Samarqand" and user.shom_offset == 4
@@ -110,21 +111,18 @@ async def test_region_and_offsets_updated_by_voice(conversation, routes):
 
 async def test_delete_and_undo_use_voice_confirmation(conversation, routes):
     routes[0].respond(200, json=route_response("reminder"))
-    await conversation.voice()
-    await conversation.text("Ha, saqla")
+    await conversation.approved_voice()
     target = (await conversation.rows())[0]
     routes[3].respond(200, json=response("reminder", "delete", {"target_id": target.id}))
     await conversation.voice()
     assert "o‘chir" in conversation.last.text.lower() and await conversation.rows()
-    routes[0].respond(200, json=route_response("assistant", "Ha", control="confirm"))
-    await conversation.voice()
+    await conversation.click("✅ Ha")
     assert not await conversation.rows()
     routes[0].respond(200, json=route_response("accounting"))
-    await conversation.voice()
+    await conversation.approved_voice()
     routes[1].respond(200, json=response("accounting", "undo", {}))
     await conversation.voice()
-    routes[0].respond(200, json=route_response("assistant", "Ha", control="confirm"))
-    await conversation.voice()
+    await conversation.click("✅ Ha")
     assert "bekor qilindi" in conversation.last.text
     assert_voice_ui(conversation)
 
@@ -132,9 +130,9 @@ async def test_delete_and_undo_use_voice_confirmation(conversation, routes):
 async def test_voice_provider_failure_preserves_draft_and_help_ui(conversation, routes):
     routes[0].respond(200, json=route_response("settings"))
     routes[4].respond(200, json=response("settings", "set_daily", {}))
-    await conversation.voice()
+    await conversation.approved_voice()
     routes[4].respond(503, json={"error": "private detail"})
-    await conversation.voice()
+    await conversation.approved_voice()
     assert "private" not in conversation.last.text
     await conversation.text("Davom et")
     assert "qaysi vaqtda" in conversation.last.text.lower()
@@ -142,7 +140,7 @@ async def test_voice_provider_failure_preserves_draft_and_help_ui(conversation, 
 
 
 async def test_helpers_receive_text_only_and_no_other_domain_view(conversation, routes):
-    await conversation.voice()
+    await conversation.approved_voice()
     body = json.loads(routes[1].calls.last.request.content)
     assert not any("inlineData" in part for part in body["contents"][0]["parts"])
     assert_voice_ui(conversation)
@@ -162,7 +160,7 @@ async def test_voice_read_operations_do_not_open_visual_menu(
 ):
     routes[0].respond(200, json=route_response(domain))
     routes[route_index].respond(200, json=response(domain, action, parameters))
-    await conversation.voice()
+    await conversation.approved_voice()
     assert expected in conversation.last.text
     assert_voice_ui(conversation)
 
@@ -183,7 +181,7 @@ async def test_voice_nasihat_returns_book_source(conversation, routes, respx_moc
             ]
         },
     )
-    await conversation.voice()
+    await conversation.approved_voice()
     assert "Yaxshilik qiling" in conversation.last.text and "Sinov kitobi" in conversation.last.text
     assert_voice_ui(conversation)
 
@@ -207,8 +205,7 @@ async def test_replayed_finance_receipt_shows_current_cancelled_state(conversati
     )
     await conversation.app.dispatcher.feed_update(conversation.app.bot, update)
     routes[1].respond(200, json=response("accounting", "undo", {}))
-    await conversation.voice()
-    await conversation.text("Ha, saqla")
+    await conversation.approved_voice()
     await conversation.app.dispatcher.feed_update(conversation.app.bot, update)
     assert "bekor qilingan" in conversation.last.text
     assert_voice_ui(conversation)

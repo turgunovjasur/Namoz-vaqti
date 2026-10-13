@@ -13,13 +13,16 @@ logger = logging.getLogger(__name__)
 PANEL_ID = "reminder_panel_id"
 MAIN_ID = "main_menu_message_id"
 KEEP_MAIN_MENU = "reminder_keep_main_menu"
+APPEND_RESULTS = "append_results"
 
 
 async def reset_draft(state: FSMContext) -> None:
     """Forget dialog fields while retaining the reusable UI message."""
     data = await state.get_data()
     retained = {
-        key: data[key] for key in (PANEL_ID, MAIN_ID, KEEP_MAIN_MENU) if data.get(key) is not None
+        key: data[key]
+        for key in (PANEL_ID, MAIN_ID, KEEP_MAIN_MENU, APPEND_RESULTS)
+        if data.get(key) is not None
     }
     await state.clear()
     await state.set_data(retained)
@@ -44,6 +47,18 @@ async def discard_panel(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
     for key in (PANEL_ID, MAIN_ID):
         if data.get(key) is not None:
+            if data.get(APPEND_RESULTS):
+                if key == PANEL_ID:
+                    assert message.bot is not None
+                    try:
+                        await message.bot.edit_message_reply_markup(
+                            chat_id=message.chat.id,
+                            message_id=int(data[key]),
+                            reply_markup=None,
+                        )
+                    except TelegramAPIError:
+                        pass
+                continue
             await _delete(message, int(data[key]))
 
 
@@ -59,6 +74,8 @@ async def render_panel(
     state: FSMContext,
     text: str | Text,
     markup: InlineKeyboardMarkup | None = None,
+    *,
+    append_result: bool = False,
 ) -> None:
     assert message.bot is not None
     rendered, entities = text.render() if isinstance(text, Text) else (text, [])
@@ -73,7 +90,7 @@ async def render_panel(
         await _delete(message, int(data[MAIN_ID]))
         await state.update_data({MAIN_ID: None})
     panel_id = data.get(PANEL_ID)
-    if panel_id is not None:
+    if panel_id is not None and not (append_result and data.get(APPEND_RESULTS)):
         try:
             await message.bot.edit_message_text(
                 rendered,

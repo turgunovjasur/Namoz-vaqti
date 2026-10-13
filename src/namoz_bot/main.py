@@ -215,8 +215,11 @@ def create_application(settings: Settings) -> ApplicationResources:
             voice_first=settings.main_agent_version == 2,
         )
         logger.info(
-            "main_agent_configured version=%d voice_first=%s menus=%s",
+            "main_agent_configured version=%d voice_first=%s voice_approval=%s "
+            "persistent_menu=%s menus=%s",
             settings.main_agent_version,
+            main_agent.voice_first,
+            main_agent.voice_first,
             main_agent.voice_first,
             ",".join(menu_agents),
         )

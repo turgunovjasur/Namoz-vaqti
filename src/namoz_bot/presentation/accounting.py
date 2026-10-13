@@ -162,7 +162,9 @@ async def _show_history(
     if navigation:
         rows.append(navigation)
     rows.extend(_keyboard(telegram_id).inline_keyboard)
-    await render_panel(message, state, text, InlineKeyboardMarkup(inline_keyboard=rows))
+    await render_panel(
+        message, state, text, InlineKeyboardMarkup(inline_keyboard=rows), append_result=True
+    )
 
 
 async def receive_accounting(
@@ -264,7 +266,7 @@ async def receive_accounting(
     except ValueError as exc:
         await render_panel(message, state, str(exc), _keyboard(telegram_id))
         return
-    await render_panel(message, state, text, _keyboard(telegram_id, entry))
+    await render_panel(message, state, text, _keyboard(telegram_id, entry), append_result=True)
 
 
 async def accounting_callback(
@@ -303,7 +305,9 @@ async def accounting_callback(
             )
             text += f"\n\nJoriy balans: {format_money(await ledger_service.balance(owner))}"
             if active:
-                await render_panel(message, state, text, _keyboard(callback.from_user.id))
+                await render_panel(
+                    message, state, text, _keyboard(callback.from_user.id), append_result=True
+                )
             else:
                 await message.answer(text, parse_mode=None)
         elif action == "home":
@@ -320,7 +324,9 @@ async def accounting_callback(
                 text = f"💳 Joriy balans: {format_money(await ledger_service.balance(owner))}"
             else:
                 raise ValueError("Amal noto‘g‘ri.")
-            await render_panel(message, state, text, _keyboard(callback.from_user.id))
+            await render_panel(
+                message, state, text, _keyboard(callback.from_user.id), append_result=True
+            )
     except (ValueError, OverflowError):
         await callback.answer("Amal yoki yozuv raqami noto‘g‘ri.", show_alert=True)
         return

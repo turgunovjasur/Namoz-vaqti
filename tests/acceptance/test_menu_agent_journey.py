@@ -132,7 +132,7 @@ async def entries(journey):
 @pytest.mark.parametrize("voice", [False, True])
 async def test_v2_calls_only_router_and_selected_finance_agent(menu_journey, routes, voice):
     if voice:
-        await menu_journey.voice()
+        await menu_journey.approved_voice()
     else:
         await menu_journey.text("120 mingga kiyim oldim")
     assert len(await entries(menu_journey)) == 1 and "120 000" in menu_journey.last.text

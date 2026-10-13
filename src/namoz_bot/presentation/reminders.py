@@ -593,6 +593,7 @@ async def _show_list(
             deleting=deleting,
             today=today,
         ),
+        append_result=True,
     )
 
 

@@ -34,7 +34,7 @@ from namoz_bot.presentation.keyboards import (
     TODAY_LABEL,
 )
 from namoz_bot.presentation.main_agent import MENU_MODE_KEY, NAVIGATION, legacy_menu_input
-from namoz_bot.presentation.reminder_panel import discard_panel
+from namoz_bot.presentation.reminder_panel import APPEND_RESULTS, KEEP_MAIN_MENU, discard_panel
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +95,9 @@ class ServicesMiddleware(BaseMiddleware):
         data: dict[str, Any],
     ) -> Any:
         state = data.get("state")
-        menu_mode = bool(
+        hybrid = self._main_agent is not None and self._main_agent.voice_first
+        data["hybrid_menu"] = hybrid
+        menu_mode = hybrid or bool(
             isinstance(state, FSMContext) and (await state.get_data()).get(MENU_MODE_KEY)
         )
         data[MENU_MODE_KEY] = menu_mode
@@ -103,7 +105,7 @@ class ServicesMiddleware(BaseMiddleware):
             (isinstance(event, CallbackQuery) and not (event.data or "").startswith("ag:"))
             or (isinstance(event, Message) and legacy_menu_input(event, data.get("raw_state")))
         )
-        if self._main_agent is not None and (not self._main_agent.voice_first or menu_mode):
+        if self._main_agent is not None and not self._main_agent.voice_first:
             navigation = isinstance(event, Message) and event.text in NAVIGATION
             callback_navigation = (
                 isinstance(event, CallbackQuery)
@@ -179,6 +181,10 @@ class ServicesMiddleware(BaseMiddleware):
             religious_intervals=self._religious_intervals,
             daily_settings=self._daily_settings,
         )
+        if hybrid and isinstance(state, FSMContext):
+            await state.update_data(
+                {MENU_MODE_KEY: True, KEEP_MAIN_MENU: True, APPEND_RESULTS: True}
+            )
         try:
             return await handler(event, data)
         finally:

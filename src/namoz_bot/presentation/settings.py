@@ -67,7 +67,10 @@ async def show_daily(
 
 
 async def choose_daily(
-    callback: CallbackQuery, state: FSMContext, handler_services: HandlerServices
+    callback: CallbackQuery,
+    state: FSMContext,
+    handler_services: HandlerServices,
+    hybrid_menu: bool = False,
 ) -> None:
     if not isinstance(callback.message, Message) or callback.message.chat.type != "private":
         await callback.answer()
@@ -93,6 +96,11 @@ async def choose_daily(
     item = await handler_services.daily_settings.set_time(callback.from_user.id, at)
     await state.clear()
     await state.update_data({DAILY_PANEL_ID: callback.message.message_id})
+    if hybrid_menu:
+        panel = await callback.message.answer(daily_text(item), reply_markup=daily_keyboard())
+        await state.update_data({DAILY_PANEL_ID: panel.message_id})
+        await callback.answer("Saqlandi")
+        return
     try:
         await callback.message.edit_text(daily_text(item), reply_markup=daily_keyboard())
     except TelegramBadRequest as exc:
