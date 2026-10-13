@@ -7,8 +7,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from namoz_bot.config import Settings
+from namoz_bot.domain.agent_protocol import AgentContext, AgentResult, AgentSessionState
 from namoz_bot.domain.reminders import TASHKENT
-from namoz_bot.infrastructure.orm import Base, FinanceEntryRecord
+from namoz_bot.infrastructure.orm import Base, FinanceEntryRecord, UserRecord
 from namoz_bot.main import create_application
 from tests.acceptance.test_main_agent_journey import response
 from tests.acceptance.test_voice_reminder_journey import VoiceJourney
@@ -293,6 +294,94 @@ async def test_prayer_agent_cannot_open_nasihat_interval(menu_journey, routes):
     routes[2].respond(200, json=response("prayer", "open_settings", {"view": "interval"}))
     await menu_journey.text("Nasihat oralig‘ini sozla")
     assert "qayta" in menu_journey.last.text
+
+
+@pytest.mark.parametrize(
+    "old_domain,old_action,parameters,new_action",
+    [
+        ("prayer", "religious_excerpt", {}, "religious_excerpt"),
+        ("settings", "open", {"view": "interval"}, "open_settings"),
+        ("prayer", "open_settings", {"view": "interval"}, "open_settings"),
+    ],
+)
+@pytest.mark.parametrize("path", ["resume", "followup", "receipt_replay"])
+async def test_legacy_nasihat_draft_survives_section_split(
+    menu_journey, routes, respx_mock, old_domain, old_action, parameters, new_action, path
+):
+    main = menu_journey.app.dispatcher["main_agent"]
+    async with async_sessionmaker(menu_journey.app.db_engine)() as session:
+        user_id = await session.scalar(
+            select(UserRecord.id).where(UserRecord.telegram_user_id == 7)
+        )
+    now = datetime.now(UTC)
+    context = AgentContext(
+        bot_id=123456,
+        telegram_user_id=7,
+        chat_id=7,
+        user_id=user_id,
+        message_time=now,
+        region_code="Toshkent",
+    )
+    old = AgentSessionState(
+        domain=old_domain,
+        action=old_action,
+        parameters=parameters,
+        operation_id="legacy-nasihat",
+        origin_source_key="legacy-origin",
+        origin_time=now,
+        missing_fields=["clarification"],
+        question="Qaysi nasihat?",
+        revision=1,
+        expires_at=now + timedelta(hours=24),
+    )
+    receipt = AgentResult(
+        request_id="legacy:pending",
+        operation_id=old.operation_id,
+        domain=old_domain,
+        action=old_action,
+        status="needs_input",
+        missing_fields=old.missing_fields,
+        question=old.question,
+    )
+    async with main.store.transaction(user_id, None, now=now) as transaction:
+        await transaction.save_session(old)
+        await transaction.save_receipt(receipt)
+    loaded = await main.store.get_session(user_id, now)
+    assert (loaded.domain, loaded.action) == ("nasihat", new_action)
+    assert loaded.model_dump(exclude={"domain", "action"}) == old.model_dump(
+        exclude={"domain", "action"}
+    )
+    if path == "resume":
+        output = await main.resume(context=context, request_id="resume:legacy")
+    elif path == "receipt_replay":
+        output = await main.respond(context=context, request_id="legacy:pending", text="unused")
+    else:
+        routes[0].respond(200, json=route_response("nasihat", "Nasihat ber"))
+        helper = respx_mock.post(url("nasihat-model")).respond(
+            200, json=response("nasihat", new_action, parameters)
+        )
+        respx_mock.post(url("book-model")).respond(
+            200,
+            json={
+                "candidates": [
+                    {
+                        "finishReason": "STOP",
+                        "content": {"parts": [{"text": json.dumps({"passage_id": "p1"})}]},
+                    }
+                ]
+            },
+        )
+        output = await main.respond(
+            context=context, request_id="followup:legacy", text="Nasihat ber"
+        )
+        assert output.status == "done"
+        assert await main.store.get_session(user_id, now) is None
+        pending = json.loads(helper.calls.last.request.content)["contents"][0]["parts"][0]["text"]
+        assert json.loads(pending)["pending"]["domain"] == "nasihat"
+    assert output.domain == "nasihat" and output.operation_id == old.operation_id
+    if path != "followup":
+        assert output.status == "needs_input" and output.question == old.question
+        assert output.data["revision"] == 1 and routes[0].call_count == 0
 
 
 async def test_v1_draft_is_resumed_after_switching_to_v2(menu_journey, routes, respx_mock):

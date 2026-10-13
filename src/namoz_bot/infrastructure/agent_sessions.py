@@ -92,7 +92,17 @@ class SqlAlchemyAgentStore:
                     .values(state=None, expires_at=None, revision=row.revision + 1)
                 )
                 return None
-            return AgentSessionState.model_validate_json(json.dumps(row.state))
+            pending = AgentSessionState.model_validate_json(json.dumps(row.state))
+            # Normalize old routing names without changing operation/revision/expiry.
+            # All consumers (resume, followup and receipt replay) use this boundary.
+            if (pending.domain, pending.action) == ("prayer", "religious_excerpt"):
+                return pending.model_copy(update={"domain": "nasihat"})
+            if (pending.domain, pending.action) in {
+                ("prayer", "open_settings"),
+                ("settings", "open"),
+            } and pending.parameters.get("view") == "interval":
+                return pending.model_copy(update={"domain": "nasihat", "action": "open_settings"})
+            return pending
 
     async def get_receipt(
         self,

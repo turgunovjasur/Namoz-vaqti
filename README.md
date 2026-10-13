@@ -119,6 +119,8 @@ Bu versiyada so‘m, bitta umumiy balans va oylik hisobotlar bor.
 **📖 Nasihat** bo‘limida **📖 Diniy eslatma** va **⚙️ Nasihat intervali** bor.
 Nasihat agenti faqat kitobdan nasihat olish va interval sozlamalarini ochishni tanlaydi;
 Namoz agentining V2 vakolatida bu amallar yo‘q. Agent intervalni bevosita yozmaydi.
+Eski Namoz/Sozlamalar nomi bilan saqlangan nasihat qoralamasi o‘qilganda yangi
+Nasihat bo‘limiga moslanadi; operatsiya IDsi, reviziyasi va muddati saqlanadi.
 Kunlik jadval uchun tayyor vaqt tanlanadi yoki **✍️ Boshqa vaqt** orqali `07:30`
 kabi `HH:MM` kiritiladi. Standart vaqt `21:00`; xabar ertangi namoz jadvalini
 ko‘rsatadi. Tanlov va keyingi yuborish vaqti bazada saqlanadi. Scheduler har daqiqada
