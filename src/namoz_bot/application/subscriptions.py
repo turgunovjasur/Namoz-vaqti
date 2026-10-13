@@ -55,3 +55,13 @@ class SubscriptionService:
 
     async def set_active(self, telegram_user_id: int, active: bool) -> UserSubscription:
         return await self._repository.set_active(telegram_user_id, active)
+
+    async def set_offset(
+        self, telegram_user_id: int, prayer: PrayerKey, minutes: int, *, relative: bool = False
+    ) -> UserSubscription:
+        return await self._repository.set_offset(
+            telegram_user_id, prayer, minutes, relative=relative
+        )
+
+    async def reset_offsets(self, telegram_user_id: int) -> UserSubscription:
+        return await self._repository.reset_offsets(telegram_user_id)

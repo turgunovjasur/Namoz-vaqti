@@ -53,8 +53,10 @@ class MainAgent:
         adapters: AgentActionExecutor | None = None,
         now: Callable[[], datetime] | None = None,
         cooldown_seconds: int = 20,
+        voice_first: bool = False,
     ) -> None:
         self.store = store
+        self.voice_first = voice_first
         self._extractor = extractor
         self._adapters = adapters or AgentAdapters()
         self._now = now or (lambda: datetime.now(UTC))

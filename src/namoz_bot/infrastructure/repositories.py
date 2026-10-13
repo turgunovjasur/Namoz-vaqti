@@ -3,7 +3,7 @@
 from datetime import UTC, date, datetime
 from typing import Any
 
-from sqlalchemy import select, update
+from sqlalchemy import literal, select, update
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -18,6 +18,7 @@ from namoz_bot.domain.models import (
     UserSubscription,
 )
 from namoz_bot.infrastructure.orm import DeliveryRecord, UserRecord
+from namoz_bot.infrastructure.session_scope import session_scope
 
 
 def _offset_column_name(prayer: PrayerKey) -> str:
@@ -74,18 +75,24 @@ def _dialect_name(session: AsyncSession) -> str:
 class SqlAlchemySubscriptionRepository:
     """Persist each subscription operation in its own short transaction."""
 
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
+    def __init__(
+        self,
+        session_factory: async_sessionmaker[AsyncSession],
+        *,
+        session: AsyncSession | None = None,
+    ) -> None:
         self._session_factory = session_factory
+        self._session = session
 
     async def get_by_telegram_user_id(self, telegram_user_id: int) -> UserSubscription | None:
-        async with self._session_factory() as session:
+        async with session_scope(self._session_factory, self._session, write=False) as session:
             record = await session.scalar(
                 select(UserRecord).where(UserRecord.telegram_user_id == telegram_user_id)
             )
             return None if record is None else _to_subscription(record)
 
     async def add(self, subscription: UserSubscription) -> UserSubscription:
-        async with self._session_factory.begin() as session:
+        async with session_scope(self._session_factory, self._session, write=True) as session:
             record = UserRecord(
                 telegram_user_id=subscription.telegram_user_id,
                 chat_id=subscription.chat_id,
@@ -103,7 +110,7 @@ class SqlAlchemySubscriptionRepository:
     ) -> tuple[UserSubscription, bool]:
         """Create or reactivate a Telegram user without a uniqueness race."""
 
-        async with self._session_factory.begin() as session:
+        async with session_scope(self._session_factory, self._session, write=True) as session:
             values = {
                 "telegram_user_id": subscription.telegram_user_id,
                 "chat_id": subscription.chat_id,
@@ -152,7 +159,7 @@ class SqlAlchemySubscriptionRepository:
             return _to_subscription(reactivated), False
 
     async def save(self, subscription: UserSubscription) -> UserSubscription:
-        async with self._session_factory.begin() as session:
+        async with session_scope(self._session_factory, self._session, write=True) as session:
             record = await session.scalar(
                 select(UserRecord).where(
                     UserRecord.telegram_user_id == subscription.telegram_user_id
@@ -199,7 +206,7 @@ class SqlAlchemySubscriptionRepository:
             }
         ).returning(UserRecord)
 
-        async with self._session_factory.begin() as session:
+        async with session_scope(self._session_factory, self._session, write=True) as session:
             record = await session.scalar(statement)
             if record is not None:
                 return _to_subscription(record)
@@ -219,7 +226,7 @@ class SqlAlchemySubscriptionRepository:
     ) -> UserSubscription:
         """Atomically replace the region and reset every old-region offset."""
 
-        async with self._session_factory.begin() as session:
+        async with session_scope(self._session_factory, self._session, write=True) as session:
             record = await session.scalar(
                 update(UserRecord)
                 .where(UserRecord.telegram_user_id == telegram_user_id)
@@ -241,6 +248,39 @@ class SqlAlchemySubscriptionRepository:
                 )
             return _to_subscription(record)
 
+    async def set_offset(
+        self, telegram_user_id: int, prayer: PrayerKey, minutes: int, *, relative: bool = False
+    ) -> UserSubscription:
+        if type(minutes) is not int or not -30 <= minutes <= 30:
+            raise ScheduleValidationError("Offset -30..30 oralig‘ida bo‘lsin.")
+        name = _offset_column_name(prayer)
+        column = getattr(UserRecord, name)
+        value = column + minutes if relative else literal(minutes)
+        async with session_scope(self._session_factory, self._session, write=True) as session:
+            row = await session.scalar(
+                update(UserRecord)
+                .where(UserRecord.telegram_user_id == telegram_user_id, value >= -30, value <= 30)
+                .values(**{name: value, "updated_at": datetime.now(UTC)})
+                .returning(UserRecord)
+            )
+            if row is None:
+                raise ScheduleValidationError(
+                    "Offset farqi chegaraga yetgan yoki foydalanuvchi topilmadi."
+                )
+            return _to_subscription(row)
+
+    async def reset_offsets(self, telegram_user_id: int) -> UserSubscription:
+        async with session_scope(self._session_factory, self._session, write=True) as session:
+            row = await session.scalar(
+                update(UserRecord)
+                .where(UserRecord.telegram_user_id == telegram_user_id)
+                .values(**_offset_values(PrayerOffsets()), updated_at=datetime.now(UTC))
+                .returning(UserRecord)
+            )
+            if row is None:
+                raise SubscriptionNotFoundError("Foydalanuvchi topilmadi.")
+            return _to_subscription(row)
+
     async def set_active(
         self,
         telegram_user_id: int,
@@ -248,7 +288,7 @@ class SqlAlchemySubscriptionRepository:
     ) -> UserSubscription:
         """Update notification state without touching region or offsets."""
 
-        async with self._session_factory.begin() as session:
+        async with session_scope(self._session_factory, self._session, write=True) as session:
             record = await session.scalar(
                 update(UserRecord)
                 .where(UserRecord.telegram_user_id == telegram_user_id)
@@ -267,7 +307,7 @@ class SqlAlchemySubscriptionRepository:
         after_id: int,
         limit: int,
     ) -> list[UserSubscription]:
-        async with self._session_factory() as session:
+        async with session_scope(self._session_factory, self._session, write=False) as session:
             records = (
                 await session.scalars(
                     select(UserRecord)

@@ -16,6 +16,7 @@ from namoz_bot.domain.errors import SubscriptionNotFoundError
 from namoz_bot.domain.reminders import parse_time
 from namoz_bot.infrastructure.orm import DailyScheduleRecord, UserRecord
 from namoz_bot.infrastructure.repositories import _to_subscription
+from namoz_bot.infrastructure.session_scope import session_scope
 
 
 def _preference(row: DailyScheduleRecord) -> DailySchedulePreference:
@@ -26,12 +27,15 @@ def _preference(row: DailyScheduleRecord) -> DailySchedulePreference:
 
 
 class SqlAlchemyDailyScheduleRepository:
-    def __init__(self, factory: async_sessionmaker[AsyncSession]) -> None:
+    def __init__(
+        self, factory: async_sessionmaker[AsyncSession], *, session: AsyncSession | None = None
+    ) -> None:
         self._factory = factory
+        self._session = session
 
     async def ensure_defaults(self, at: time, now: datetime) -> None:
         due = next_daily_time(at, now)
-        async with self._factory.begin() as session:
+        async with session_scope(self._factory, self._session, write=True) as session:
             insert = pg_insert if session.get_bind().dialect.name == "postgresql" else sqlite_insert
             missing = select(UserRecord.id, literal(at.strftime("%H:%M")), literal(due)).where(
                 ~exists().where(DailyScheduleRecord.user_id == UserRecord.id)
@@ -43,7 +47,7 @@ class SqlAlchemyDailyScheduleRepository:
             )
 
     async def get(self, telegram_user_id: int) -> DailySchedulePreference:
-        async with self._factory() as session:
+        async with session_scope(self._factory, self._session, write=False) as session:
             row = await session.scalar(
                 select(DailyScheduleRecord)
                 .join(UserRecord)
@@ -57,7 +61,7 @@ class SqlAlchemyDailyScheduleRepository:
         self, telegram_user_id: int, at: time, now: datetime
     ) -> DailySchedulePreference:
         due = next_daily_time(at, now)
-        async with self._factory.begin() as session:
+        async with session_scope(self._factory, self._session, write=True) as session:
             user_id = await session.scalar(
                 select(UserRecord.id).where(UserRecord.telegram_user_id == telegram_user_id)
             )
@@ -75,7 +79,7 @@ class SqlAlchemyDailyScheduleRepository:
             return DailySchedulePreference(user_id, at, due)
 
     async def list_due(self, now: datetime, *, limit: int) -> list[DailyScheduleRecipient]:
-        async with self._factory() as session:
+        async with session_scope(self._factory, self._session, write=False) as session:
             rows = await session.execute(
                 select(DailyScheduleRecord, UserRecord)
                 .join(UserRecord)
@@ -90,7 +94,7 @@ class SqlAlchemyDailyScheduleRepository:
 
     async def claim(self, item: DailyScheduleRecipient, now: datetime) -> bool:
         preference = item.preference
-        async with self._factory.begin() as session:
+        async with session_scope(self._factory, self._session, write=True) as session:
             won = await session.scalar(
                 update(DailyScheduleRecord)
                 .where(

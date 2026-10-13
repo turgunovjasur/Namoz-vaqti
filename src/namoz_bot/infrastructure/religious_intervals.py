@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from namoz_bot.domain.errors import SubscriptionNotFoundError
 from namoz_bot.domain.religious_intervals import ReligiousInterval, next_interval_time
 from namoz_bot.infrastructure.orm import ReligiousIntervalRecord, UserRecord
+from namoz_bot.infrastructure.session_scope import session_scope
 
 
 def _entity(row: ReligiousIntervalRecord, user: UserRecord) -> ReligiousInterval:
@@ -20,12 +21,15 @@ def _entity(row: ReligiousIntervalRecord, user: UserRecord) -> ReligiousInterval
 
 
 class SqlAlchemyReligiousIntervalRepository:
-    def __init__(self, factory: async_sessionmaker[AsyncSession]) -> None:
+    def __init__(
+        self, factory: async_sessionmaker[AsyncSession], *, session: AsyncSession | None = None
+    ) -> None:
         self._factory = factory
+        self._session = session
 
     async def ensure_defaults(self, hours: float, now: datetime) -> None:
         due = next_interval_time(now, hours)
-        async with self._factory.begin() as session:
+        async with session_scope(self._factory, self._session, write=True) as session:
             insert = pg_insert if session.get_bind().dialect.name == "postgresql" else sqlite_insert
             missing = select(UserRecord.id, literal(hours), literal(due)).where(
                 ~exists().where(ReligiousIntervalRecord.user_id == UserRecord.id)
@@ -37,7 +41,7 @@ class SqlAlchemyReligiousIntervalRepository:
             )
 
     async def get(self, telegram_user_id: int) -> ReligiousInterval:
-        async with self._factory() as session:
+        async with session_scope(self._factory, self._session, write=False) as session:
             result = (
                 await session.execute(
                     select(ReligiousIntervalRecord, UserRecord)
@@ -53,7 +57,7 @@ class SqlAlchemyReligiousIntervalRepository:
         self, telegram_user_id: int, hours: float, now: datetime
     ) -> ReligiousInterval:
         due = next_interval_time(now, hours)
-        async with self._factory.begin() as session:
+        async with session_scope(self._factory, self._session, write=True) as session:
             user = await session.scalar(
                 select(UserRecord).where(UserRecord.telegram_user_id == telegram_user_id)
             )
@@ -71,7 +75,7 @@ class SqlAlchemyReligiousIntervalRepository:
             return ReligiousInterval(user.id, user.telegram_user_id, user.chat_id, hours, due)
 
     async def list_due(self, now: datetime, *, limit: int) -> list[ReligiousInterval]:
-        async with self._factory() as session:
+        async with session_scope(self._factory, self._session, write=False) as session:
             rows = await session.execute(
                 select(ReligiousIntervalRecord, UserRecord)
                 .join(UserRecord)
@@ -90,7 +94,7 @@ class SqlAlchemyReligiousIntervalRepository:
             return False
         interval = timedelta(hours=item.interval_hours)
         next_due = item.next_due + ((now - item.next_due) // interval + 1) * interval
-        async with self._factory.begin() as session:
+        async with session_scope(self._factory, self._session, write=True) as session:
             won = await session.scalar(
                 update(ReligiousIntervalRecord)
                 .where(

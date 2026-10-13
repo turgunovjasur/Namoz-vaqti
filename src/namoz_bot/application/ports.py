@@ -93,6 +93,12 @@ class SubscriptionRepository(Protocol):
         active: bool,
     ) -> UserSubscription: ...
 
+    async def set_offset(
+        self, telegram_user_id: int, prayer: PrayerKey, minutes: int, *, relative: bool = False
+    ) -> UserSubscription: ...
+
+    async def reset_offsets(self, telegram_user_id: int) -> UserSubscription: ...
+
     async def list_active_page(
         self,
         *,

@@ -12,11 +12,17 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from namoz_bot.application.accounting import LedgerService
 from namoz_bot.application.agent_sessions import AgentTransaction
+from namoz_bot.application.daily_schedule import DailyScheduleSettingsService
+from namoz_bot.application.religious_reminders import ReligiousIntervalService
 from namoz_bot.application.reminders import ReminderService
+from namoz_bot.application.subscriptions import SubscriptionService
 from namoz_bot.domain.agent_protocol import AgentResult, AgentRevisionConflict, AgentSessionState
 from namoz_bot.infrastructure.accounting import SqlAlchemyLedgerRepository, _entry
+from namoz_bot.infrastructure.daily_schedule import SqlAlchemyDailyScheduleRepository
 from namoz_bot.infrastructure.orm import AgentReceiptRecord, AgentSessionRecord, FinanceEntryRecord
+from namoz_bot.infrastructure.religious_intervals import SqlAlchemyReligiousIntervalRepository
 from namoz_bot.infrastructure.reminders import SqlAlchemyReminderRepository
+from namoz_bot.infrastructure.repositories import SqlAlchemySubscriptionRepository
 
 
 def _aware(value: datetime) -> datetime:
@@ -40,6 +46,15 @@ class SqlAlchemyAgentTransaction:
         self.reminders = ReminderService(
             SqlAlchemyReminderRepository(factory, session=session),
             now=lambda: now,
+        )
+        self.subscriptions = SubscriptionService(
+            SqlAlchemySubscriptionRepository(factory, session=session)
+        )
+        self.daily_settings = DailyScheduleSettingsService(
+            SqlAlchemyDailyScheduleRepository(factory, session=session), clock=lambda: now
+        )
+        self.religious_intervals = ReligiousIntervalService(
+            SqlAlchemyReligiousIntervalRepository(factory, session=session), clock=lambda: now
         )
 
     async def save_session(self, state: AgentSessionState | None) -> None:

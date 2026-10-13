@@ -111,12 +111,41 @@ class NasihatViewParameters(StrictModel):
     view: Literal["interval"] = "interval"
 
 
+class DailyTimeParameters(StrictModel):
+    time: str | None = None
+
+    @field_validator("time")
+    @classmethod
+    def valid_time(cls, value: str | None) -> str | None:
+        if value is not None:
+            parse_time(value)
+        return value
+
+
+class IntervalParameters(StrictModel):
+    hours: int | None = Field(default=None, ge=0, le=168)
+
+
+class RegionParameters(StrictModel):
+    region: str | None = Field(default=None, min_length=1, max_length=100)
+
+
+class OffsetParameters(StrictModel):
+    prayer: PrayerKey | None = None
+    minutes: int | None = Field(default=None, ge=-30, le=30)
+    mode: Literal["set", "add"] = "set"
+
+
 ACTION_MODELS: dict[tuple[str, str], type[StrictModel]] = {
     ("prayer", "schedule"): ScheduleParameters,
     ("prayer", "religious_excerpt"): EmptyParameters,
     ("prayer", "open_settings"): ViewParameters,
+    ("prayer", "set_region"): RegionParameters,
+    ("prayer", "set_offset"): OffsetParameters,
+    ("prayer", "reset_offsets"): EmptyParameters,
     ("nasihat", "religious_excerpt"): EmptyParameters,
     ("nasihat", "open_settings"): NasihatViewParameters,
+    ("nasihat", "set_interval"): IntervalParameters,
     ("reminder", "create"): ReminderParameters,
     ("reminder", "list"): ListParameters,
     ("reminder", "open_delete"): EmptyParameters,
@@ -126,6 +155,7 @@ ACTION_MODELS: dict[tuple[str, str], type[StrictModel]] = {
     ("accounting", "report"): ReportParameters,
     ("accounting", "history"): PageParameters,
     ("settings", "open"): ViewParameters,
+    ("settings", "set_daily"): DailyTimeParameters,
     **{
         ("assistant", action): EmptyParameters for action in ("help", "clarify", "cancel", "resume")
     },

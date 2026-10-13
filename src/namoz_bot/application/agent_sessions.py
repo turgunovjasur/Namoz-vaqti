@@ -5,13 +5,19 @@ from datetime import datetime
 from typing import Protocol
 
 from namoz_bot.application.accounting import LedgerService
+from namoz_bot.application.daily_schedule import DailyScheduleSettingsService
+from namoz_bot.application.religious_reminders import ReligiousIntervalService
 from namoz_bot.application.reminders import ReminderService
+from namoz_bot.application.subscriptions import SubscriptionService
 from namoz_bot.domain.agent_protocol import AgentResult, AgentSessionState
 
 
 class AgentTransaction(Protocol):
     ledger: LedgerService
     reminders: ReminderService
+    subscriptions: SubscriptionService
+    daily_settings: DailyScheduleSettingsService
+    religious_intervals: ReligiousIntervalService
     revision: int
 
     async def save_session(self, state: AgentSessionState | None) -> None: ...
