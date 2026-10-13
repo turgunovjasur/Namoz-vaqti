@@ -58,6 +58,7 @@ class ReportParameters(StrictModel):
 
 class PageParameters(StrictModel):
     page: int = Field(default=0, ge=0, le=100000)
+    page_step: Literal["next", "previous"] | None = None
 
 
 class ReminderParameters(StrictModel):
@@ -136,6 +137,12 @@ class OffsetParameters(StrictModel):
     mode: Literal["set", "add"] = "set"
 
 
+class TargetParameters(StrictModel):
+    target_id: int | None = Field(default=None, gt=0)
+    text: str | None = Field(default=None, min_length=1, max_length=1000)
+    ordinal: int | None = Field(default=None, ge=1, le=100000)
+
+
 ACTION_MODELS: dict[tuple[str, str], type[StrictModel]] = {
     ("prayer", "schedule"): ScheduleParameters,
     ("prayer", "religious_excerpt"): EmptyParameters,
@@ -149,15 +156,18 @@ ACTION_MODELS: dict[tuple[str, str], type[StrictModel]] = {
     ("reminder", "create"): ReminderParameters,
     ("reminder", "list"): ListParameters,
     ("reminder", "open_delete"): EmptyParameters,
+    ("reminder", "delete"): TargetParameters,
     ("accounting", "income"): FinanceParameters,
     ("accounting", "expense"): FinanceParameters,
     ("accounting", "balance"): EmptyParameters,
     ("accounting", "report"): ReportParameters,
     ("accounting", "history"): PageParameters,
+    ("accounting", "undo"): TargetParameters,
     ("settings", "open"): ViewParameters,
     ("settings", "set_daily"): DailyTimeParameters,
     **{
-        ("assistant", action): EmptyParameters for action in ("help", "clarify", "cancel", "resume")
+        ("assistant", action): EmptyParameters
+        for action in ("help", "clarify", "cancel", "resume", "confirm")
     },
 }
 
@@ -191,6 +201,22 @@ class AgentDecision(StrictModel):
         return self
 
 
+class AgentViewState(StrictModel):
+    domain: Literal["reminder", "accounting"]
+    action: Literal["list", "history"]
+    page: int = Field(ge=0, le=100000)
+    today: bool = False
+    ids: list[int] = Field(default_factory=list, max_length=5)
+
+    @model_validator(mode="after")
+    def scoped_view(self) -> "AgentViewState":
+        if (self.domain, self.action) not in {("reminder", "list"), ("accounting", "history")}:
+            raise ValueError("View belongs to another domain")
+        if any(type(value) is not int or value <= 0 for value in self.ids):
+            raise ValueError("Invalid view IDs")
+        return self
+
+
 class AgentContext(StrictModel):
     bot_id: int = Field(gt=0)
     telegram_user_id: int = Field(gt=0)
@@ -199,6 +225,7 @@ class AgentContext(StrictModel):
     message_time: datetime
     timezone: Literal["Asia/Tashkent"] = "Asia/Tashkent"
     language: str = Field(default="uz", max_length=16)
+    last_view: AgentViewState | None = None
     region_code: str
     offsets: PrayerOffsets = Field(default_factory=PrayerOffsets)
 
@@ -289,7 +316,7 @@ def operation_id_for(context: AgentContext, request_id: str) -> str:
 class AgentRoutingDecision(StrictModel):
     domain: Domain
     transcript: str = Field(min_length=1, max_length=2000)
-    control_action: Literal["help", "clarify", "cancel", "resume"] | None = None
+    control_action: Literal["help", "clarify", "cancel", "resume", "confirm"] | None = None
     clarification: str | None = Field(default=None, min_length=1, max_length=300)
     multiple_tasks: bool = False
 

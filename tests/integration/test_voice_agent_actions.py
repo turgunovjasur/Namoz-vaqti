@@ -1,4 +1,3 @@
-
 import pytest
 from pydantic import ValidationError
 
@@ -123,3 +122,144 @@ async def test_preference_write_rolls_back_when_receipt_conflicts(voice_agent, m
     assert result.status == "error"
     assert (await repository.get(7)).at.hour == 21
     assert await voice_agent[2].get_receipt(voice_agent[4].user_id, "one", NOW) is None
+
+
+async def test_immediate_voice_confirmation_creates_once_and_replays(voice_agent):
+    first = await command(
+        voice_agent,
+        "reminder",
+        "create",
+        {"text": "Kitob", "time": "09:00", "kind": "daily"},
+        audio=b"OggS",
+    )
+    assert first.status == "needs_confirmation"
+    assert not (await voice_agent[0]._adapters._reminders.page(voice_agent[4].user_id, 0))[0]
+    saved = await command(
+        voice_agent, "assistant", "confirm", key="yes", audio=b"OggS", text="Ha, saqla"
+    )
+    assert saved.status == "done" and saved.effect == "committed"
+    repeated = await command(voice_agent, "assistant", "confirm", key="yes", audio=b"OggS")
+    assert repeated == saved
+    assert len((await voice_agent[0]._adapters._reminders.page(voice_agent[4].user_id, 0))[0]) == 1
+
+
+async def test_voice_yes_to_partial_draft_does_not_save(voice_agent):
+    await command(voice_agent, "reminder", "create", {"text": "Kitob"}, audio=b"OggS")
+    result = await command(voice_agent, "assistant", "confirm", key="yes", audio=b"OggS")
+    assert result.status == "needs_input" and "time" in result.missing_fields
+    assert not (await voice_agent[0]._adapters._reminders.page(voice_agent[4].user_id, 0))[0]
+
+
+async def test_delete_confirmation_cannot_touch_other_owner(voice_agent):
+    from namoz_bot.domain.reminders import ReminderSpec, parse_time
+
+    reminders = voice_agent[0]._adapters._reminders
+    other = await reminders.create(
+        voice_agent[5], 8, ReminderSpec("Other", parse_time("09:00"), "daily"), "other"
+    )
+    result = await command(voice_agent, "reminder", "delete", {"target_id": other.id})
+    assert result.status == "unsupported"
+    assert await reminders.get(voice_agent[5], other.id) is not None
+    own = await reminders.create(
+        voice_agent[4].user_id, 7, ReminderSpec("Kitob", parse_time("09:00"), "daily"), "own"
+    )
+    draft = await command(voice_agent, "reminder", "delete", {"text": "Kitob"}, key="delete")
+    assert draft.status == "needs_confirmation"
+    assert await reminders.get(voice_agent[4].user_id, own.id)
+    deleted = await command(voice_agent, "assistant", "confirm", key="yes", text="ha")
+    assert (
+        deleted.effect == "committed"
+        and await reminders.get(voice_agent[4].user_id, own.id) is None
+    )
+    assert await reminders.get(voice_agent[5], other.id)
+
+
+async def test_ambiguous_reminder_title_is_not_guessed(voice_agent):
+    from namoz_bot.domain.reminders import ReminderSpec, parse_time
+
+    reminders = voice_agent[0]._adapters._reminders
+    for number in range(2):
+        await reminders.create(
+            voice_agent[4].user_id,
+            7,
+            ReminderSpec("Kitob", parse_time("09:00"), "daily"),
+            f"own:{number}",
+        )
+    result = await command(voice_agent, "reminder", "delete", {"text": "Kitob"})
+    assert result.status == "needs_input" and "raqam" in result.question
+    assert len((await reminders.page(voice_agent[4].user_id, 0))[0]) == 2
+
+
+async def test_last_finance_entry_undo_requires_confirmation_and_is_idempotent(voice_agent):
+    await command(
+        voice_agent,
+        "accounting",
+        "expense",
+        {"amount": 120000, "currency": "UZS", "category": "kiyim", "description": "Kiyim"},
+    )
+    prepared = await command(voice_agent, "accounting", "undo", key="undo")
+    assert prepared.status == "needs_confirmation"
+    ledger = voice_agent[0]._adapters._ledger
+    assert await ledger.balance(voice_agent[4].user_id) == -120000
+    output = await command(voice_agent, "assistant", "confirm", key="yes", text="ha")
+    assert output.effect == "committed" and await ledger.balance(voice_agent[4].user_id) == 0
+    assert await command(voice_agent, "assistant", "confirm", key="yes", text="ha") == output
+
+
+async def test_voice_pagination_and_ordinal_are_bound_to_last_owned_view(voice_agent):
+    from namoz_bot.domain.reminders import ReminderSpec, parse_time
+
+    reminders = voice_agent[0]._adapters._reminders
+    for number in range(5):
+        await reminders.create(
+            voice_agent[4].user_id,
+            7,
+            ReminderSpec(f"Kitob{number}", parse_time("09:00"), "daily"),
+            f"item:{number}",
+        )
+    first = await command(voice_agent, "reminder", "list", key="list")
+    second = await command(voice_agent, "reminder", "list", {"page_step": "next"}, key="next")
+    assert first.data["page"] == 0 and second.data["page"] == 1
+    target = second.data["entries"][0]["id"]
+    prepared = await command(voice_agent, "reminder", "delete", {"ordinal": 1}, key="delete")
+    assert prepared.data["draft"]["target_id"] == target
+
+
+async def test_ordinal_without_recent_view_asks_for_target(voice_agent):
+    result = await command(voice_agent, "reminder", "delete", {"ordinal": 2})
+    assert result.status == "needs_input"
+
+
+async def test_old_view_and_confirmation_expire_without_effect(voice_agent):
+    from datetime import timedelta
+
+    await command(voice_agent, "reminder", "list", key="list")
+    assert (
+        await voice_agent[2].get_last_view(voice_agent[4].user_id, NOW + timedelta(minutes=31))
+        is None
+    )
+    await command(
+        voice_agent,
+        "reminder",
+        "create",
+        {"text": "Kitob", "time": "09:00", "kind": "daily"},
+        key="draft",
+    )
+    voice_agent[0]._now = lambda: NOW + timedelta(hours=25)
+    output = await command(voice_agent, "assistant", "confirm", key="yes", text="ha")
+    assert output.status == "error" and output.effect == "none"
+    assert not (await voice_agent[0]._adapters._reminders.page(voice_agent[4].user_id, 0))[0]
+
+
+async def test_confirming_already_deleted_target_clears_draft(voice_agent):
+    from namoz_bot.domain.reminders import ReminderSpec, parse_time
+
+    service = voice_agent[0]._adapters._reminders
+    target = await service.create(
+        voice_agent[4].user_id, 7, ReminderSpec("Kitob", parse_time("09:00"), "daily"), "original"
+    )
+    await command(voice_agent, "reminder", "delete", {"target_id": target.id})
+    await service.delete(voice_agent[4].user_id, target.id)
+    output = await command(voice_agent, "assistant", "confirm", key="yes", text="ha")
+    assert output.status == "unsupported" and output.effect == "none"
+    assert await voice_agent[2].get_session(voice_agent[4].user_id, NOW) is None

@@ -32,6 +32,29 @@ class SqlAlchemyLedgerRepository:
         self._factory = factory
         self._session = session
 
+    async def find_for_user(self, user_id: int, text: str | None) -> list[LedgerEntry]:
+        query = select(FinanceEntryRecord).where(
+            FinanceEntryRecord.user_id == user_id,
+            FinanceEntryRecord.cancelled_at.is_(None),
+        )
+        if text:
+            query = query.where(FinanceEntryRecord.description.icontains(text, autoescape=True))
+        async with session_scope(self._factory, self._session, write=False) as session:
+            rows = await session.scalars(
+                query.order_by(FinanceEntryRecord.id.desc()).limit(20 if text else 1)
+            )
+            return [_entry(row) for row in rows]
+
+    async def get_for_user(self, user_id: int, entry_id: int) -> LedgerEntry | None:
+        async with session_scope(self._factory, self._session, write=False) as session:
+            row = await session.scalar(
+                select(FinanceEntryRecord).where(
+                    FinanceEntryRecord.user_id == user_id,
+                    FinanceEntryRecord.id == entry_id,
+                )
+            )
+            return _entry(row) if row is not None else None
+
     async def create(self, user_id: int, spec: LedgerSpec, source_key: str) -> LedgerEntry:
         if not source_key or len(source_key) > 64:
             raise ValueError("Yozuv manbasi noto‘g‘ri.")

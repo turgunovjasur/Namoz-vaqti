@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class ReminderRepository(Protocol):
+    async def find_for_user(self, user_id: int, text: str) -> list[Reminder]: ...
     async def create(
         self, user_id: int, chat_id: int, spec: ReminderSpec, token: str, now: datetime
     ) -> Reminder: ...

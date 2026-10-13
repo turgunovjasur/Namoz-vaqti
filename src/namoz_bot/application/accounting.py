@@ -9,6 +9,8 @@ from namoz_bot.domain.errors import ExternalServiceError
 
 
 class LedgerRepository(Protocol):
+    async def find_for_user(self, user_id: int, text: str | None) -> list[LedgerEntry]: ...
+    async def get_for_user(self, user_id: int, entry_id: int) -> LedgerEntry | None: ...
     async def create(self, user_id: int, spec: LedgerSpec, source_key: str) -> LedgerEntry: ...
     async def balance(self, user_id: int) -> int: ...
     async def summary(self, user_id: int, month: date) -> LedgerSummary: ...
@@ -61,3 +63,9 @@ class LedgerService:
 
     async def cancel(self, user_id: int, entry_id: int) -> bool:
         return await self._repository.cancel(user_id, entry_id)
+
+    async def get(self, user_id: int, entry_id: int) -> LedgerEntry | None:
+        return await self._repository.get_for_user(user_id, entry_id)
+
+    async def find(self, user_id: int, text: str | None) -> list[LedgerEntry]:
+        return await self._repository.find_for_user(user_id, text)

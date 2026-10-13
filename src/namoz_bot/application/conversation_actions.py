@@ -9,6 +9,7 @@ from namoz_bot.application.agent_sessions import AgentTransaction
 from namoz_bot.application.religious_reminders import ReligiousReminderService
 from namoz_bot.application.reminders import ReminderService
 from namoz_bot.application.schedules import ScheduleService
+from namoz_bot.domain.accounting import format_money
 from namoz_bot.domain.agent_protocol import AgentRequest, AgentResult
 from namoz_bot.domain.models import PRAYER_KEYS, PrayerKey
 from namoz_bot.domain.regions import Region, get_region, list_regions
@@ -45,6 +46,17 @@ class ConversationAdapters(AgentAdapters):
 
     async def prepare(self, request: AgentRequest) -> AgentResult:
         p, action = request.parameters, request.action
+        if action in {"delete", "undo"}:
+            return await self._prepare_target(request)
+        if p.get("page_step"):
+            view = request.context.last_view
+            if view is None or (view.domain, view.action) != (request.domain, request.action):
+                return result(
+                    request,
+                    "needs_input",
+                    missing_fields=["page"],
+                    question="Avval ro‘yxat yoki tarixni so‘rang, yoki sahifa raqamini ayting.",
+                )
         fields = {
             "set_daily": ("time",),
             "set_interval": ("hours",),
@@ -100,9 +112,95 @@ class ConversationAdapters(AgentAdapters):
             )
         return await super().prepare(request)
 
+    async def _prepare_target(self, request: AgentRequest) -> AgentResult:
+        p, user = request.parameters, request.context.user_id
+        target_id = p.get("target_id")
+        if p.get("ordinal") is not None and target_id is None:
+            view = request.context.last_view
+            index = cast(int, p["ordinal"]) - 1
+            if view is None or view.domain != request.domain or index >= len(view.ids):
+                return result(
+                    request,
+                    "needs_input",
+                    missing_fields=["target_id"],
+                    question="Qaysi yozuv? Avval ro‘yxatni so‘rang yoki ID raqamini ayting.",
+                )
+            target_id = view.ids[index]
+        if request.action == "delete":
+            if target_id is not None:
+                reminder = await self._reminders.get(user, cast(int, target_id))
+                candidates = [reminder] if reminder else []
+            elif p.get("text"):
+                candidates = await self._reminders.repository.find_for_user(user, str(p["text"]))
+            else:
+                return result(
+                    request,
+                    "needs_input",
+                    missing_fields=["target_id"],
+                    question="Qaysi eslatmani o‘chiray? Nomi yoki ID raqamini ayting.",
+                )
+            options = [(r.id, r.spec.text) for r in candidates]
+        else:
+            if target_id is not None:
+                entry = await self._ledger.get(user, cast(int, target_id))
+                entries = [entry] if entry and not entry.cancelled else []
+            else:
+                entries = await self._ledger.find(user, str(p["text"]) if p.get("text") else None)
+            options = [(e.id, f"{e.description}: {format_money(e.amount)}") for e in entries]
+        if not options:
+            return result(
+                request,
+                "unsupported",
+                data={"text": "Sizga tegishli yozuv topilmadi yoki allaqachon bekor qilingan."},
+            )
+        if len(options) > 1:
+            choices = "; ".join(f"#{value}: {label}" for value, label in options[:5])
+            return result(
+                request,
+                "needs_input",
+                missing_fields=["target_id"],
+                question=f"Bir nechta yozuv bor. Qaysi ID raqam? {choices}"[:300],
+            )
+        identifier, label = options[0]
+        return result(
+            request,
+            "needs_confirmation",
+            data={
+                "draft": {"target_id": identifier},
+                "summary": f"#{identifier}: {label}",
+            },
+        )
+
     async def execute(self, request: AgentRequest, transaction: AgentTransaction) -> AgentResult:
         p, action = request.parameters, request.action
         telegram = request.context.telegram_user_id
+        if action == "delete":
+            deleted = await transaction.reminders.delete(
+                request.context.user_id, cast(int, p["target_id"])
+            )
+            return result(
+                request,
+                effect="committed" if deleted else "none",
+                data={
+                    "text": "✅ Eslatma o‘chirildi."
+                    if deleted
+                    else "Eslatma allaqachon o‘chirilgan."
+                },
+            )
+        if action == "undo":
+            cancelled = await transaction.ledger.cancel(
+                request.context.user_id, cast(int, p["target_id"])
+            )
+            return result(
+                request,
+                effect="committed" if cancelled else "none",
+                data={
+                    "text": "✅ Yozuv bekor qilindi."
+                    if cancelled
+                    else "Yozuv allaqachon bekor qilingan.",
+                    "balance": await transaction.ledger.balance(request.context.user_id),
+                },
+            )
         if action == "set_daily":
             daily_item = await transaction.daily_settings.set_time(
                 telegram, parse_time(str(p["time"]))

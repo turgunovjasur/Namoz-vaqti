@@ -9,7 +9,7 @@ from namoz_bot.application.daily_schedule import DailyScheduleSettingsService
 from namoz_bot.application.religious_reminders import ReligiousIntervalService
 from namoz_bot.application.reminders import ReminderService
 from namoz_bot.application.subscriptions import SubscriptionService
-from namoz_bot.domain.agent_protocol import AgentResult, AgentSessionState
+from namoz_bot.domain.agent_protocol import AgentResult, AgentSessionState, AgentViewState
 
 
 class AgentTransaction(Protocol):
@@ -25,6 +25,7 @@ class AgentTransaction(Protocol):
 
 
 class AgentStore(Protocol):
+    async def get_last_view(self, user_id: int, now: datetime) -> AgentViewState | None: ...
     async def get_session(self, user_id: int, now: datetime) -> AgentSessionState | None: ...
     async def get_receipt(
         self,

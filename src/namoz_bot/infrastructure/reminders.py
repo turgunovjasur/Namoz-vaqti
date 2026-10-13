@@ -31,6 +31,19 @@ class SqlAlchemyReminderRepository:
         self._factory = factory
         self._session = session
 
+    async def find_for_user(self, user_id: int, text: str) -> list[Reminder]:
+        async with session_scope(self._factory, self._session, write=False) as session:
+            rows = await session.scalars(
+                select(ReminderRecord)
+                .where(
+                    ReminderRecord.user_id == user_id,
+                    ReminderRecord.text.icontains(text, autoescape=True),
+                )
+                .order_by(ReminderRecord.id)
+                .limit(20)
+            )
+            return [_entity(row) for row in rows]
+
     async def create(
         self, user_id: int, chat_id: int, spec: ReminderSpec, token: str, now: datetime
     ) -> Reminder:

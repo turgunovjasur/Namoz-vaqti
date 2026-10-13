@@ -16,7 +16,12 @@ from namoz_bot.application.daily_schedule import DailyScheduleSettingsService
 from namoz_bot.application.religious_reminders import ReligiousIntervalService
 from namoz_bot.application.reminders import ReminderService
 from namoz_bot.application.subscriptions import SubscriptionService
-from namoz_bot.domain.agent_protocol import AgentResult, AgentRevisionConflict, AgentSessionState
+from namoz_bot.domain.agent_protocol import (
+    AgentResult,
+    AgentRevisionConflict,
+    AgentSessionState,
+    AgentViewState,
+)
 from namoz_bot.infrastructure.accounting import SqlAlchemyLedgerRepository, _entry
 from namoz_bot.infrastructure.daily_schedule import SqlAlchemyDailyScheduleRepository
 from namoz_bot.infrastructure.orm import AgentReceiptRecord, AgentSessionRecord, FinanceEntryRecord
@@ -91,6 +96,38 @@ class SqlAlchemyAgentTransaction:
 class SqlAlchemyAgentStore:
     def __init__(self, factory: async_sessionmaker[AsyncSession]) -> None:
         self._factory = factory
+
+    async def get_last_view(self, user_id: int, now: datetime) -> AgentViewState | None:
+        async with self._factory() as session:
+            results = await session.scalars(
+                select(AgentReceiptRecord.result)
+                .where(
+                    AgentReceiptRecord.user_id == user_id,
+                    AgentReceiptRecord.created_at > now - timedelta(minutes=30),
+                )
+                .order_by(AgentReceiptRecord.created_at.desc(), AgentReceiptRecord.id.desc())
+                .limit(20)
+            )
+            for payload in results:
+                if payload.get("status") != "done" or (
+                    payload.get("domain"),
+                    payload.get("action"),
+                ) not in {("reminder", "list"), ("accounting", "history")}:
+                    continue
+                data = AgentResult.model_validate_json(json.dumps(payload)).data
+                entries = data.get("entries", [])
+                if not isinstance(entries, list):
+                    continue
+                return AgentViewState.model_validate(
+                    {
+                        "domain": payload["domain"],
+                        "action": payload["action"],
+                        "page": data.get("page", 0),
+                        "today": data.get("today", False),
+                        "ids": [entry["id"] for entry in entries if isinstance(entry, dict)],
+                    }
+                )
+        return None
 
     async def get_session(self, user_id: int, now: datetime) -> AgentSessionState | None:
         async with self._factory.begin() as session:

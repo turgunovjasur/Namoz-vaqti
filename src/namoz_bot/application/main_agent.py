@@ -5,7 +5,9 @@ import logging
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from time import monotonic
-from typing import Protocol
+from typing import Protocol, cast
+
+from pydantic import JsonValue
 
 from namoz_bot.application.agent_adapters import AgentAdapters, result
 from namoz_bot.application.agent_sessions import AgentStore, AgentTransaction
@@ -22,6 +24,7 @@ from namoz_bot.domain.errors import ExternalServiceError, ReligiousReminderCoold
 from namoz_bot.domain.reminders import TASHKENT
 
 logger = logging.getLogger(__name__)
+CONFIRMED_ACTIONS = {("reminder", "create"), ("reminder", "delete"), ("accounting", "undo")}
 
 
 class AgentExtractor(Protocol):
@@ -81,6 +84,15 @@ class MainAgent:
                 params.pop("date", None)
                 params.pop("weekdays", None)
         params.update(decision.parameters)
+        if "page" in decision.parameters and not decision.parameters.get("page_step"):
+            params.pop("page_step", None)
+        if params.get("page_step") and context.last_view:
+            view = context.last_view
+            if (view.domain, view.action) == (decision.domain, decision.action):
+                direction = 1 if params["page_step"] == "next" else -1
+                params["page"] = max(0, min(100000, view.page + direction))
+                if decision.action == "list":
+                    params["today"] = view.today
         if (
             not pending
             and decision.domain == "accounting"
@@ -139,6 +151,12 @@ class MainAgent:
             return cached
         await self.store.cleanup(self._now())
         pending = await self.store.get_session(context.user_id, self._now())
+        if self.voice_first:
+            context = context.model_copy(
+                update={
+                    "last_view": await self.store.get_last_view(context.user_id, self._now()),
+                }
+            )
         command = (text or "").strip().casefold()
         if command in {"bekor qil", "bekor qilish", "cancel"}:
             if pending:
@@ -152,6 +170,28 @@ class MainAgent:
         if command in {"davom et", "resume"}:
             return await self.resume(context=context, request_id=request_id)
         if (
+            self.voice_first
+            and pending
+            and command
+            in {
+                "ha",
+                "yes",
+                "да",
+                "saqla",
+                "tasdiqlayman",
+                "ha, saqla",
+                "ha saqla",
+            }
+        ):
+            if pending.missing_fields:
+                return await self._pending_result(context, request_id, pending)
+            return await self.confirm(
+                context=context,
+                request_id=request_id,
+                operation_id=pending.operation_id,
+                revision=pending.revision,
+            )
+        if (
             pending
             and pending.domain == "reminder"
             and pending.action == "create"
@@ -159,7 +199,7 @@ class MainAgent:
             and command in {"ha", "yes", "да"}
         ):
             return await self._pending_result(context, request_id, pending)
-        if audio is not None:
+        if audio is not None and not self.voice_first:
             current = monotonic()
             self._voice_until = {
                 u: until for u, until in self._voice_until.items() if until > current
@@ -182,6 +222,17 @@ class MainAgent:
             return self._error(context, request_id, "provider_unavailable")
         if decision.domain == "assistant" and decision.action == "resume":
             return await self.resume(context=context, request_id=request_id)
+        if self.voice_first and decision.domain == "assistant" and decision.action == "confirm":
+            if pending is None:
+                return self._error(context, request_id, "no_active_task")
+            if pending.missing_fields:
+                return await self._pending_result(context, request_id, pending)
+            return await self.confirm(
+                context=context,
+                request_id=request_id,
+                operation_id=pending.operation_id,
+                revision=pending.revision,
+            )
         if decision.domain == "assistant" and decision.action == "cancel" and pending:
             return await self.cancel(
                 context=context,
@@ -241,7 +292,9 @@ class MainAgent:
                         origin_time=pending.origin_time if pending else context.message_time,
                         domain=request.domain,
                         action=request.action,
-                        parameters=request.parameters,
+                        parameters=cast(dict[str, JsonValue], prepared.data["draft"])
+                        if prepared.status == "needs_confirmation"
+                        else request.parameters,
                         missing_fields=prepared.missing_fields,
                         question=prepared.question,
                         revision=transaction.revision + 1,
@@ -259,6 +312,8 @@ class MainAgent:
             return await self._replay(context, request_id) or self._error(
                 context, request_id, "stale_operation"
             )
+        except ValueError:
+            return self._error(context, request_id, "invalid_input")
         logger.info(
             "agent_result request=%s operation=%s domain=%s action=%s status=%s",
             request_id,
@@ -312,8 +367,11 @@ class MainAgent:
         pending = await self.store.get_session(context.user_id, self._now())
         if pending is None or pending.operation_id != operation_id or pending.revision != revision:
             return self._error(context, request_id, "stale_operation")
-        if (pending.domain, pending.action) != ("reminder", "create"):
+        allowed = CONFIRMED_ACTIONS if self.voice_first else {("reminder", "create")}
+        if (pending.domain, pending.action) not in allowed:
             return self._error(context, request_id, "stale_operation")
+        if pending.missing_fields:
+            return await self._pending_result(context, request_id, pending)
         fresh_context = context.model_copy(update={"message_time": self._now()})
         request = self._request(
             fresh_context,
@@ -329,6 +387,15 @@ class MainAgent:
         prepared = await self._adapters.prepare(request)
         if prepared.status != "needs_confirmation":
             prepared.data["revision"] = pending.revision
+            if self.voice_first and prepared.status == "unsupported":
+                try:
+                    async with self.store.transaction(
+                        context.user_id, revision, now=self._now()
+                    ) as transaction:
+                        await transaction.save_session(None)
+                        await transaction.save_receipt(prepared)
+                except AgentRevisionConflict:
+                    return self._error(context, request_id, "stale_operation")
             return prepared
         try:
             async with self.store.transaction(
@@ -342,6 +409,8 @@ class MainAgent:
             return await self._replay(context, request_id) or self._error(
                 context, request_id, "stale_operation"
             )
+        except ValueError:
+            return self._error(context, request_id, "invalid_input")
 
     async def cancel(
         self,
