@@ -1,4 +1,4 @@
-"""One voice-driven conversation with text replies and a Help-only keyboard."""
+"""Default voice conversation with text replies and explicitly opened hidden menus."""
 
 import asyncio
 from datetime import UTC, date, datetime
@@ -7,7 +7,7 @@ from typing import cast
 
 from aiogram import F, Router
 from aiogram.exceptions import TelegramAPIError
-from aiogram.filters import Command, CommandStart
+from aiogram.filters import BaseFilter, Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from pydantic import JsonValue
@@ -18,9 +18,10 @@ from namoz_bot.domain.accounting import format_money
 from namoz_bot.domain.agent_protocol import AgentResult
 from namoz_bot.domain.models import PrayerKey
 from namoz_bot.domain.reminders import ReminderSpec, parse_time
-from namoz_bot.presentation.handlers import HandlerServices
+from namoz_bot.presentation.handlers import HandlerServices, handle_start
 from namoz_bot.presentation.keyboards import HELP_LABEL, PRAYER_LABELS, build_voice_menu
-from namoz_bot.presentation.main_agent import agent_context
+from namoz_bot.presentation.main_agent import MENU_MODE_KEY, agent_context, legacy_menu_input
+from namoz_bot.presentation.reminder_panel import discard_panel
 
 VOICE_HELP = (
     "Ovozli xabar yuboring — kerakli bo‘limni o‘zim aniqlayman. Javoblar matnda keladi.\n\n"
@@ -124,6 +125,7 @@ def response_text(output: AgentResult) -> str:
 
 
 async def send_text(message: Message, state: FSMContext, text: str) -> None:
+    await discard_panel(message, state)
     await state.clear()
     await message.answer(text, reply_markup=build_voice_menu(), parse_mode=None)
 
@@ -142,6 +144,20 @@ async def start_conversation(
         await send_text(message, state, response_text(output))
 
 
+async def open_hidden_menu(
+    message: Message, state: FSMContext, handler_services: HandlerServices, main_agent: MainAgent
+) -> None:
+    if message.chat.type != "private" or message.from_user is None:
+        return
+    context = await agent_context(message, handler_services)
+    if await main_agent.has_pending(context.user_id, datetime.now(UTC)):
+        output = await main_agent.resume(context=context, request_id=f"menu:{message.message_id}")
+        await send_text(message, state, response_text(output))
+        return
+    await handle_start(message, handler_services, state)
+    await state.update_data({MENU_MODE_KEY: True})
+
+
 async def receive_conversation(
     message: Message, state: FSMContext, handler_services: HandlerServices, main_agent: MainAgent
 ) -> None:
@@ -153,6 +169,7 @@ async def receive_conversation(
     ):
         await send_text(message, state, "2 daqiqagacha va 5 MB dan kichik ovoz yuboring.")
         return
+    await discard_panel(message, state)
     await state.clear()
     audio = None
     if message.voice:
@@ -198,12 +215,29 @@ async def retired_callback(callback: CallbackQuery, state: FSMContext) -> None:
         )
 
 
+class ConversationInputFilter(BaseFilter):
+    async def __call__(
+        self, message: Message, raw_state: str | None = None, hidden_menu_mode: bool = False
+    ) -> bool:
+        return not hidden_menu_mode or not legacy_menu_input(message, raw_state)
+
+
+class RetiredCallbackFilter(BaseFilter):
+    async def __call__(self, callback: CallbackQuery, hidden_menu_mode: bool = False) -> bool:
+        return not hidden_menu_mode or bool(callback.data and callback.data.startswith("ag:"))
+
+
 def build_voice_conversation_router(main_agent: MainAgent) -> Router:
     router = Router(name="voice-conversation")
-    router.message.filter(F.chat.type == "private")
-    router.message.register(start_conversation, CommandStart())
-    router.message.register(help_message, Command("help"))
-    router.message.register(help_message, F.text == HELP_LABEL)
-    router.message.register(receive_conversation, F.voice | F.text)
-    router.callback_query.register(retired_callback, F.message.chat.type == "private")
+    private = F.chat.type == "private"
+    router.message.register(start_conversation, CommandStart(), private)
+    router.message.register(help_message, Command("help"), private)
+    router.message.register(help_message, F.text == HELP_LABEL, private)
+    router.message.register(open_hidden_menu, Command("menu"))
+    router.message.register(
+        receive_conversation, private, F.voice | F.text, ConversationInputFilter()
+    )
+    router.callback_query.register(
+        retired_callback, F.message.chat.type == "private", RetiredCallbackFilter()
+    )
     return router

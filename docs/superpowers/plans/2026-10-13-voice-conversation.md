@@ -111,3 +111,18 @@ launcher verified Alembic head and started process `94481`. Startup at 13:25:20 
 `main_agent_configured version=2 voice_first=True menus=prayer,nasihat,reminder,accounting,settings`
 and polling for `@TestUzNamozTaqvimiBot` (bot ID `8922089476`). Process inventory confirmed
 exactly one bot process. No server deployment, push or merge was performed.
+
+## Follow-up: hidden menu entry
+
+The user subsequently requested `/menu` to open the retained visual menus while
+keeping the command out of the visible user interface. The default start/help flow
+still shows only Help and never advertises `/menu`. Explicit use in a private chat
+enables the old sections, manual inputs and callbacks for that chat. Start/help,
+voice input or ordinary conversation text outside a manual step restores the voice
+conversation. Active main-agent drafts must be completed or cancelled before opening
+menus. Groups cannot open the hidden menu. The UI choice is held in existing FSM data
+and survives legacy handlers clearing their own drafts; no schema or dependency change.
+
+Acceptance tests exercise the real dispatcher and SQLite effects: all main sections,
+manual reminder creation, settings callbacks/custom input, exit paths, retired
+callbacks, user isolation, group handling, active main-agent drafts and normal text.

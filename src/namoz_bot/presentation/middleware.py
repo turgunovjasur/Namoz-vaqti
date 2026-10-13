@@ -33,7 +33,7 @@ from namoz_bot.presentation.keyboards import (
     SETTINGS_LABEL,
     TODAY_LABEL,
 )
-from namoz_bot.presentation.main_agent import NAVIGATION
+from namoz_bot.presentation.main_agent import MENU_MODE_KEY, NAVIGATION, legacy_menu_input
 from namoz_bot.presentation.reminder_panel import discard_panel
 
 logger = logging.getLogger(__name__)
@@ -95,7 +95,15 @@ class ServicesMiddleware(BaseMiddleware):
         data: dict[str, Any],
     ) -> Any:
         state = data.get("state")
-        if self._main_agent is not None and not self._main_agent.voice_first:
+        menu_mode = bool(
+            isinstance(state, FSMContext) and (await state.get_data()).get(MENU_MODE_KEY)
+        )
+        data[MENU_MODE_KEY] = menu_mode
+        preserve_menu_mode = menu_mode and (
+            (isinstance(event, CallbackQuery) and not (event.data or "").startswith("ag:"))
+            or (isinstance(event, Message) and legacy_menu_input(event, data.get("raw_state")))
+        )
+        if self._main_agent is not None and (not self._main_agent.voice_first or menu_mode):
             navigation = isinstance(event, Message) and event.text in NAVIGATION
             callback_navigation = (
                 isinstance(event, CallbackQuery)
@@ -171,4 +179,9 @@ class ServicesMiddleware(BaseMiddleware):
             religious_intervals=self._religious_intervals,
             daily_settings=self._daily_settings,
         )
-        return await handler(event, data)
+        try:
+            return await handler(event, data)
+        finally:
+            # Manual handlers clear their drafts independently of the explicit UI choice.
+            if preserve_menu_mode and isinstance(state, FSMContext):
+                await state.update_data({MENU_MODE_KEY: True})

@@ -69,6 +69,20 @@ NAVIGATION = {
     TODAY_LABEL,
     TODAY_REMINDERS_LABEL,
 }
+MENU_MODE_KEY = "hidden_menu_mode"
+
+
+def legacy_menu_input(message: Message, raw_state: str | None) -> bool:
+    """Only menu navigation and active manual steps bypass the conversation."""
+    if message.voice or not message.text or message.text == HELP_LABEL:
+        return False
+    text = message.text
+    command = text.split()[0].split("@")[0] if text.strip() else ""
+    return (
+        text in NAVIGATION
+        or (raw_state is not None and not text.startswith("/"))
+        or command in {"/today", "/settings", "/offsets"}
+    )
 
 
 async def agent_context(message: Message, services: HandlerServices) -> AgentContext:
