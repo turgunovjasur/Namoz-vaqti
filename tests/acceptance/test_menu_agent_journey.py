@@ -45,6 +45,18 @@ def route_response(domain, transcript="120 mingga kiyim oldim", control=None, mu
 
 @pytest.fixture
 async def menu_journey(tmp_path):
+    book = tmp_path / "book.json"
+    book.write_text(
+        json.dumps(
+            {
+                "title": "Sinov kitobi",
+                "author": "Sinov muallifi",
+                "passages": [
+                    {"id": "p1", "text": "Yaxshilik qiling.", "page_start": 1, "page_end": 1}
+                ],
+            }
+        )
+    )
     app = create_application(
         Settings(
             _env_file=None,
@@ -56,9 +68,12 @@ async def menu_journey(tmp_path):
             GEMINI_REMINDER_AGENT_MODEL="reminder-model",
             GEMINI_ACCOUNTING_AGENT_MODEL="finance-model",
             GEMINI_SETTINGS_AGENT_MODEL="settings-model",
+            GEMINI_NASIHAT_AGENT_MODEL="nasihat-model",
+            GEMINI_MODEL="book-model",
+            GEMINI_BUTTON_COOLDOWN_SECONDS=0,
             MAIN_AGENT_VERSION=2,
             VOICE_REMINDER_COOLDOWN_SECONDS=0,
-            GEMINI_BOOK_CORPUS_PATH=None,
+            GEMINI_BOOK_CORPUS_PATH=book,
         )
     )
     async with app.db_engine.begin() as connection:
@@ -226,6 +241,58 @@ async def test_prayer_agent_uses_existing_schedule_service(menu_journey, routes,
     await menu_journey.text("Shom nechida?")
     assert "Shom:" in menu_journey.last.text and "namoz-vaqti.uz" in menu_journey.last.text
     assert [r.call_count for r in routes] == [1, 0, 1, 0, 0]
+
+
+async def test_nasihat_has_own_agent_and_returns_original_book_passage(
+    menu_journey, routes, respx_mock
+):
+    helper = respx_mock.post(url("nasihat-model")).respond(
+        200, json=response("nasihat", "religious_excerpt", {})
+    )
+    book = respx_mock.post(url("book-model")).respond(
+        200,
+        json={
+            "candidates": [
+                {
+                    "finishReason": "STOP",
+                    "content": {"parts": [{"text": json.dumps({"passage_id": "p1"})}]},
+                }
+            ]
+        },
+    )
+    routes[0].respond(200, json=route_response("nasihat", "Nasihat ber"))
+    await menu_journey.text("Nasihat ber")
+    assert "Yaxshilik qiling." in menu_journey.last.text
+    assert "Sinov kitobi" in menu_journey.last.text
+    assert [r.call_count for r in routes] == [1, 0, 0, 0, 0]
+    assert helper.call_count == 1 and book.call_count == 1
+    assert not await entries(menu_journey) and not await menu_journey.rows()
+
+
+@pytest.mark.parametrize("parameters", [{"view": "interval"}, {}])
+async def test_nasihat_agent_opens_interval_settings(menu_journey, routes, respx_mock, parameters):
+    respx_mock.post(url("nasihat-model")).respond(
+        200, json=response("nasihat", "open_settings", parameters)
+    )
+    routes[0].respond(200, json=route_response("nasihat", "Nasihat oralig‘ini sozla"))
+    await menu_journey.text("Nasihat oralig‘ini sozla")
+    assert "Nasihat intervali" in menu_journey.last.text
+    assert [r.call_count for r in routes] == [1, 0, 0, 0, 0]
+
+
+async def test_prayer_agent_cannot_generate_nasihat(menu_journey, routes, respx_mock):
+    book = respx_mock.post(url("book-model")).respond(500)
+    routes[0].respond(200, json=route_response("prayer"))
+    routes[2].respond(200, json=response("prayer", "religious_excerpt", {}))
+    await menu_journey.text("Nasihat ber")
+    assert "qayta" in menu_journey.last.text and book.call_count == 0
+
+
+async def test_prayer_agent_cannot_open_nasihat_interval(menu_journey, routes):
+    routes[0].respond(200, json=route_response("prayer"))
+    routes[2].respond(200, json=response("prayer", "open_settings", {"view": "interval"}))
+    await menu_journey.text("Nasihat oralig‘ini sozla")
+    assert "qayta" in menu_journey.last.text
 
 
 async def test_v1_draft_is_resumed_after_switching_to_v2(menu_journey, routes, respx_mock):

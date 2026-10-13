@@ -8,8 +8,9 @@ Telegram foydalanuvchilariga yuboradigan asinxron bot.
 ### Asosiy agent — V2
 
 Standart oqim: **user → main/router agent → menu agent → xizmat → main agent**.
-Namoz, eslatma, kirim-chiqim va sozlamalar o‘z ko‘rsatma hamda vakolatiga ega
-yordamchi agent orqali ishlaydi. Foydalanuvchi bitta bot bilan gaplashadi.
+To‘rtta asosiy bo‘lim — **Namoz, Nasihat, Eslatma va Kirim-chiqim** — o‘z ko‘rsatma
+hamda vakolatiga ega yordamchi agent orqali ishlaydi. Umumiy sozlamalar xizmat
+menyusi va cheklangan settings agent orqali ochiladi. Foydalanuvchi bitta bot bilan gaplashadi.
 Router faqat yo‘nalish va transkriptni aniqlaydi; tafsilotlarni tanlangan agent
 ajratadi. Boshqa yordamchi agentlar chaqirilmaydi. Yangi matn/ovozli so‘rov odatda
 router va bitta yordamchi uchun **ikki AI chaqiruvi** qiladi; kitobdan nasihat
@@ -18,8 +19,8 @@ yordamchi agent matnni qabul qiladi. V1 dagi saqlangan qoralamalar V2 da davom e
 
 Botga bo‘limni oldindan tanlamasdan matn yoki ovoz yuboring:
 «Bugun shom nechida?», «Ertaga ertalab 9 da uchrashuvni eslat»,
-«120 mingga kiyim oldim», «Shu oy qancha sarfladim?».
-Asosiy agent so‘rovni namoz, eslatma yoki kirim-chiqim xizmatiga yo‘naltiradi.
+«120 mingga kiyim oldim», «Shu oy qancha sarfladim?», «Nasihat ber».
+Asosiy agent so‘rovni namoz, nasihat, eslatma yoki kirim-chiqim xizmatiga yo‘naltiradi.
 Menyu tugmalari ham ishlaydi. Namoz vaqti provider jadvalidan, balans va hisobot
 bazadan olinadi; AI bu raqamlarni hisoblamaydi.
 
@@ -40,6 +41,7 @@ MAIN_AGENT_VERSION=2
 # GEMINI_MAIN_AGENT_MODEL=audio_va_structured_output_qollaydigan_model
 # Yordamchi agent modellari berilmasa yuqoridagi model ishlatiladi:
 # GEMINI_PRAYER_AGENT_MODEL=...
+# GEMINI_NASIHAT_AGENT_MODEL=...
 # GEMINI_REMINDER_AGENT_MODEL=...
 # GEMINI_ACCOUNTING_AGENT_MODEL=...
 # GEMINI_SETTINGS_AGENT_MODEL=...
@@ -113,7 +115,10 @@ Audio chegarasi 2 daqiqa/5 MB. Moliyaviy ovoz, transkript va summalar ilova logi
 yozilmaydi; bazada izoh, summa, kategoriya, sana/oy va bekor qilish holati saqlanadi.
 Bu versiyada so‘m, bitta umumiy balans va oylik hisobotlar bor.
 
-**⚙️ Sozlamalar** bo‘limida **⚙️ Nasihat intervali** va **📅 Kunlik jadval** bor.
+**⚙️ Sozlamalar** xizmat menyusida **📅 Kunlik jadval** bor.
+**📖 Nasihat** bo‘limida **📖 Diniy eslatma** va **⚙️ Nasihat intervali** bor.
+Nasihat agenti faqat kitobdan nasihat olish va interval sozlamalarini ochishni tanlaydi;
+Namoz agentining V2 vakolatida bu amallar yo‘q. Agent intervalni bevosita yozmaydi.
 Kunlik jadval uchun tayyor vaqt tanlanadi yoki **✍️ Boshqa vaqt** orqali `07:30`
 kabi `HH:MM` kiritiladi. Standart vaqt `21:00`; xabar ertangi namoz jadvalini
 ko‘rsatadi. Tanlov va keyingi yuborish vaqti bazada saqlanadi. Scheduler har daqiqada
@@ -122,7 +127,7 @@ yuborishda ertangi jadval bir marta yuboriladi. Bir kun ichida vaqtni yana o‘z
 o‘sha jadvalni takror yubormaydi. Nasihat intervali va jadval vaqti mustaqil sozlanadi.
 
 **🕌 Namoz vaqti** bo‘limida bugungi jadval, hududni o‘zgartirish,
-masjidga moslash, **📖 Diniy eslatma** va yordam bor. **🔔 Eslatmalar** tanlanganda
+masjidga moslash va yordam bor. **🔔 Eslatmalar** tanlanganda
 **📋 Eslatma ro‘yxati** va **📅 Bugungi eslatmalar** menyulari ochiladi.
 Umumiy ro‘yxat ostida **➕ Qo‘shish**, **➖ O‘chirish**, **⬅️ Orqaga** tugmalari bor.
 Bugungi ro‘yxat Toshkent sanasiga mos bir martalik, har kunlik va bugungi hafta
@@ -169,7 +174,7 @@ aniq sozlama xatosi bilan to‘xtaydi. Erkin AI nasihatiga qaytish mavjud emas.
 uchun boshlang‘ich intervalni **soatda** belgilaydi. Standart qiymat `24` — kuniga
 bir marta; `0` boshlang‘ich avtomatik yuborishni o‘chiradi. Bu parametrni o‘zgartirish
 bazada saqlangan shaxsiy tanlovlarni almashtirmaydi.
-Foydalanuvchi `⚙️ Sozlamalar → ⚙️ Nasihat intervali` orqali 1, 2, 4, 6, 12 yoki
+Foydalanuvchi `📖 Nasihat → ⚙️ Nasihat intervali` orqali 1, 2, 4, 6, 12 yoki
 24 soatni tanlaydi, `✍️ Boshqa interval` orqali 1–168 oralig‘ida butun soat yozadi
 yoki avtomatik nasihatni o‘chiradi. Bu namoz xabarlari va qo‘lda `📖 Diniy eslatma`
 olishga ta’sir qilmaydi. Interval joriy soatning `00` daqiqasidan hisoblanadi:

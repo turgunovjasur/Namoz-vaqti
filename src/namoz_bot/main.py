@@ -23,6 +23,7 @@ from namoz_bot.application.menu_agents import (
     AccountingAgent,
     MenuAgent,
     MenuAgentDispatcher,
+    NasihatAgent,
     PrayerAgent,
     ReminderAgent,
     RoutedAgentExtractor,
@@ -61,6 +62,7 @@ from namoz_bot.presentation.accounting import build_accounting_router
 from namoz_bot.presentation.handlers import build_prayer_router
 from namoz_bot.presentation.main_agent import build_main_agent_router
 from namoz_bot.presentation.middleware import ErrorHandlingMiddleware, ServicesMiddleware
+from namoz_bot.presentation.nasihat import build_nasihat_router
 from namoz_bot.presentation.religious_settings import build_religious_settings_router
 from namoz_bot.presentation.reminders import build_reminder_router, build_voice_reminder_router
 from namoz_bot.presentation.settings import build_settings_router
@@ -158,12 +160,14 @@ def create_application(settings: Settings) -> ApplicationResources:
         if settings.main_agent_version == 2:
             models: dict[Domain, str] = {
                 "prayer": settings.gemini_prayer_agent_model or base_model,
+                "nasihat": settings.gemini_nasihat_agent_model or base_model,
                 "reminder": settings.gemini_reminder_agent_model or base_model,
                 "accounting": settings.gemini_accounting_agent_model or base_model,
                 "settings": settings.gemini_settings_agent_model or base_model,
             }
             classes: tuple[type[MenuAgent], ...] = (
                 PrayerAgent,
+                NasihatAgent,
                 ReminderAgent,
                 AccountingAgent,
                 SettingsAgent,
@@ -223,6 +227,7 @@ def create_application(settings: Settings) -> ApplicationResources:
     dispatcher.include_router(build_voice_reminder_router())
     dispatcher.include_router(build_prayer_router())
     dispatcher.include_router(build_settings_router())
+    dispatcher.include_router(build_nasihat_router())
     dispatcher.include_router(build_religious_settings_router())
     dispatcher.include_router(build_reminder_router())
 

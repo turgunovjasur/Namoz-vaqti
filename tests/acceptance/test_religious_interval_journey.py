@@ -20,7 +20,7 @@ async def test_user_changes_interval_custom_value_and_disables_without_disabling
 
     journey = interval_journey
     await journey.text("/start")
-    await journey.text("⚙️ Sozlamalar")
+    await journey.text("📖 Nasihat")
     labels = [button.text for row in journey.session.reply_keyboards[7].keyboard for button in row]
     assert "⚙️ Nasihat intervali" in labels
     await journey.text("⚙️ Nasihat intervali")

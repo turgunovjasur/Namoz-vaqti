@@ -71,6 +71,7 @@ async def test_router_schema_has_no_domain_parameters_and_no_private_pending(res
     "domain,action,expected",
     [
         ("prayer", "schedule", {"date", "prayer", "view"}),
+        ("nasihat", "religious_excerpt", {"view"}),
         ("reminder", "create", {"text", "time", "kind", "date", "weekdays", "today", "page"}),
         (
             "accounting",

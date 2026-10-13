@@ -8,7 +8,6 @@ from uuid import uuid4
 from namoz_bot.application.agent_adapters import AgentAdapters
 from namoz_bot.application.agent_sessions import AgentTransaction
 from namoz_bot.domain.agent_protocol import (
-    ACTION_MODELS,
     AgentContext,
     AgentDecision,
     AgentHandoff,
@@ -18,11 +17,12 @@ from namoz_bot.domain.agent_protocol import (
     AgentRoutingDecision,
     AgentSessionState,
     Domain,
+    menu_actions,
     operation_id_for,
 )
 
 logger = logging.getLogger(__name__)
-MENU_DOMAINS: tuple[Domain, ...] = ("prayer", "reminder", "accounting", "settings")
+MENU_DOMAINS: tuple[Domain, ...] = ("prayer", "nasihat", "reminder", "accounting", "settings")
 
 
 class RoutingAgent(Protocol):
@@ -52,6 +52,8 @@ class MenuAgent:
         if handoff.domain != self.domain:
             raise ValueError("Handoff belongs to another menu agent")
         decision = await self.interpreter.interpret(handoff)
+        if decision.domain == self.domain:
+            self._check_scope(decision)
         return AgentHandoffReply(
             request_id=handoff.request_id,
             operation_id=handoff.operation_id,
@@ -59,9 +61,18 @@ class MenuAgent:
             decision=decision,
         )
 
-    def _check_scope(self, request: AgentRequest) -> None:
-        if request.domain != self.domain or (self.domain, request.action) not in ACTION_MODELS:
+    def _check_scope(self, request: AgentDecision) -> None:
+        if request.domain != self.domain or request.action not in menu_actions(self.domain):
             raise ValueError("Action is outside menu agent capabilities")
+        if request.action in {"open", "open_settings"}:
+            views = {
+                "prayer": {"region", "offsets"},
+                "nasihat": {"interval"},
+                "settings": {"general", "daily", "region", "offsets"},
+            }
+            default = "interval" if self.domain == "nasihat" else "general"
+            if request.parameters.get("view", default) not in views.get(self.domain, set()):
+                raise ValueError("Settings view is outside menu agent capabilities")
 
     async def prepare(self, request: AgentRequest) -> AgentResult:
         self._check_scope(request)
@@ -74,6 +85,10 @@ class MenuAgent:
 
 class PrayerAgent(MenuAgent):
     domain = "prayer"
+
+
+class NasihatAgent(MenuAgent):
+    domain = "nasihat"
 
 
 class ReminderAgent(MenuAgent):

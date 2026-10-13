@@ -199,7 +199,13 @@ async def test_voice_keeps_main_menu_during_preview_edit_and_finish(
     labels = [
         button.text for row in voice_journey.session.reply_keyboards[7].keyboard for button in row
     ]
-    assert labels == ["🕌 Namoz vaqti", "🔔 Eslatmalar", "💰 Kirim-chiqim", "⚙️ Sozlamalar"]
+    assert labels == [
+        "🕌 Namoz vaqti",
+        "📖 Nasihat",
+        "🔔 Eslatmalar",
+        "💰 Kirim-chiqim",
+        "⚙️ Sozlamalar",
+    ]
 
 
 async def test_voice_restores_main_menu_when_reminders_had_hidden_it(voice_journey, voice_route):

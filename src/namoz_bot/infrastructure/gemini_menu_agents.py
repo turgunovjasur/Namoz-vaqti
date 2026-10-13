@@ -18,6 +18,7 @@ from namoz_bot.domain.agent_protocol import (
     AgentRoutingDecision,
     AgentSessionState,
     Domain,
+    menu_actions,
 )
 from namoz_bot.domain.errors import ExternalServiceError
 from namoz_bot.domain.reminders import TASHKENT
@@ -26,9 +27,10 @@ from namoz_bot.infrastructure.gemini_main_agent import RESPONSE_SCHEMA, GeminiMa
 ROUTER_INSTRUCTION = """
 Sen botning MAIN ROUTER agentisan. Faqat kerakli domainni tanla va audio bo‘lsa aniq
 transkript yoz. Matnli inputni o‘zgartirma. O‘zbekcha, ruscha va aralash nutqni tushun.
-domain: prayer=namoz vaqti, diniy nasihat, hudud/masjid moslash;
+domain: prayer=namoz vaqti, hudud/masjid moslash;
+nasihat=kitobdan diniy nasihat olish va avtomatik nasihat intervalini sozlash;
 reminder=eslatma yaratish/ro‘yxat/o‘chirish; accounting=kirim/chiqim/balans/hisobot/tarix;
-settings=umumiy sozlamalar, nasihat intervali, kunlik jadval;
+settings=umumiy sozlamalar, kunlik namoz jadvali;
 assistant=salom/yordam/noaniq/qo‘llanmaydigan so‘rov yoki suhbat boshqaruvi.
 Summa, sana, kategoriya yoki domain action parametersni ajratma; bu mutaxassis vazifasi.
 assistant uchun control_action help/clarify/cancel/resume; boshqalarda null.
@@ -48,7 +50,7 @@ ROUTER_SCHEMA: dict[str, Any] = {
     "properties": {
         "domain": {
             "type": "STRING",
-            "enum": ["prayer", "reminder", "accounting", "settings", "assistant"],
+            "enum": ["prayer", "nasihat", "reminder", "accounting", "settings", "assistant"],
         },
         "transcript": {"type": "STRING"},
         "control_action": {
@@ -82,12 +84,24 @@ Aniq so‘rovda clarification=null,multiple_tasks=false. Faqat JSON, markdown yo
 MENU_INSTRUCTIONS: dict[Domain, str] = {
     "prayer": """
 Sen PRAYER agentisan; domain=prayer.
-Amallar: schedule(date,prayer), religious_excerpt, open_settings(view=region/offsets).
+Amallar: schedule(date,prayer), open_settings(view=region/offsets).
 prayer: bomdod,quyosh,peshin,asr,shom,xufton. Bugun sana current_date, ertaga tomorrow_date.
 Namoz so‘rovida jadval yoki bitta namozni ajrat. Namoz vaqtini o‘zing hisoblama/to‘qima:
-API jadvali va saqlangan offsets xizmatdan olinadi. Diniy nasihat yozma, kitob xizmatini
-religious_excerpt orqali tanla. Hududni yoki masjid vaqtini o‘zgartirish existing settings
+API jadvali va saqlangan offsets xizmatdan olinadi. Nasihat alohida bo‘limga tegishli:
+bu agentda nasihat olish yoki intervalni sozlash amali yo‘q.
+Hududni yoki masjid vaqtini o‘zgartirish existing settings
 oynasini ochadi; o‘zing bazadagi hudud/offsetni o‘zgartirma.
+""",
+    "nasihat": """
+Sen NASIHAT agentisan; domain=nasihat.
+Amallar: religious_excerpt, open_settings(view=interval).
+'Nasihat ber', 'diniy eslatma', 'kitobdan nasihat' uchun religious_excerpt tanla.
+Nasihatni o‘zing yozma, iqtibos yoki manba to‘qima: mavjud kitob xizmati asl parchani
+va manbasini beradi. Bu erkin diniy savol-javob yoki fatvo berish xizmati emas;
+bunday so‘rovlar assistant.clarify orqali cheklov bilan qaytariladi.
+Avtomatik nasihat oralig‘i, yoqish/o‘chirish yoki yuborish sozlamasi so‘ralganda
+open_settings(view=interval) tanla. Intervalni o‘zing bazaga yozma: mavjud sozlash
+oynasini och. Namoz jadvali va shaxsiy eslatmalar boshqa bo‘limlarga tegishli.
 """,
     "reminder": """
 Sen REMINDER agentisan; domain=reminder.
@@ -122,9 +136,10 @@ null: bot xabar sanasini oladi. Followupda oldingi aniq sana/oyni o‘zgartirma.
 """,
     "settings": """
 Sen SETTINGS agentisan; domain=settings, action=open.
-view general=umumiy sozlamalar,interval=nasihat oralig‘i,daily=kunlik jadval yuborish
+view general=umumiy sozlamalar,daily=kunlik namoz jadvalini yuborish
 vaqti,region=hudud tanlash,offsets=masjidga moslash. Faqat mavjud oynani och.
-O‘zing vaqt,interval,hudud yoki offset qiymatlarini bazaga yozma.
+O‘zing vaqt,hudud yoki offset qiymatlarini bazaga yozma.
+Nasihat oralig‘i nasihat bo‘limiga tegishli.
 """,
 }
 
@@ -135,19 +150,23 @@ def menu_schema(domain: Domain) -> dict[str, Any]:
     schema = deepcopy(RESPONSE_SCHEMA)
     fields = {
         field
-        for (owner, _), model in ACTION_MODELS.items()
-        if owner == domain
+        for (owner, action), model in ACTION_MODELS.items()
+        if owner == domain and action in menu_actions(domain)
         for field in model.model_fields
     }
     schema["properties"]["domain"]["enum"] = [domain, "assistant"]
-    schema["properties"]["action"]["enum"] = [
-        action for owner, action in ACTION_MODELS if owner == domain
-    ] + ["clarify"]
+    schema["properties"]["action"]["enum"] = [*menu_actions(domain), "clarify"]
     parameters = schema["properties"]["parameters"]
     parameters["properties"] = {
         name: prop for name, prop in parameters["properties"].items() if name in fields
     }
     parameters["required"] = list(parameters["properties"])
+    if "view" in parameters["properties"]:
+        parameters["properties"]["view"]["enum"] = {
+            "prayer": ["region", "offsets"],
+            "nasihat": ["interval"],
+            "settings": ["general", "daily", "region", "offsets"],
+        }[domain]
     return schema
 
 
@@ -248,5 +267,7 @@ class GeminiMenuAgentClient:
             "assistant",
             "clarify",
         ):
+            raise ExternalServiceError("Yordamchi agent o‘z vakolatidan chiqdi.")
+        if decision.domain == self.domain and decision.action not in menu_actions(self.domain):
             raise ExternalServiceError("Yordamchi agent o‘z vakolatidan chiqdi.")
         return decision

@@ -1,4 +1,4 @@
-"""User-controlled nasihat intervals in the prayer menu."""
+"""User-controlled intervals for the independent nasihat section."""
 
 from zoneinfo import ZoneInfo
 
@@ -12,7 +12,9 @@ from namoz_bot.domain.religious_intervals import ReligiousInterval
 from namoz_bot.presentation.handlers import HandlerServices
 from namoz_bot.presentation.keyboards import (
     DAILY_SCHEDULE_LABEL,
+    NASIHAT_LABEL,
     RELIGIOUS_INTERVAL_LABEL,
+    RELIGIOUS_REMINDER_LABEL,
     SETTINGS_LABEL,
 )
 
@@ -152,6 +154,8 @@ def build_religious_settings_router() -> Router:
                 "🔔 Eslatmalar",
                 SETTINGS_LABEL,
                 DAILY_SCHEDULE_LABEL,
+                NASIHAT_LABEL,
+                RELIGIOUS_REMINDER_LABEL,
             }
         ),
     )

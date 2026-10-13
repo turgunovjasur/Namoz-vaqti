@@ -41,9 +41,9 @@ from namoz_bot.presentation.keyboards import (
     OFFSETS_LABEL,
     PRAYER_LABELS,
     REGION_LABEL,
-    RELIGIOUS_REMINDER_LABEL,
     TODAY_LABEL,
     build_main_menu,
+    build_nasihat_menu,
     build_offset_adjustment_keyboard,
     build_offsets_keyboard,
     build_prayer_menu,
@@ -140,7 +140,7 @@ async def handle_religious_reminder(
     if provider is None:
         await message.answer(
             "Diniy eslatmalar hozircha sozlanmagan. Keyinroq qayta urinib ko‘ring.",
-            reply_markup=build_prayer_menu(),
+            reply_markup=build_nasihat_menu(),
         )
         return
     telegram_user_id, _ = _message_identity(message)
@@ -157,7 +157,9 @@ async def handle_religious_reminder(
         except TelegramAPIError:
             pass
         await state.update_data({RELIGIOUS_COOLDOWN_ID: None})
-    pending = await message.answer("📖 Diniy eslatma tayyorlanmoqda…")
+    pending = await message.answer(
+        "📖 Diniy eslatma tayyorlanmoqda…", reply_markup=build_nasihat_menu()
+    )
     try:
         try:
             reminder = await provider.generate(telegram_user_id)
@@ -170,7 +172,7 @@ async def handle_religious_reminder(
                 "Diniy eslatmani hozir tayyorlab bo‘lmadi. "
                 "Iltimos, birozdan keyin qayta urinib ko‘ring."
             )
-        await message.answer(text, reply_markup=build_prayer_menu(), parse_mode=None)
+        await message.answer(text, reply_markup=build_nasihat_menu(), parse_mode=None)
     finally:
         try:
             await message.bot.delete_message(message.chat.id, pending.message_id)
@@ -462,7 +464,7 @@ async def handle_help(message: Message) -> None:
         "soat 21:00 da ertangi jadvalni yuboradi.\n\n"
         "📅 Bugungi jadval — bugungi namoz vaqtlarini ko‘rsatadi.\n"
         "📍 Hududni o‘zgartirish — kerakli hududni tanlash uchun.\n"
-        "📖 Diniy eslatma — qisqa islomiy nasihat olish uchun.\n"
+        "📖 Nasihat → 📖 Diniy eslatma — kitobdan qisqa islomiy nasihat olish uchun.\n"
         "🕌 Masjidga moslash — bot va masjid vaqti farq qilsa, daqiqa qo‘shish "
         "yoki ayirish uchun.\n\n"
         "Hudud o‘zgartirilganda masjidga moslash sozlamalari 0 ga qaytadi.\n\n"
@@ -487,7 +489,6 @@ def build_prayer_router() -> Router:
     router.message.register(handle_settings, F.text == REGION_LABEL)
     router.message.register(handle_offsets, F.text == OFFSETS_LABEL)
     router.message.register(handle_help, F.text == HELP_LABEL)
-    router.message.register(handle_religious_reminder, F.text == RELIGIOUS_REMINDER_LABEL)
     router.callback_query.register(handle_region_groups, F.data == "region-groups")
     router.callback_query.register(handle_offsets_overview, F.data == "offsets")
     router.callback_query.register(handle_offset_schedule, F.data == "offset-schedule")

@@ -15,6 +15,7 @@ REGION_LABEL = "📍 Hududni o‘zgartirish"
 HELP_LABEL = "ℹ️ Yordam"
 OFFSETS_LABEL = "🕌 Masjidga moslash"
 RELIGIOUS_REMINDER_LABEL = "📖 Diniy eslatma"
+NASIHAT_LABEL = "📖 Nasihat"
 RELIGIOUS_INTERVAL_LABEL = "⚙️ Nasihat intervali"
 SETTINGS_LABEL = "⚙️ Sozlamalar"
 DAILY_SCHEDULE_LABEL = "📅 Kunlik jadval"
@@ -106,13 +107,12 @@ def build_region_group_keyboard() -> InlineKeyboardMarkup:
 
 
 def build_prayer_menu() -> ReplyKeyboardMarkup:
-    """Build the persistent main menu."""
+    """Build the prayer section menu."""
 
     return ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text=TODAY_LABEL), KeyboardButton(text=REGION_LABEL)],
             [KeyboardButton(text=OFFSETS_LABEL), KeyboardButton(text=HELP_LABEL)],
-            [KeyboardButton(text=RELIGIOUS_REMINDER_LABEL)],
             [KeyboardButton(text=HOME_LABEL)],
         ],
         resize_keyboard=True,
@@ -150,8 +150,9 @@ ACCOUNTING_LABEL = "💰 Kirim-chiqim"
 def build_main_menu() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text=PRAYER_MENU_LABEL), KeyboardButton(text=REMINDERS_LABEL)],
-            [KeyboardButton(text=ACCOUNTING_LABEL), KeyboardButton(text=SETTINGS_LABEL)],
+            [KeyboardButton(text=PRAYER_MENU_LABEL), KeyboardButton(text=NASIHAT_LABEL)],
+            [KeyboardButton(text=REMINDERS_LABEL), KeyboardButton(text=ACCOUNTING_LABEL)],
+            [KeyboardButton(text=SETTINGS_LABEL)],
         ],
         resize_keyboard=True,
         is_persistent=True,
@@ -162,10 +163,20 @@ def build_main_menu() -> ReplyKeyboardMarkup:
 def build_settings_menu() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
-            [
-                KeyboardButton(text=RELIGIOUS_INTERVAL_LABEL),
-                KeyboardButton(text=DAILY_SCHEDULE_LABEL),
-            ],
+            [KeyboardButton(text=DAILY_SCHEDULE_LABEL)],
+            [KeyboardButton(text=HOME_LABEL)],
+        ],
+        resize_keyboard=True,
+        is_persistent=True,
+        one_time_keyboard=False,
+    )
+
+
+def build_nasihat_menu() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text=RELIGIOUS_REMINDER_LABEL)],
+            [KeyboardButton(text=RELIGIOUS_INTERVAL_LABEL)],
             [KeyboardButton(text=HOME_LABEL)],
         ],
         resize_keyboard=True,

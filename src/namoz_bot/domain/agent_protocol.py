@@ -11,7 +11,7 @@ from namoz_bot.domain.models import PrayerKey, PrayerOffsets
 from namoz_bot.domain.regions import get_region
 from namoz_bot.domain.reminders import parse_time
 
-Domain = Literal["prayer", "reminder", "accounting", "settings", "assistant"]
+Domain = Literal["prayer", "nasihat", "reminder", "accounting", "settings", "assistant"]
 Status = Literal["done", "needs_input", "needs_confirmation", "unsupported", "error", "cancelled"]
 
 
@@ -107,10 +107,16 @@ class ViewParameters(StrictModel):
     view: Literal["general", "region", "offsets", "interval", "daily"] = "general"
 
 
+class NasihatViewParameters(StrictModel):
+    view: Literal["interval"] = "interval"
+
+
 ACTION_MODELS: dict[tuple[str, str], type[StrictModel]] = {
     ("prayer", "schedule"): ScheduleParameters,
     ("prayer", "religious_excerpt"): EmptyParameters,
     ("prayer", "open_settings"): ViewParameters,
+    ("nasihat", "religious_excerpt"): EmptyParameters,
+    ("nasihat", "open_settings"): NasihatViewParameters,
     ("reminder", "create"): ReminderParameters,
     ("reminder", "list"): ListParameters,
     ("reminder", "open_delete"): EmptyParameters,
@@ -124,6 +130,15 @@ ACTION_MODELS: dict[tuple[str, str], type[StrictModel]] = {
         ("assistant", action): EmptyParameters for action in ("help", "clarify", "cancel", "resume")
     },
 }
+
+
+def menu_actions(domain: Domain) -> tuple[str, ...]:
+    """V2 capabilities exclude the legacy prayer nasihat action kept for V1 records."""
+    return tuple(
+        action
+        for owner, action in ACTION_MODELS
+        if owner == domain and (owner, action) != ("prayer", "religious_excerpt")
+    )
 
 
 class AgentDecision(StrictModel):

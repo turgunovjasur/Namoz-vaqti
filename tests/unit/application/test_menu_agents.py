@@ -6,6 +6,7 @@ from namoz_bot.application.agent_adapters import AgentAdapters
 from namoz_bot.application.menu_agents import (
     AccountingAgent,
     MenuAgentDispatcher,
+    NasihatAgent,
     PrayerAgent,
     ReminderAgent,
     RoutedAgentExtractor,
@@ -55,6 +56,7 @@ def agents():
     adapters = AgentAdapters()
     specs = [
         (PrayerAgent, "prayer", "schedule"),
+        (NasihatAgent, "nasihat", "religious_excerpt"),
         (ReminderAgent, "reminder", "create"),
         (AccountingAgent, "accounting", "balance"),
         (SettingsAgent, "settings", "open"),

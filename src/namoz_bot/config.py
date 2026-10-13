@@ -45,6 +45,11 @@ class Settings(BaseSettings):
         validation_alias="GEMINI_PRAYER_AGENT_MODEL",
         pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$",
     )
+    gemini_nasihat_agent_model: str | None = Field(
+        default=None,
+        validation_alias="GEMINI_NASIHAT_AGENT_MODEL",
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$",
+    )
     gemini_reminder_agent_model: str | None = Field(
         default=None,
         validation_alias="GEMINI_REMINDER_AGENT_MODEL",

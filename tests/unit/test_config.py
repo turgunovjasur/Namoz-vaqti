@@ -12,12 +12,14 @@ def test_menu_agents_version_and_models_are_configurable():
         telegram_bot_token="test-token",
         database_url="sqlite+aiosqlite:///:memory:",
         GEMINI_PRAYER_AGENT_MODEL="prayer-model",
+        GEMINI_NASIHAT_AGENT_MODEL="nasihat-model",
         GEMINI_REMINDER_AGENT_MODEL="reminder-model",
         GEMINI_ACCOUNTING_AGENT_MODEL="finance-model",
         GEMINI_SETTINGS_AGENT_MODEL="settings-model",
     )
     assert settings.main_agent_version == 2
     assert settings.gemini_prayer_agent_model == "prayer-model"
+    assert settings.gemini_nasihat_agent_model == "nasihat-model"
     assert settings.gemini_accounting_agent_model == "finance-model"
 
 
@@ -58,6 +60,7 @@ def test_menu_agent_version_accepts_environment_numeric_string(monkeypatch):
     "key",
     [
         "GEMINI_PRAYER_AGENT_MODEL",
+        "GEMINI_NASIHAT_AGENT_MODEL",
         "GEMINI_REMINDER_AGENT_MODEL",
         "GEMINI_ACCOUNTING_AGENT_MODEL",
         "GEMINI_SETTINGS_AGENT_MODEL",

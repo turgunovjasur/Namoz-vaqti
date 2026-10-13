@@ -70,7 +70,7 @@ def gemini_route(respx_mock):
     )
 
 
-async def test_prayer_button_sends_fresh_book_passage_on_each_press(gemini_journey, gemini_route):
+async def test_nasihat_section_sends_fresh_book_passage_on_each_press(gemini_journey, gemini_route):
     replies = iter([selected("p1"), selected("p2")])
 
     def respond(request):
@@ -93,7 +93,7 @@ async def test_prayer_button_sends_fresh_book_passage_on_each_press(gemini_journ
 
     gemini_route.mock(side_effect=respond)
     await gemini_journey.text("/start")
-    await gemini_journey.text("🕌 Namoz vaqti")
+    await gemini_journey.text("📖 Nasihat")
     labels = [b.text for row in gemini_journey.session.reply_keyboards[7].keyboard for b in row]
     assert "📖 Diniy eslatma" in labels
 

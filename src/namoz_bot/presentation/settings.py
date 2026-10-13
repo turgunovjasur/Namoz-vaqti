@@ -12,8 +12,10 @@ from namoz_bot.presentation.handlers import HandlerServices
 from namoz_bot.presentation.keyboards import (
     DAILY_SCHEDULE_LABEL,
     HOME_LABEL,
+    NASIHAT_LABEL,
     PRAYER_MENU_LABEL,
     RELIGIOUS_INTERVAL_LABEL,
+    RELIGIOUS_REMINDER_LABEL,
     REMINDERS_LABEL,
     SETTINGS_LABEL,
     build_settings_menu,
@@ -127,6 +129,8 @@ def build_settings_router() -> Router:
         ~F.text.in_(
             {
                 HOME_LABEL,
+                NASIHAT_LABEL,
+                RELIGIOUS_REMINDER_LABEL,
                 PRAYER_MENU_LABEL,
                 REMINDERS_LABEL,
                 SETTINGS_LABEL,

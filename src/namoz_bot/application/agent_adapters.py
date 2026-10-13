@@ -18,6 +18,7 @@ from namoz_bot.domain.reminders import TASHKENT, ReminderSpec, parse_time
 HELP_TEXT = (
     "Xabaringizni yozing yoki ovozli yuboring:\n"
     "🕌 «Bugun shom nechida?»\n"
+    "📖 «Nasihat ber»\n"
     "🔔 «Ertaga ertalab 9 da uchrashuvni eslat»\n"
     "💰 «120 mingga kiyim oldim»\n"
     "📊 «Shu oy qancha sarfladim?»\n\n"
@@ -154,11 +155,13 @@ class AgentAdapters:
             if prayer:
                 data.update(prayer=prayer, time=getattr(adjusted.times, cast(PrayerKey, prayer)))
             return result(request, data=data)
-        if request.domain == "prayer" and request.action == "religious_excerpt":
+        if request.domain in {"prayer", "nasihat"} and request.action == "religious_excerpt":
             if self._religious is None:
                 return result(request, "unsupported", data={"text": "Nasihat xizmati sozlanmagan."})
             passage = await self._religious.generate(request.context.telegram_user_id)
             return result(request, data={"text": passage})
+        if request.domain == "nasihat" and request.action == "open_settings":
+            return result(request, data={"view": "interval"})
         if request.domain == "settings" or request.action == "open_settings":
             return result(request, data={"view": p.get("view", "general")})
         if request.action == "open_delete":
