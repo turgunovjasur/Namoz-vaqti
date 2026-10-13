@@ -160,6 +160,13 @@ def build_main_menu() -> ReplyKeyboardMarkup:
     )
 
 
+def build_voice_menu() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text=HELP_LABEL)]], resize_keyboard=True,
+        is_persistent=True, one_time_keyboard=False,
+    )
+
+
 def build_settings_menu() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[

@@ -263,3 +263,21 @@ async def test_confirming_already_deleted_target_clears_draft(voice_agent):
     output = await command(voice_agent, "assistant", "confirm", key="yes", text="ha")
     assert output.status == "unsupported" and output.effect == "none"
     assert await voice_agent[2].get_session(voice_agent[4].user_id, NOW) is None
+
+
+async def test_changing_delete_target_replaces_previous_resolved_id(voice_agent):
+    from namoz_bot.domain.reminders import ReminderSpec, parse_time
+
+    service = voice_agent[0]._adapters._reminders
+    first = await service.create(
+        voice_agent[4].user_id, 7, ReminderSpec("Kitob", parse_time("09:00"), "daily"), "first"
+    )
+    second = await service.create(
+        voice_agent[4].user_id, 7, ReminderSpec("Sport", parse_time("09:00"), "daily"), "second"
+    )
+    await command(voice_agent, "reminder", "delete", {"text": "Kitob"})
+    updated = await command(voice_agent, "reminder", "delete", {"text": "Sport"}, key="change")
+    assert updated.data["draft"]["target_id"] == second.id
+    await command(voice_agent, "assistant", "confirm", key="yes", text="ha")
+    assert await service.get(voice_agent[4].user_id, first.id)
+    assert await service.get(voice_agent[4].user_id, second.id) is None

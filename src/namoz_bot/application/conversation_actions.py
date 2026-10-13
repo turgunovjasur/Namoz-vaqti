@@ -102,6 +102,13 @@ class ConversationAdapters(AgentAdapters):
         if action == "reset_offsets":
             return result(request)
         if action in {"open", "open_settings"}:
+            if request.clarification:
+                return result(
+                    request,
+                    "needs_input",
+                    missing_fields=["clarification"],
+                    question=request.clarification,
+                )
             return result(request)
         if action == "open_delete":
             return result(

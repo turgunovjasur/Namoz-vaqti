@@ -83,6 +83,20 @@ class MainAgent:
             if decision.parameters["kind"] != params.get("kind"):
                 params.pop("date", None)
                 params.pop("weekdays", None)
+        if pending and (decision.domain, decision.action) in {
+            ("reminder", "delete"),
+            ("accounting", "undo"),
+        }:
+            supplied = decision.parameters
+            if supplied.get("target_id") is not None:
+                params.pop("text", None)
+                params.pop("ordinal", None)
+            elif supplied.get("text") is not None or supplied.get("ordinal") is not None:
+                params.pop("target_id", None)
+                if supplied.get("text") is not None:
+                    params.pop("ordinal", None)
+                else:
+                    params.pop("text", None)
         params.update(decision.parameters)
         if "page" in decision.parameters and not decision.parameters.get("page_step"):
             params.pop("page_step", None)
@@ -172,6 +186,8 @@ class MainAgent:
         if (
             self.voice_first
             and pending
+            and not pending.missing_fields
+            and (pending.domain, pending.action) in CONFIRMED_ACTIONS
             and command
             in {
                 "ha",

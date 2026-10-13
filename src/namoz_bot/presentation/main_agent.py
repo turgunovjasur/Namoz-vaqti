@@ -387,6 +387,9 @@ async def agent_callback(
 
 
 def build_main_agent_router(main_agent: MainAgent | None = None) -> Router:
+    if main_agent is not None and main_agent.voice_first:
+        from namoz_bot.presentation.voice_conversation import build_voice_conversation_router
+        return build_voice_conversation_router(main_agent)
     router = Router(name="main-agent")
     if main_agent is not None:
         router.message.register(agent_start, CommandStart(), F.chat.type == "private")

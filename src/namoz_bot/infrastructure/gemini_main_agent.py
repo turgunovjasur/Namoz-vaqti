@@ -94,9 +94,16 @@ RESPONSE_SCHEMA: dict[str, Any] = {
                         "prayer",
                         "view",
                         "report_type",
+                        "region",
+                        "mode",
+                        "page_step",
                     )
                 },
                 "amount": {"type": "INTEGER", "nullable": True},
+                "hours": {"type": "INTEGER", "nullable": True},
+                "minutes": {"type": "INTEGER", "nullable": True},
+                "target_id": {"type": "INTEGER", "nullable": True},
+                "ordinal": {"type": "INTEGER", "nullable": True},
                 "page": {"type": "INTEGER"},
                 "today": {"type": "BOOLEAN"},
                 "weekdays": {"type": "ARRAY", "items": {"type": "INTEGER"}},
@@ -117,6 +124,8 @@ for name, choices in {
     "prayer": ["bomdod", "quyosh", "peshin", "asr", "shom", "xufton"],
     "report_type": ["summary", "income", "expense", "salary"],
     "view": ["general", "region", "offsets", "interval", "daily"],
+    "mode": ["set", "add"],
+    "page_step": ["next", "previous"],
 }.items():
     PARAMETER_SCHEMA["properties"][name]["enum"] = choices
 PARAMETER_SCHEMA["properties"]["kind"]["description"] = (
@@ -179,6 +188,12 @@ class GeminiMainAgentClient:
             .isoformat(),
             "timezone": context.timezone,
             "language": context.language,
+            "last_view": {
+                **context.last_view.model_dump(exclude={"ids"}),
+                "count": len(context.last_view.ids),
+            }
+            if context.last_view
+            else None,
             "pending": pending.model_dump(
                 mode="json",
                 exclude={
@@ -229,7 +244,7 @@ class GeminiMainAgentClient:
                         )
                     )
                 }
-                for key in ("view", "report_type"):
+                for key in ("view", "report_type", "mode"):
                     if key in model.model_fields and payload["parameters"].get(key) is None:
                         payload["parameters"].pop(key, None)
             return AgentDecision.model_validate_json(json.dumps(payload))

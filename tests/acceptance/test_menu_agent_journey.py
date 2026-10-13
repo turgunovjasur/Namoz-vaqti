@@ -153,7 +153,7 @@ async def test_v2_reminder_followup_confirmation_preserves_day(menu_journey, rou
     routes[3].respond(200, json=response("reminder", "create", {"time": "09:00"}))
     await menu_journey.text("Ertalab 9 da")
     assert not await menu_journey.rows()
-    await menu_journey.click("✅ Saqlash")
+    await menu_journey.text("Ha, saqla")
     assert (await menu_journey.rows())[0].spec.on_date.isoformat() == tomorrow
     assert [r.call_count for r in routes] == [2, 0, 0, 2, 0]
 
@@ -436,6 +436,6 @@ async def test_v1_draft_is_resumed_after_switching_to_v2(menu_journey, routes, r
     await menu_journey.text("Ertalab 9 da")
     body = json.loads(routes[3].calls.last.request.content)
     assert "Existing V1 draft" in body["contents"][0]["parts"][0]["text"]
-    await menu_journey.click("✅ Saqlash")
+    await menu_journey.text("Ha, saqla")
     row = (await menu_journey.rows())[0]
     assert row.spec.text == "Existing V1 draft" and row.spec.on_date.isoformat() == tomorrow

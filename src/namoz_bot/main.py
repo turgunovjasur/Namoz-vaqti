@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from namoz_bot.application.accounting import LedgerService
 from namoz_bot.application.agent_adapters import AgentAdapters
+from namoz_bot.application.conversation_actions import ConversationAdapters
 from namoz_bot.application.daily_schedule import (
     DailyScheduleSettingsService,
     PersonalDailyBroadcastService,
@@ -158,6 +159,12 @@ def create_application(settings: Settings) -> ApplicationResources:
         extractor: AgentExtractor
         executor: AgentActionExecutor
         if settings.main_agent_version == 2:
+            service_adapters = ConversationAdapters(
+                schedule_service,
+                religious_reminders,
+                reminders=ReminderService(SqlAlchemyReminderRepository(session_factory)),
+                ledger=LedgerService(SqlAlchemyLedgerRepository(session_factory)),
+            )
             models: dict[Domain, str] = {
                 "prayer": settings.gemini_prayer_agent_model or base_model,
                 "nasihat": settings.gemini_nasihat_agent_model or base_model,
@@ -201,10 +208,12 @@ def create_application(settings: Settings) -> ApplicationResources:
             SqlAlchemyAgentStore(session_factory),
             adapters=executor,
             cooldown_seconds=settings.voice_reminder_cooldown_seconds,
+            voice_first=settings.main_agent_version == 2,
         )
         logger.info(
-            "main_agent_configured version=%d menus=%s",
+            "main_agent_configured version=%d voice_first=%s menus=%s",
             settings.main_agent_version,
+            main_agent.voice_first,
             ",".join(menu_agents),
         )
     dispatcher["main_agent"] = main_agent

@@ -9,8 +9,10 @@ Telegram foydalanuvchilariga yuboradigan asinxron bot.
 
 Standart oqim: **user → main/router agent → menu agent → xizmat → main agent**.
 To‘rtta asosiy bo‘lim — **Namoz, Nasihat, Eslatma va Kirim-chiqim** — o‘z ko‘rsatma
-hamda vakolatiga ega yordamchi agent orqali ishlaydi. Umumiy sozlamalar xizmat
-menyusi va cheklangan settings agent orqali ochiladi. Foydalanuvchi bitta bot bilan gaplashadi.
+hamda vakolatiga ega yordamchi agent orqali ishlaydi. Umumiy sozlamalarni settings
+agenti boshqaradi. Foydalanuvchi faqat asosiy agent bilan gaplashadi; V2 da vizual
+bo‘lim menyulari yoki inline boshqaruvlar yo‘q. Klaviaturada faqat **ℹ️ Yordam** bor.
+Buyruqlar ovoz orqali beriladi, javoblar matnda keladi. Matnli buyruq ham ishlaydi.
 Router faqat yo‘nalish va transkriptni aniqlaydi; tafsilotlarni tanlangan agent
 ajratadi. Boshqa yordamchi agentlar chaqirilmaydi. Yangi matn/ovozli so‘rov odatda
 router va bitta yordamchi uchun **ikki AI chaqiruvi** qiladi; kitobdan nasihat
@@ -21,12 +23,23 @@ Botga bo‘limni oldindan tanlamasdan matn yoki ovoz yuboring:
 «Bugun shom nechida?», «Ertaga ertalab 9 da uchrashuvni eslat»,
 «120 mingga kiyim oldim», «Shu oy qancha sarfladim?», «Nasihat ber».
 Asosiy agent so‘rovni namoz, nasihat, eslatma yoki kirim-chiqim xizmatiga yo‘naltiradi.
-Menyu tugmalari ham ishlaydi. Namoz vaqti provider jadvalidan, balans va hisobot
+Namoz vaqti provider jadvalidan, balans va hisobot
 bazadan olinadi; AI bu raqamlarni hisoblamaydi.
 
-Yetishmayotgan ma’lumot qisqa javob bilan to‘ldiriladi. Eslatma **✅ Saqlash**
-tugmasi bosilgach saqlanadi; oddiy «ha» yozish tasdiq emas. Aniq amalga oshgan
-kirim/chiqim darhol yoziladi va **↩️ Yozuvni bekor qilish** bilan bekor qilinadi.
+Yetishmayotgan ma’lumot ovozli javob bilan to‘ldiriladi. Eslatma yaratish/o‘chirish va
+moliyaviy yozuvni bekor qilish oldidan bot vazifani ko‘rsatib tasdiq so‘raydi:
+**«Ha, tasdiqlayman»** deng. To‘liq bo‘lmagan qoralama «ha» bilan saqlanmaydi.
+Aniq amalga oshgan kirim/chiqim darhol yoziladi. **«Oxirgi yozuvni bekor qil»** yoki
+aniq ID/nomi orqali bekor qilish so‘raladi. Bir nechta mos yozuv bo‘lsa ID aniqlashtiriladi.
+Ro‘yxat/tarix uchun **«Keyingi sahifa»**, yozuv tanlash uchun **«Ikkinchisini o‘chir»**
+deyish mumkin; tanlov oxirgi 30 daqiqadagi ko‘rsatilgan, o‘zingizga tegishli ro‘yxatga bog‘lanadi.
+
+Sozlamalar ham bevosita ovoz bilan saqlanadi:
+**«Kunlik jadval ertalab 7 da kelsin»**, **«Nasihat har 6 soatda kelsin»**,
+**«Avtomatik nasihatni o‘chir»**, **«Hududni Samarqand shahriga o‘zgartir»**,
+**«Shom vaqtini 4 daqiqa keyinga sur»**, **«Barcha farqlarni nolga qaytar»**.
+Noaniq vaqt/hudud taxmin qilinmaydi, bot savol beradi. Hudud o‘zgarganda eski
+masjid farqlari nolga qaytadi. Sozlamalar va receipt bitta transactionda saqlanadi.
 Bitta xabarda bir nechta mustaqil vazifa bo‘lsa, avval bittasini alohida ayting.
 Tugallanmagan vazifada boshqa bo‘limga o‘tishdan oldin «Bekor qil» deb yozing.
 «Davom et» va `/start` saqlangan qoralamani qayta ochadi; qoralama oxirgi
@@ -60,12 +73,14 @@ Yangilangan botni ishga tushirishdan **oldin** `alembic upgrade head` bajaring.
 V2 mavjud xizmat va transactionlarni yordamchi agentlar orqali ishlatadi.
 `MAIN_AGENT_VERSION=1` bir chaqiruvli V1 oqimini qaytaradi. V2 uchun qo‘shimcha
 migratsiya kerak emas; V1 migratsiyasi bazada bo‘lishi kerak.
+[Ovozli suhbat dizayni](docs/superpowers/specs/2026-10-13-voice-conversation-design.md),
 [V2 dizayni](docs/superpowers/specs/2026-10-13-menu-agents-v2-design.md),
 [request/result protokoli](docs/superpowers/specs/2026-10-13-main-agent-v1-design.md).
 
-- `/start` yangi foydalanuvchini standart **Toshkent** hududi bilan ro‘yxatdan o‘tkazadi
-  va **🕌 Namoz vaqti** / **🔔 Eslatmalar** / **💰 Kirim-chiqim** /
-  **⚙️ Sozlamalar** asosiy menyusini ochadi.
+Quyidagi vizual boshqaruvlar V1 yoki agent o‘chirilgan legacy rejimga tegishli.
+V2 da `/start` faqat ovozli foydalanish yordamchisini va **ℹ️ Yordam** tugmasini ko‘rsatadi.
+
+- Legacy `/start` foydalanuvchini **Toshkent** bilan ro‘yxatdan o‘tkazadi va bo‘lim menyularini ochadi.
 - Foydalanuvchi sozlamalarda avval 14 ta geografik guruhdan birini, so‘ng shahar
   yoki tumanni tanlaydi. Katalog `namoz-vaqti.uz` ko‘rsatadigan 223 ta yozuvni
   qamrab oladi: 209 ta canonical hudud va provider shaharga yo‘naltiradigan 14 ta alias.

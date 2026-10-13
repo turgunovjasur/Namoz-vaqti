@@ -33,9 +33,12 @@ reminder=eslatma yaratish/ro‘yxat/o‘chirish; accounting=kirim/chiqim/balans/
 settings=umumiy sozlamalar, kunlik namoz jadvali;
 assistant=salom/yordam/noaniq/qo‘llanmaydigan so‘rov yoki suhbat boshqaruvi.
 Summa, sana, kategoriya yoki domain action parametersni ajratma; bu mutaxassis vazifasi.
-assistant uchun control_action help/clarify/cancel/resume; boshqalarda null.
-'Bekor qil'=assistant.cancel; 'Davom et'=assistant.resume. Oddiy 'ha' pending bo‘limiga
-tegishli javob; hech narsani saqlashga tasdiq bera olmaysan.
+assistant uchun control_action help/clarify/cancel/resume/confirm; boshqalarda null.
+'Bekor qil'=assistant.cancel; 'Davom et'=assistant.resume.
+Pending.missing_fields bo‘sh va action create/delete/undo bo‘lsa 'ha', 'saqla',
+'tasdiqlayman', 'o‘chiraver'=assistant.confirm; 'yo‘q'=assistant.cancel.
+Pending to‘liq bo‘lmasa qisqa javobni uning bo‘limiga yo‘naltir, taxmin qilma.
+Last_view bo‘lsa 'keyingi sahifa', 'ikkinchisini o‘chir' shu bo‘limga tegishli.
 Pending.domain bo‘lsa qisqa '9 da', '120 ming', 'ha' javobini shu domainga yo‘naltir.
 Yangi aniq bo‘lim so‘rovini pendingga majburan qo‘shma.
 Bir nechta mustaqil vazifa=assistant.clarify, multiple_tasks=true; bittasini tanlama.
@@ -56,7 +59,7 @@ ROUTER_SCHEMA: dict[str, Any] = {
         "control_action": {
             "type": "STRING",
             "nullable": True,
-            "enum": ["help", "clarify", "cancel", "resume"],
+            "enum": ["help", "clarify", "cancel", "resume", "confirm"],
         },
         "clarification": {"type": "STRING", "nullable": True},
         "multiple_tasks": {"type": "BOOLEAN"},
@@ -84,28 +87,38 @@ Aniq so‘rovda clarification=null,multiple_tasks=false. Faqat JSON, markdown yo
 MENU_INSTRUCTIONS: dict[Domain, str] = {
     "prayer": """
 Sen PRAYER agentisan; domain=prayer.
-Amallar: schedule(date,prayer), open_settings(view=region/offsets).
+Amallar: schedule(date,prayer), open_settings(view=region/offsets), set_region(region),
+set_offset(prayer,minutes,mode=set/add), reset_offsets.
 prayer: bomdod,quyosh,peshin,asr,shom,xufton. Bugun sana current_date, ertaga tomorrow_date.
 Namoz so‘rovida jadval yoki bitta namozni ajrat. Namoz vaqtini o‘zing hisoblama/to‘qima:
 API jadvali va saqlangan offsets xizmatdan olinadi. Nasihat alohida bo‘limga tegishli:
 bu agentda nasihat olish yoki intervalni sozlash amali yo‘q.
-Hududni yoki masjid vaqtini o‘zgartirish existing settings
-oynasini ochadi; o‘zing bazadagi hudud/offsetni o‘zgartirma.
+Hudud o‘zgartirishda aynan aytilgan region nomini ajrat, shahar/tuman noaniq bo‘lsa
+taxmin qilma. 'Samarqand shahri'=region='Samarqand shahri'. Set_region xizmatda saqlanadi.
+'Shomni4daqiqa keyinga sur': minutes=4,mode=set; '4daqiqa oldin'=minutes=-4,mode=set.
+'Yana1daqiqa qo‘sh'=minutes=1,mode=add. 'Shom farqini0qil'=minutes=0,mode=set.
+Barcha farqlarni nolga qaytar=reset_offsets. Sozlamani ko‘rish=open_settings.
 """,
     "nasihat": """
 Sen NASIHAT agentisan; domain=nasihat.
-Amallar: religious_excerpt, open_settings(view=interval).
+Amallar: religious_excerpt, open_settings(view=interval), set_interval(hours).
 'Nasihat ber', 'diniy eslatma', 'kitobdan nasihat' uchun religious_excerpt tanla.
 Nasihatni o‘zing yozma, iqtibos yoki manba to‘qima: mavjud kitob xizmati asl parchani
 va manbasini beradi. Bu erkin diniy savol-javob yoki fatvo berish xizmati emas;
 bunday so‘rovlar assistant.clarify orqali cheklov bilan qaytariladi.
 Avtomatik nasihat oralig‘i, yoqish/o‘chirish yoki yuborish sozlamasi so‘ralganda
-open_settings(view=interval) tanla. Intervalni o‘zing bazaga yozma: mavjud sozlash
-oynasini och. Namoz jadvali va shaxsiy eslatmalar boshqa bo‘limlarga tegishli.
+set_interval(hours) tanla: har6soatda=hours=6, avtomatik nasihatni o‘chir=hours=0.
+Yoqish intervali aytilmasa hours=null va savol; 1..168 butun soat. Joriy intervalni
+ko‘rish=open_settings(view=interval). Xizmat saqlaydi; SQL/kod ishlatma.
+Namoz jadvali va shaxsiy eslatmalar boshqa bo‘limlarga tegishli.
 """,
     "reminder": """
 Sen REMINDER agentisan; domain=reminder.
-Amallar: create(text,time,date,kind,weekdays), list(today,page), open_delete.
+Amallar: create(text,time,date,kind,weekdays), list(today,page,page_step),
+delete(target_id,text,ordinal). Delete bu eslatma o‘chirish; yaratish bilan adashtirma.
+ID raqami ochiq aytilsa target_id, nomi aytilsa text, 'ikkinchisi'=ordinal=2.
+IDni taxmin qilma. 'Keyingi sahifa'=page_step=next, avvalgi=previous.
+Aniq 'ikkinchi sahifa'=page=1 (0danboshlanadi),page_step=null.
 kind once/daily/weekly; dushanba=0,yakshanba=6. 'Har kuni'=daily, 'har juma'=weekly.
 Takrorsiz 'juma kuni'=eng yaqin kelajakdagi sana,once. 'Ertaga'=tomorrow_date,once.
 'Ertaga ertalab 9 da kitob eslat': text='Kitob',time='09:00',kind='once',date=tomorrow_date.
@@ -114,13 +127,17 @@ time=null va savol. Aytilmagan vaqt/sanani to‘qima. Daily/weekly da date=null.
 Once da weekdays=[],weekly da kerakli kunlar. '30 daqiqadan keyin' kabi muddatni
 message_time orqali aniq sana/vaqtga aylantir. O‘tgan sanani ertaga surma.
 Qisqa followupda oldingi matn/sana/takrorlanish aynan saqlansin.
-List today=true faqat bugungi ro‘yxat so‘ralganda. Delete existing o‘chirish oynasini
-ochadi. Yangi eslatma draftdir; faqat main agent tekshirgan tugma uni saqlaydi.
+List today=true faqat bugungi ro‘yxat so‘ralganda. Create/delete qoralamasini asosiy
+agent tekshiradi va ovozli tasdiq bilan bajaradi. Tugma yoki menyu talab qilma.
 """,
     "accounting": """
 Sen ACCOUNTING agentisan; domain=accounting.
 Amallar: income/expense(amount,currency,category,description,month,date), balance,
-report(month,report_type),history(page). Hisobot/balansni operatsiya sifatida yozma.
+report(month,report_type),history(page,page_step),undo(target_id,text,ordinal).
+Hisobot/balansni operatsiya sifatida yozma. 'Oxirgi yozuvni bekor qil'=undo, bo‘sh
+parameters; ID ochiq aytilsa target_id, izoh bo‘lsa text, 'ikkinchisi'=ordinal=2.
+Target IDni o‘ylab topma; main owner va tasdiqni tekshiradi. Keyingi tarix sahifasi
+page_step=next, oldingi=previous; aniq sahifa n uchun page=n-1.
 Faqat amalga oshgan kirim/chiqim; 'ertaga to‘layman/oylik tushadi' kabi reja
 assistant.clarify, yozish yo‘q. Pul ko‘chirish/bank/qarz/budget yoki kunlik hisobot unsupported.
 Summa musbat BUTUN SO‘M: 120ming=120000,10million=10000000,bir yarim million=1500000.
@@ -135,10 +152,12 @@ Oy aytilsa yil message_time yilidan, kun aytilmasa date=null. Sana/oy aytilmasa
 null: bot xabar sanasini oladi. Followupda oldingi aniq sana/oyni o‘zgartirma.
 """,
     "settings": """
-Sen SETTINGS agentisan; domain=settings, action=open.
+Sen SETTINGS agentisan; domain=settings, amallar open(view),set_daily(time).
 view general=umumiy sozlamalar,daily=kunlik namoz jadvalini yuborish
-vaqti,region=hudud tanlash,offsets=masjidga moslash. Faqat mavjud oynani och.
-O‘zing vaqt,hudud yoki offset qiymatlarini bazaga yozma.
+vaqti,region=hudud,offsets=masjidga moslash joriy qiymatlarini ko‘rsatish uchun.
+'Kunlik/kulik jadval ertalab7da kelsin'=set_daily,time='07:00'.
+'Kunlik jadval kechqurun7da'=19:00. Kun qismi noaniq '7da' bo‘lsa time=null va savol.
+Yangi vaqtni xizmat saqlaydi. Oyna/tugma talab qilma. Hudud va offsets prayerda.
 Nasihat oralig‘i nasihat bo‘limiga tegishli.
 """,
 }
@@ -210,6 +229,9 @@ class GeminiRoutingClient:
             "message_time": local.isoformat(),
             "timezone": context.timezone,
             "language": context.language,
+            "last_view": context.last_view.model_dump(exclude={"ids"})
+            if context.last_view
+            else None,
             "current_date": local.date().isoformat(),
             "tomorrow_date": (local + timedelta(days=1)).date().isoformat(),
             "pending": {

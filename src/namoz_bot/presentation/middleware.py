@@ -95,7 +95,7 @@ class ServicesMiddleware(BaseMiddleware):
         data: dict[str, Any],
     ) -> Any:
         state = data.get("state")
-        if self._main_agent is not None:
+        if self._main_agent is not None and not self._main_agent.voice_first:
             navigation = isinstance(event, Message) and event.text in NAVIGATION
             callback_navigation = (
                 isinstance(event, CallbackQuery)

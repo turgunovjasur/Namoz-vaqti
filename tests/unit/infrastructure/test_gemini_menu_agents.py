@@ -70,9 +70,24 @@ async def test_router_schema_has_no_domain_parameters_and_no_private_pending(res
 @pytest.mark.parametrize(
     "domain,action,expected",
     [
-        ("prayer", "schedule", {"date", "prayer", "view"}),
-        ("nasihat", "religious_excerpt", {"view"}),
-        ("reminder", "create", {"text", "time", "kind", "date", "weekdays", "today", "page"}),
+        ("prayer", "schedule", {"date", "prayer", "view", "region", "minutes", "mode"}),
+        ("nasihat", "religious_excerpt", {"view", "hours"}),
+        (
+            "reminder",
+            "create",
+            {
+                "text",
+                "time",
+                "kind",
+                "date",
+                "weekdays",
+                "today",
+                "page",
+                "page_step",
+                "target_id",
+                "ordinal",
+            },
+        ),
         (
             "accounting",
             "balance",
@@ -85,9 +100,13 @@ async def test_router_schema_has_no_domain_parameters_and_no_private_pending(res
                 "date",
                 "page",
                 "report_type",
+                "page_step",
+                "target_id",
+                "text",
+                "ordinal",
             },
         ),
-        ("settings", "open", {"view"}),
+        ("settings", "open", {"view", "time"}),
     ],
 )
 async def test_each_menu_has_narrow_schema_and_own_instruction(
