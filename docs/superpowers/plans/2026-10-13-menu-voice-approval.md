@@ -21,7 +21,7 @@ human action/field labels, not raw internal protocol names.
 - [x] Keep menus visible through voice/manual journeys; Ha/Yo‘q callbacks send a fresh result,
   retire buttons, and preserve manual menu functionality. Adapt superseded UI expectations.
 - [x] Full PostgreSQL/static checks; one read-only final review and necessary fixes.
-- [ ] Gracefully restart local test bot; verify startup and record evidence. No push/merge.
+- [x] Gracefully restart local test bot; verify startup and record evidence. No push/merge.
 
 Final review covered immutable 9351d40..bb49f6a and requested four corrections:
 uncertain assistant confirmations must retain clarification/multiple-task flags and cannot
@@ -42,3 +42,9 @@ field entry remains available through its original flow. No further review round
 Final verification after review fixes: 698 passed, 3 expected SQLite-only migration skips,
 46.29 seconds with PostgreSQL integration enabled. Ruff passed; mypy passed for all 65 source
 files; git diff --check passed. No schema or dependency changes.
+
+Local activation: implementation bb49f6a and review fixes 5a48469. Old PID2368 received
+SIGINT and stopped polling at 16:01:27 Asia/Tashkent. New PID9878 started at 16:01:39;
+16:01:41 startup confirmed version2, voice_approval=True, persistent_menu=True and all five
+service domains. Polling confirmed @TestUzNamozTaqvimiBot, ID8922089476 at 16:01:42.
+Exactly one bot process was found; PTY78172 remains running. No push, merge or server deploy.
