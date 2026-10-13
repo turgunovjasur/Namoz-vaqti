@@ -1,6 +1,6 @@
 # Asosiy yo‘naltiruvchi agent — V1 dizayni
 
-Sana: 2026-10-13. Holat: foydalanuvchi ko‘rib chiqishi uchun dizayn.
+Sana: 2026-10-13. Holat: foydalanuvchi 2026-10-13 kuni tasdiqlagan dizayn.
 
 ## 1. Maqsad va versiyalar
 

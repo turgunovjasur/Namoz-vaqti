@@ -147,7 +147,13 @@ class MainAgent:
             return self._error(context, request_id, "no_active_task")
         if command in {"davom et", "resume"}:
             return await self.resume(context=context, request_id=request_id)
-        if pending and command in {"ha", "yes", "да"}:
+        if (
+            pending
+            and pending.domain == "reminder"
+            and pending.action == "create"
+            and not pending.missing_fields
+            and command in {"ha", "yes", "да"}
+        ):
             return await self._pending_result(context, request_id, pending)
         if audio is not None:
             current = monotonic()

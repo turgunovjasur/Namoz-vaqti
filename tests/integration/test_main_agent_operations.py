@@ -268,3 +268,21 @@ async def test_resume_does_not_lose_pending_clarification(agent):
     assert first.status == "needs_input"
     output = await agent[0].resume(context=agent[4], request_id="resume")
     assert output.status == "needs_input" and output.question
+
+
+async def test_finance_yes_answers_clarification_and_commits(agent):
+    complete = decision(
+        "accounting",
+        "expense",
+        amount=120000,
+        currency="UZS",
+        category="kiyim",
+        description="Kiyim",
+    )
+    agent[1].decision = complete.model_copy(update={"clarification": "Bu xarajat amalga oshdimi?"})
+    first = await agent[0].respond(context=agent[4], request_id="first", text="test")
+    assert first.status == "needs_input"
+    agent[1].decision = complete
+    output = await agent[0].respond(context=agent[4], request_id="yes", text="ha")
+    assert output.status == "done" and output.effect == "committed"
+    assert output.data["balance"] == -120000 and agent[1].calls == 2

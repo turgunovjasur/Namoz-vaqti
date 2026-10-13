@@ -356,3 +356,41 @@ async def test_weekly_confirmation_lists_selected_days(agent_journey, agent_rout
     )
     await agent_journey.text("Har dushanba va juma 9 da kitob eslat")
     assert "Dushanba" in agent_journey.last.text and "Juma" in agent_journey.last.text
+
+
+async def test_today_reminder_list_pagination_preserves_filter(agent_journey, agent_route):
+    from datetime import time
+
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    from namoz_bot.domain.reminders import ReminderSpec
+    from namoz_bot.infrastructure.reminders import SqlAlchemyReminderRepository
+    from namoz_bot.infrastructure.repositories import SqlAlchemySubscriptionRepository
+
+    factory = async_sessionmaker(agent_journey.app.db_engine, expire_on_commit=False)
+    user = await SqlAlchemySubscriptionRepository(factory).get_by_telegram_user_id(7)
+    repo = SqlAlchemyReminderRepository(factory)
+    now = datetime.now(UTC)
+    for index in range(4):
+        await repo.create(
+            user.id,
+            7,
+            ReminderSpec(f"Daily {index + 1}", time(9 + index), "daily"),
+            f"daily{index}",
+            now,
+        )
+    await repo.create(
+        user.id,
+        7,
+        ReminderSpec(
+            "Tomorrow only", time(14), "once", (now.astimezone(TASHKENT) + timedelta(days=1)).date()
+        ),
+        "tomorrow",
+        now,
+    )
+    agent_route.respond(200, json=response("reminder", "list", {"today": True}))
+    await agent_journey.text("Bugungi eslatmalarimni ko‘rsat")
+    assert "Daily 1" in agent_journey.last.text and "Tomorrow only" not in agent_journey.last.text
+    await agent_journey.click("Keyingi ➡️")
+    assert "Daily 4" in agent_journey.last.text and "Tomorrow only" not in agent_journey.last.text
+    assert agent_route.call_count == 1

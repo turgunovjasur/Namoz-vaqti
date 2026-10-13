@@ -242,6 +242,19 @@ async def _navigate(
     services: HandlerServices,
     reminders: ReminderService,
 ) -> bool:
+    if output.status == "done" and output.domain == "reminder" and output.action == "list":
+        assert message.from_user is not None
+        await state.update_data({KEEP_MAIN_MENU: True})
+        await _show_list(
+            message,
+            state,
+            message.from_user.id,
+            int(str(output.data.get("page", 0))),
+            services,
+            reminders,
+            today=bool(output.data.get("today", False)),
+        )
+        return True
     view = output.data.get("view")
     if output.status != "done" or not view:
         return False

@@ -180,3 +180,35 @@ spec 9 → Task 2/4/5; spec 10–11 → all tasks and final verification.
 Each later task consumes the exact signatures defined above; no V2 helper-agent
 implementation or new framework is required. Authoritative business rules remain
 in existing domain/application code. Plan review precedes runtime implementation.
+
+## Bajarilgan ish va tekshiruv natijasi — 2026-10-13
+
+Tasks 1–5 bajarildi. V1 kodi `codex/main-agent-v1` branchida. Mavjud bot bazasiga
+migratsiya qo‘llash, bot processini restart qilish yoki deploy qilish bajarilmadi.
+
+- Full suite alohida `namoz_agent_test_20261013` PostgreSQL bazasi bilan:
+  **508 passed, 3 skipped** (33.08s). Uch skip faqat SQLite parametrida PostgreSQLga
+  tegishli eski migratsiya tekshiruvlari; PostgreSQL variantlari bajarildi.
+- Ruff: `All checks passed!`; mypy: 58 source files, no issues.
+- Haqiqiy Gemini: sun’iy namoz, eslatma va xarajat so‘rovlarining domain/action,
+  eslatma sana/vaqti va xarajat summasi tekshirildi. Qisqa «Ertalab 9 da» javobi
+  oldingi sun’iy qoralamaning matn/sana/takrorlanishini saqlab vaqtni to‘ldirdi.
+  Bu sinovlar real foydalanuvchi ma’lumotlarini yoki bazadagi biznes yozuvlarini ishlatmadi.
+- Mustaqil read-only review: Critical yo‘q, 2 Important, Minor yo‘q.
+  Moliyaviy «ha» javobining clarification loopi va eslatma list paginationi
+  alohida yiqiladigan testlar bilan qayta hosil qilinib, tuzatildi. Yakuniy full suite yuqorida.
+
+Implementatsiya qarorlari:
+
+1. Ish foydalanuvchi ruxsat bergan, avval toza bo‘lgan mavjud checkoutning feature
+   branchida bajarildi. Oqibati: shu lokal checkoutdan foydalanadigan boshqa ish
+   source fayllarini ham ko‘radi; unrelated o‘zgarishlar bo‘lmagan.
+2. Asosiy orchestration tekshiruvlari takror unit mocklar o‘rniga haqiqiy SQLite
+   va PostgreSQL repositorylari bilan yozildi. Oqibati: xatolarni ajratishda integration
+   fixture kerak bo‘ladi; real transactional effects ham tekshiriladi.
+3. Gemini superset schemadan aloqasiz bo‘sh maydonlar qaytarishi live sinovda
+   aniqlandi. Faqat tanlangan actionga aloqasiz, oldindan ma’lum null/neytral
+   page=0/today=false/weekdays=[] maydonlar normalizatsiya qilinadi. Oqibati:
+   noto‘g‘ri aloqasiz default e’tiborsiz qolishi mumkin, ammo action tanlamaydi,
+   egalikni o‘zgartirmaydi va biznes effekt yaratmaydi. Noma’lum va mazmunli extra
+   maydonlar qat’iy rad qilinadi; tegishli maydonlar domain qoidalaridan o‘tadi.
