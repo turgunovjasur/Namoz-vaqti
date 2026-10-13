@@ -141,6 +141,7 @@ class GeminiMainAgentClient:
         mime_type: str,
         context: AgentContext,
         pending: AgentSessionState | None,
+        request_id: str | None = None,
     ) -> AgentDecision:
         if (text is None) == (audio is None):
             raise ValueError("Bitta matn yoki ovoz yuboring.")

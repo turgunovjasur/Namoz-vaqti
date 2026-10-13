@@ -1,7 +1,6 @@
 """Route one intent, preserve partial tasks and execute only validated effects."""
 
 import asyncio
-import hashlib
 import logging
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
@@ -9,7 +8,7 @@ from time import monotonic
 from typing import Protocol
 
 from namoz_bot.application.agent_adapters import AgentAdapters, result
-from namoz_bot.application.agent_sessions import AgentStore
+from namoz_bot.application.agent_sessions import AgentStore, AgentTransaction
 from namoz_bot.domain.agent_protocol import (
     AgentContext,
     AgentDecision,
@@ -17,6 +16,7 @@ from namoz_bot.domain.agent_protocol import (
     AgentResult,
     AgentRevisionConflict,
     AgentSessionState,
+    operation_id_for,
 )
 from namoz_bot.domain.errors import ExternalServiceError, ReligiousReminderCooldownError
 from namoz_bot.domain.reminders import TASHKENT
@@ -33,7 +33,15 @@ class AgentExtractor(Protocol):
         mime_type: str,
         context: AgentContext,
         pending: AgentSessionState | None,
+        request_id: str | None = None,
     ) -> AgentDecision: ...
+
+
+class AgentActionExecutor(Protocol):
+    async def prepare(self, request: AgentRequest) -> AgentResult: ...
+    async def execute(
+        self, request: AgentRequest, transaction: AgentTransaction
+    ) -> AgentResult: ...
 
 
 class MainAgent:
@@ -42,7 +50,7 @@ class MainAgent:
         extractor: AgentExtractor,
         store: AgentStore,
         *,
-        adapters: AgentAdapters | None = None,
+        adapters: AgentActionExecutor | None = None,
         now: Callable[[], datetime] | None = None,
         cooldown_seconds: int = 20,
     ) -> None:
@@ -64,13 +72,7 @@ class MainAgent:
         decision: AgentDecision,
         pending: AgentSessionState | None = None,
     ) -> AgentRequest:
-        operation = (
-            pending.operation_id
-            if pending
-            else hashlib.sha256(
-                f"{context.bot_id}:{context.user_id}:{request_id}".encode(),
-            ).hexdigest()[:32]
-        )
+        operation = pending.operation_id if pending else operation_id_for(context, request_id)
         params = dict(pending.parameters) if pending else {}
         if decision.domain == "reminder" and "kind" in decision.parameters:
             if decision.parameters["kind"] != params.get("kind"):
@@ -171,6 +173,7 @@ class MainAgent:
                     mime_type=mime_type,
                     context=context,
                     pending=pending,
+                    request_id=request_id,
                 )
         except (ExternalServiceError, ValueError):
             self._voice_until.pop(context.user_id, None)

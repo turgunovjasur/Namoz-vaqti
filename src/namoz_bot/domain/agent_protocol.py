@@ -1,5 +1,6 @@
 """Versioned, owner-independent routing decisions and trusted agent envelopes."""
 
+import hashlib
 from datetime import datetime
 from typing import Literal
 
@@ -232,3 +233,66 @@ class AgentSessionState(StrictModel):
 
 class AgentRevisionConflict(Exception):
     """An operation changed since the input or confirmation was prepared."""
+
+
+def operation_id_for(context: AgentContext, request_id: str) -> str:
+    return hashlib.sha256(f"{context.bot_id}:{context.user_id}:{request_id}".encode()).hexdigest()[
+        :32
+    ]
+
+
+class AgentRoutingDecision(StrictModel):
+    domain: Domain
+    transcript: str = Field(min_length=1, max_length=2000)
+    control_action: Literal["help", "clarify", "cancel", "resume"] | None = None
+    clarification: str | None = Field(default=None, min_length=1, max_length=300)
+    multiple_tasks: bool = False
+
+    @model_validator(mode="after")
+    def coherent_route(self) -> "AgentRoutingDecision":
+        if self.domain == "assistant" and self.control_action is None:
+            raise ValueError("Assistant route needs a control action")
+        if self.domain != "assistant" and self.control_action is not None:
+            raise ValueError("Control action belongs to the main agent")
+        if self.multiple_tasks and (self.domain, self.control_action) != ("assistant", "clarify"):
+            raise ValueError("Multiple tasks must be clarified before delegation")
+        return self
+
+
+class AgentHandoff(StrictModel):
+    protocol_version: Literal[1] = 1
+    request_id: str = Field(min_length=1, max_length=100)
+    operation_id: str = Field(min_length=1, max_length=32)
+    domain: Domain
+    input: str = Field(min_length=1, max_length=2000)
+    context: AgentContext
+    pending: AgentSessionState | None = None
+
+    @model_validator(mode="after")
+    def scoped_pending(self) -> "AgentHandoff":
+        if self.domain == "assistant":
+            raise ValueError("Assistant controls are not delegated")
+        if self.pending and (
+            self.pending.domain != self.domain or self.pending.operation_id != self.operation_id
+        ):
+            raise ValueError("Pending task does not belong to this handoff")
+        return self
+
+
+class AgentHandoffReply(StrictModel):
+    protocol_version: Literal[1] = 1
+    request_id: str = Field(min_length=1, max_length=100)
+    operation_id: str = Field(min_length=1, max_length=32)
+    domain: Domain
+    decision: AgentDecision
+
+    @model_validator(mode="after")
+    def scoped_decision(self) -> "AgentHandoffReply":
+        if self.domain == "assistant":
+            raise ValueError("No assistant menu agent exists")
+        if self.decision.domain != self.domain and (self.decision.domain, self.decision.action) != (
+            "assistant",
+            "clarify",
+        ):
+            raise ValueError("A menu agent cannot route to another agent")
+        return self
