@@ -177,7 +177,12 @@ def menu_actions(domain: Domain) -> tuple[str, ...]:
     return tuple(
         action
         for owner, action in ACTION_MODELS
-        if owner == domain and (owner, action) != ("prayer", "religious_excerpt")
+        if owner == domain
+        and (owner, action)
+        not in {
+            ("prayer", "religious_excerpt"),
+            ("reminder", "open_delete"),
+        }
     )
 
 
@@ -226,6 +231,7 @@ class AgentContext(StrictModel):
     timezone: Literal["Asia/Tashkent"] = "Asia/Tashkent"
     language: str = Field(default="uz", max_length=16)
     last_view: AgentViewState | None = None
+    target_choices: AgentViewState | None = None
     region_code: str
     offsets: PrayerOffsets = Field(default_factory=PrayerOffsets)
 
@@ -296,6 +302,7 @@ class AgentSessionState(StrictModel):
     parameters: dict[str, JsonValue] = Field(default_factory=dict)
     missing_fields: list[str] = Field(default_factory=list)
     question: str | None = Field(default=None, max_length=300)
+    choices: AgentViewState | None = None
     revision: int = Field(ge=1)
     expires_at: datetime
 

@@ -39,13 +39,37 @@ class ConversationAdapters(AgentAdapters):
         *,
         reminders: ReminderService,
         ledger: LedgerService,
+        nasihat_available: bool | None = None,
     ) -> None:
         super().__init__(schedules, religious_reminders)
         self._reminders = reminders
         self._ledger = ledger
+        self._nasihat_available = (
+            nasihat_available if nasihat_available is not None else religious_reminders is not None
+        )
 
     async def prepare(self, request: AgentRequest) -> AgentResult:
         p, action = request.parameters, request.action
+        if request.clarification:
+            return result(
+                request,
+                "needs_input",
+                missing_fields=["clarification"],
+                question=request.clarification,
+            )
+        if (
+            not self._nasihat_available
+            and request.domain == "nasihat"
+            and (action == "open_settings" or (action == "set_interval" and p.get("hours") != 0))
+        ):
+            return result(
+                request,
+                "unsupported",
+                data={
+                    "text": "Nasihat yuborish xizmati sozlanmagan. "
+                    "Avtomatik yuborish hozir ishlamaydi."
+                },
+            )
         if action in {"delete", "undo"}:
             return await self._prepare_target(request)
         if p.get("page_step"):
@@ -123,7 +147,7 @@ class ConversationAdapters(AgentAdapters):
         p, user = request.parameters, request.context.user_id
         target_id = p.get("target_id")
         if p.get("ordinal") is not None and target_id is None:
-            view = request.context.last_view
+            view = request.context.target_choices or request.context.last_view
             index = cast(int, p["ordinal"]) - 1
             if view is None or view.domain != request.domain or index >= len(view.ids):
                 return result(
@@ -167,6 +191,14 @@ class ConversationAdapters(AgentAdapters):
                 "needs_input",
                 missing_fields=["target_id"],
                 question=f"Bir nechta yozuv bor. Qaysi ID raqam? {choices}"[:300],
+                data={
+                    "choices": {
+                        "domain": request.domain,
+                        "action": "list" if request.domain == "reminder" else "history",
+                        "page": 0,
+                        "ids": [identifier for identifier, _ in options[:5]],
+                    }
+                },
             )
         identifier, label = options[0]
         return result(

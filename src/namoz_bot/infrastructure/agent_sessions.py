@@ -3,7 +3,7 @@
 import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, time, timedelta
 
 from sqlalchemy import delete, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -41,6 +41,9 @@ class SqlAlchemyAgentTransaction:
         session: AsyncSession,
         row: AgentSessionRecord,
         now: datetime,
+        *,
+        default_daily_time: time = time(21),
+        default_interval_hours: float = 24,
     ) -> None:
         self._session = session
         self._row = row
@@ -56,10 +59,14 @@ class SqlAlchemyAgentTransaction:
             SqlAlchemySubscriptionRepository(factory, session=session)
         )
         self.daily_settings = DailyScheduleSettingsService(
-            SqlAlchemyDailyScheduleRepository(factory, session=session), clock=lambda: now
+            SqlAlchemyDailyScheduleRepository(factory, session=session),
+            default_time=default_daily_time,
+            clock=lambda: now,
         )
         self.religious_intervals = ReligiousIntervalService(
-            SqlAlchemyReligiousIntervalRepository(factory, session=session), clock=lambda: now
+            SqlAlchemyReligiousIntervalRepository(factory, session=session),
+            default_hours=default_interval_hours,
+            clock=lambda: now,
         )
 
     async def save_session(self, state: AgentSessionState | None) -> None:
@@ -94,8 +101,16 @@ class SqlAlchemyAgentTransaction:
 
 
 class SqlAlchemyAgentStore:
-    def __init__(self, factory: async_sessionmaker[AsyncSession]) -> None:
+    def __init__(
+        self,
+        factory: async_sessionmaker[AsyncSession],
+        *,
+        default_daily_time: time = time(21),
+        default_interval_hours: float = 24,
+    ) -> None:
         self._factory = factory
+        self._default_daily_time = default_daily_time
+        self._default_interval_hours = default_interval_hours
 
     async def get_last_view(self, user_id: int, now: datetime) -> AgentViewState | None:
         async with self._factory() as session:
@@ -145,6 +160,8 @@ class SqlAlchemyAgentStore:
                 )
                 return None
             pending = AgentSessionState.model_validate_json(json.dumps(row.state))
+            if (pending.domain, pending.action) == ("reminder", "open_delete"):
+                return pending.model_copy(update={"action": "delete"})
             # Normalize old routing names without changing operation/revision/expiry.
             # All consumers (resume, followup and receipt replay) use this boundary.
             if (pending.domain, pending.action) == ("prayer", "religious_excerpt"):
@@ -246,4 +263,11 @@ class SqlAlchemyAgentStore:
             )
             if won is None:
                 raise AgentRevisionConflict("Session changed")
-            yield SqlAlchemyAgentTransaction(self._factory, session, row, now)
+            yield SqlAlchemyAgentTransaction(
+                self._factory,
+                session,
+                row,
+                now,
+                default_daily_time=self._default_daily_time,
+                default_interval_hours=self._default_interval_hours,
+            )

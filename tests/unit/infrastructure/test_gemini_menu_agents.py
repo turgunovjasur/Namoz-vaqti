@@ -190,3 +190,74 @@ async def test_helper_cannot_return_another_domain(respx_mock):
                     context=context(),
                 )
             )
+
+
+@pytest.mark.parametrize(
+    "domain,action,parameters,expected",
+    [
+        ("settings", "set_daily", {"time": "07:00", "view": "daily"}, {"time": "07:00"}),
+        (
+            "prayer",
+            "set_offset",
+            {"prayer": "shom", "minutes": 4, "mode": "set", "view": "offsets"},
+            {"prayer": "shom", "minutes": 4, "mode": "set"},
+        ),
+    ],
+)
+async def test_write_action_normalizes_only_matching_legacy_view_metadata(
+    respx_mock, domain, action, parameters, expected
+):
+    respx_mock.post(URL).respond(
+        200,
+        json=response(
+            {
+                "domain": domain,
+                "action": action,
+                "parameters": parameters,
+                "transcript": "Synthetic",
+                "clarification": None,
+                "multiple_tasks": False,
+            }
+        ),
+    )
+    handoff = AgentHandoff(
+        domain=domain,
+        request_id="synthetic",
+        operation_id="synthetic",
+        input="Synthetic",
+        context=context(),
+    )
+    async with httpx.AsyncClient() as http:
+        value = await GeminiMenuAgentClient(
+            http, api_key=SecretStr("secret"), model="test-model", domain=domain
+        ).interpret(handoff)
+    assert value.parameters == expected
+
+
+async def test_unrelated_write_view_metadata_is_rejected(respx_mock):
+    respx_mock.post(URL).respond(
+        200,
+        json=response(
+            {
+                "domain": "settings",
+                "action": "set_daily",
+                "parameters": {"time": "07:00", "view": "region"},
+                "transcript": "Synthetic",
+                "clarification": None,
+                "multiple_tasks": False,
+            }
+        ),
+    )
+    async with httpx.AsyncClient() as http:
+        with pytest.raises(ExternalServiceError):
+            await GeminiMenuAgentClient(
+                http, api_key=SecretStr("secret"), model="test-model", domain="settings"
+            ).interpret(
+                AgentHandoff(
+                    domain="settings",
+                    request_id="r1",
+                    operation_id="op",
+                    input="Synthetic",
+                    context=context(),
+                )
+            )

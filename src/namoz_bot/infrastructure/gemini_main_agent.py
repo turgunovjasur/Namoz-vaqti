@@ -201,6 +201,7 @@ class GeminiMainAgentClient:
                     "origin_source_key",
                     "revision",
                     "expires_at",
+                    "choices",
                 },
             )
             if pending
@@ -244,6 +245,21 @@ class GeminiMainAgentClient:
                         )
                     )
                 }
+                # A matching legacy view is redundant metadata for these typed writes.
+                # Conflicting views and other populated inactive fields remain invalid.
+                matching_view = {
+                    ("settings", "set_daily"): "daily",
+                    ("nasihat", "set_interval"): "interval",
+                    ("prayer", "set_region"): "region",
+                    ("prayer", "set_offset"): "offsets",
+                    ("prayer", "reset_offsets"): "offsets",
+                }.get((str(domain), str(action)))
+                if (
+                    matching_view is not None
+                    and "view" not in model.model_fields
+                    and (payload["parameters"].get("view") == matching_view)
+                ):
+                    payload["parameters"].pop("view")
                 for key in ("view", "report_type", "mode"):
                     if key in model.model_fields and payload["parameters"].get(key) is None:
                         payload["parameters"].pop(key, None)

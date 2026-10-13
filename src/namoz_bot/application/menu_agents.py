@@ -147,9 +147,16 @@ class RoutedAgentExtractor:
             else operation_id_for(context, correlation),
             domain=route.domain,
             input=original,
-            context=context.model_copy(update={"last_view": None})
-            if context.last_view and context.last_view.domain != route.domain
-            else context,
+            context=context.model_copy(
+                update={
+                    "last_view": context.last_view
+                    if context.last_view and context.last_view.domain == route.domain
+                    else None,
+                    "target_choices": context.target_choices
+                    if context.target_choices and context.target_choices.domain == route.domain
+                    else None,
+                }
+            ),
             pending=relevant,
         )
         reply = await self._agents[route.domain].interpret(handoff)

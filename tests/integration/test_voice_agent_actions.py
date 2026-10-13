@@ -23,6 +23,7 @@ def voice_agent(store):  # noqa: F811
     adapters = ConversationAdapters(
         reminders=ReminderService(SqlAlchemyReminderRepository(factory), now=lambda: NOW),
         ledger=LedgerService(SqlAlchemyLedgerRepository(factory)),
+        nasihat_available=True,
     )
     main = MainAgent(extractor, repo, adapters=adapters, now=lambda: NOW, voice_first=True)
     context = AgentContext(
@@ -281,3 +282,213 @@ async def test_changing_delete_target_replaces_previous_resolved_id(voice_agent)
     await command(voice_agent, "assistant", "confirm", key="yes", text="ha")
     assert await service.get(voice_agent[4].user_id, first.id)
     assert await service.get(voice_agent[4].user_id, second.id) is None
+
+
+@pytest.mark.parametrize("action", ["delete", "undo"])
+async def test_rejected_target_change_invalidates_old_confirmation(voice_agent, action):
+    from namoz_bot.domain.reminders import ReminderSpec, parse_time
+
+    main, _, _, _, context, _ = voice_agent
+    if action == "delete":
+        target = await main._adapters._reminders.create(
+            context.user_id, 7, ReminderSpec("Kitob", parse_time("09:00"), "daily"), "original"
+        )
+        domain = "reminder"
+    else:
+        await command(
+            voice_agent,
+            "accounting",
+            "expense",
+            {"amount": 120000, "currency": "UZS", "category": "kiyim", "description": "Kitob"},
+        )
+        target = (await main._adapters._ledger.history(context.user_id, 0))[0][0]
+        domain = "accounting"
+    await command(voice_agent, domain, action, {"target_id": target.id}, key="prepare")
+    await command(voice_agent, domain, action, {"text": "No such target"}, key="change")
+    await command(voice_agent, "assistant", "confirm", key="yes", text="ha")
+    if action == "delete":
+        assert await main._adapters._reminders.get(context.user_id, target.id)
+    else:
+        assert not (await main._adapters._ledger.get(context.user_id, target.id)).cancelled
+
+
+async def test_ordinal_uses_latest_ambiguity_choices_not_old_list(voice_agent):
+    from namoz_bot.domain.reminders import ReminderSpec, parse_time
+
+    service = voice_agent[0]._adapters._reminders
+    items = []
+    for text, at in [("Sport", "09:00"), ("Kitob A", "10:00"), ("Kitob B", "08:00")]:
+        items.append(
+            await service.create(
+                voice_agent[4].user_id, 7, ReminderSpec(text, parse_time(at), "daily"), text
+            )
+        )
+    await command(voice_agent, "reminder", "list", key="list")
+    await command(voice_agent, "reminder", "delete", {"text": "Kitob"}, key="choose")
+    selected = await command(voice_agent, "reminder", "delete", {"ordinal": 2}, key="second")
+    assert selected.data["draft"]["target_id"] == items[2].id
+
+
+async def test_missing_view_can_read_list_without_losing_delete_draft(voice_agent):
+    from namoz_bot.domain.reminders import ReminderSpec, parse_time
+
+    service = voice_agent[0]._adapters._reminders
+    for number in range(2):
+        await service.create(
+            voice_agent[4].user_id,
+            7,
+            ReminderSpec(f"Kitob{number}", parse_time("09:00"), "daily"),
+            f"item:{number}",
+        )
+    await command(voice_agent, "reminder", "delete", {"ordinal": 2})
+    listed = await command(voice_agent, "reminder", "list", key="list")
+    assert listed.status == "done"
+    assert (await voice_agent[2].get_session(voice_agent[4].user_id, NOW)).action == "delete"
+    chosen = await command(voice_agent, "reminder", "delete", {"ordinal": 2}, key="choose")
+    assert chosen.data["draft"]["target_id"] == listed.data["entries"][1]["id"]
+
+
+@pytest.mark.parametrize(
+    "domain,action,parameters",
+    [
+        ("prayer", "reset_offsets", {}),
+        ("reminder", "delete", {"target_id": 1}),
+        ("accounting", "undo", {}),
+    ],
+)
+async def test_explicit_clarification_stops_new_write_actions(
+    voice_agent, domain, action, parameters
+):
+    await command(voice_agent, "prayer", "set_offset", {"prayer": "shom", "minutes": 5})
+    main, extractor, _, factory, context, _ = voice_agent
+    extractor.decision = AgentDecision(
+        domain=domain,
+        action=action,
+        parameters=parameters,
+        transcript="Noaniq",
+        clarification="Qaysi yozuv yoki namoz?",
+    )
+    output = await main.respond(context=context, request_id="clarify", text="Noaniq")
+    assert output.status == "needs_input" and output.missing_fields == ["clarification"]
+    assert (
+        await SqlAlchemySubscriptionRepository(factory).get_by_telegram_user_id(7)
+    ).offsets.shom == 5
+
+
+async def test_bound_services_use_configured_defaults_for_new_users(voice_agent):
+    from datetime import time
+
+    from namoz_bot.domain.models import UserSubscription
+    from namoz_bot.infrastructure.agent_sessions import SqlAlchemyAgentStore
+
+    factory = voice_agent[3]
+    await SqlAlchemyDailyScheduleRepository(factory).ensure_defaults(time(7, 30), NOW)
+    await SqlAlchemyReligiousIntervalRepository(factory).ensure_defaults(6, NOW)
+    user = await SqlAlchemySubscriptionRepository(factory).add(
+        UserSubscription(9, 9, "Toshkent", True)
+    )
+    configured = SqlAlchemyAgentStore(
+        factory, default_daily_time=time(7, 30), default_interval_hours=6
+    )
+    old_main, extractor, _, _, context, _ = voice_agent
+    main = MainAgent(
+        extractor, configured, adapters=old_main._adapters, now=lambda: NOW, voice_first=True
+    )
+    context = context.model_copy(update={"user_id": user.id, "telegram_user_id": 9, "chat_id": 9})
+    extractor.decision = AgentDecision(
+        domain="settings", action="open", parameters={"view": "daily"}, transcript="Sozlamalar"
+    )
+    await main.respond(context=context, request_id="daily", text="Sozlamalar")
+    assert (await SqlAlchemyDailyScheduleRepository(factory).get(9)).at == time(7, 30)
+    extractor.decision = AgentDecision(
+        domain="nasihat",
+        action="open_settings",
+        parameters={"view": "interval"},
+        transcript="Nasihat",
+    )
+    await main.respond(context=context, request_id="interval", text="Nasihat")
+    assert (await SqlAlchemyReligiousIntervalRepository(factory).get(9)).interval_hours == 6
+
+
+async def test_unavailable_nasihat_cannot_claim_scheduled_delivery(voice_agent):
+    from sqlalchemy import select
+
+    from namoz_bot.infrastructure.orm import ReligiousIntervalRecord
+
+    main = voice_agent[0]
+    main._adapters = ConversationAdapters(
+        reminders=main._adapters._reminders, ledger=main._adapters._ledger
+    )
+    result = await command(voice_agent, "nasihat", "set_interval", {"hours": 6})
+    assert result.status == "unsupported" and result.effect == "none"
+    opened = await command(
+        voice_agent, "nasihat", "open_settings", {"view": "interval"}, key="open"
+    )
+    assert opened.status == "unsupported"
+    async with voice_agent[3]() as session:
+        assert await session.scalar(select(ReligiousIntervalRecord)) is None
+
+
+async def test_obsolete_delete_draft_can_continue_with_voice_action(voice_agent):
+    from datetime import timedelta
+
+    from namoz_bot.domain.agent_protocol import AgentSessionState
+    from namoz_bot.domain.reminders import ReminderSpec, parse_time
+
+    main, _, repo, _, context, _ = voice_agent
+    target = await main._adapters._reminders.create(
+        context.user_id, 7, ReminderSpec("Kitob", parse_time("09:00"), "daily"), "original"
+    )
+    old = AgentSessionState(
+        domain="reminder",
+        action="open_delete",
+        operation_id="legacy",
+        origin_source_key="legacy",
+        origin_time=NOW,
+        revision=1,
+        expires_at=NOW + timedelta(hours=24),
+        missing_fields=["target_id"],
+        question="Qaysi yozuv?",
+    )
+    async with repo.transaction(context.user_id, None, now=NOW) as tx:
+        await tx.save_session(old)
+    loaded = await repo.get_session(context.user_id, NOW)
+    assert loaded.action == "delete" and loaded.operation_id == "legacy"
+    output = await command(voice_agent, "reminder", "delete", {"target_id": target.id})
+    assert output.status == "needs_confirmation" and output.operation_id == "legacy"
+
+
+async def test_new_list_replaces_ambiguity_context_and_resume_refreshes_choices(voice_agent):
+    from namoz_bot.domain.reminders import ReminderSpec, parse_time
+
+    service = voice_agent[0]._adapters._reminders
+    items = []
+    for text, at in [("Sport", "09:00"), ("Kitob A", "10:00"), ("Kitob B", "08:00")]:
+        items.append(
+            await service.create(
+                voice_agent[4].user_id, 7, ReminderSpec(text, parse_time(at), "daily"), text
+            )
+        )
+    await command(voice_agent, "reminder", "delete", {"text": "Kitob"}, key="choose")
+    listed = await command(voice_agent, "reminder", "list", key="list")
+    assert listed.status == "done"
+    assert (await voice_agent[2].get_session(voice_agent[4].user_id, NOW)).choices is None
+    await voice_agent[0].resume(context=voice_agent[4], request_id="resume")
+    chosen = await command(voice_agent, "reminder", "delete", {"ordinal": 2}, key="second")
+    assert chosen.data["draft"]["target_id"] == items[2].id
+
+
+async def test_failed_interpretation_suspends_previous_confirmation(voice_agent):
+    from namoz_bot.domain.errors import ExternalServiceError
+    from namoz_bot.domain.reminders import ReminderSpec, parse_time
+    main, extractor, _, _, context, _ = voice_agent
+    target = await main._adapters._reminders.create(context.user_id, 7,
+        ReminderSpec("Kitob", parse_time("09:00"), "daily"), "original")
+    await command(voice_agent, "reminder", "delete", {"target_id": target.id})
+    extractor.error = ExternalServiceError("synthetic provider error")
+    failed = await main.respond(context=context, request_id="change", text="Sportni o‘chir")
+    assert failed.status == "error"
+    extractor.error = None
+    first_yes = await command(voice_agent, "assistant", "confirm", key="yes", text="ha")
+    assert first_yes.status == "needs_confirmation"
+    assert await main._adapters._reminders.get(context.user_id, target.id)

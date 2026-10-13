@@ -205,7 +205,11 @@ def create_application(settings: Settings) -> ApplicationResources:
             executor = service_adapters
         main_agent = MainAgent(
             extractor,
-            SqlAlchemyAgentStore(session_factory),
+            SqlAlchemyAgentStore(
+                session_factory,
+                default_daily_time=settings.daily_send_time,
+                default_interval_hours=settings.gemini_reminder_interval_hours,
+            ),
             adapters=executor,
             cooldown_seconds=settings.voice_reminder_cooldown_seconds,
             voice_first=settings.main_agent_version == 2,

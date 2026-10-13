@@ -18,6 +18,7 @@ from namoz_bot.domain.agent_protocol import (
     AgentResult,
     AgentRevisionConflict,
     AgentSessionState,
+    AgentViewState,
     operation_id_for,
 )
 from namoz_bot.domain.errors import ExternalServiceError, ReligiousReminderCooldownError
@@ -169,6 +170,7 @@ class MainAgent:
             context = context.model_copy(
                 update={
                     "last_view": await self.store.get_last_view(context.user_id, self._now()),
+                    "target_choices": pending.choices if pending else None,
                 }
             )
         command = (text or "").strip().casefold()
@@ -235,6 +237,29 @@ class MainAgent:
                 )
         except (ExternalServiceError, ValueError):
             self._voice_until.pop(context.user_id, None)
+            if (
+                self.voice_first
+                and pending
+                and not pending.missing_fields
+                and (pending.domain, pending.action) in CONFIRMED_ACTIONS
+            ):
+                # Preserve the draft, but require its summary again after a failed new input.
+                try:
+                    async with self.store.transaction(
+                        context.user_id, pending.revision, now=self._now()
+                    ) as transaction:
+                        await transaction.save_session(
+                            pending.model_copy(
+                                update={
+                                    "missing_fields": ["confirmation"],
+                                    "question": "Oldingi qoralama saqlangan. "
+                                    "«Davom et» deb uni tekshiring.",
+                                    "revision": transaction.revision + 1,
+                                }
+                            )
+                        )
+                except AgentRevisionConflict:
+                    pass
             return self._error(context, request_id, "provider_unavailable")
         if decision.domain == "assistant" and decision.action == "resume":
             return await self.resume(context=context, request_id=request_id)
@@ -272,7 +297,22 @@ class MainAgent:
                 missing_fields=["single_task"],
                 question="Bitta vazifani tanlang va alohida ayting. Qaysisini avval bajaray?",
             )
-        if pending and (decision.domain, decision.action) != (pending.domain, pending.action):
+        resolution_read = bool(
+            self.voice_first
+            and pending
+            and (
+                (pending.domain, pending.action, decision.domain, decision.action)
+                in {
+                    ("reminder", "delete", "reminder", "list"),
+                    ("accounting", "undo", "accounting", "history"),
+                }
+            )
+        )
+        if (
+            pending
+            and not resolution_read
+            and (decision.domain, decision.action) != (pending.domain, pending.action)
+        ):
             if decision.domain == "assistant" and decision.action == "clarify":
                 return await self._pending_result(context, request_id, pending)
             request = self._request(context, request_id, decision)
@@ -284,7 +324,9 @@ class MainAgent:
                 data={"pending_operation": pending.operation_id},
             )
         try:
-            request = self._request(context, request_id, decision, pending)
+            request = self._request(
+                context, request_id, decision, None if resolution_read else pending
+            )
             prepared = await self._adapters.prepare(request)
         except ReligiousReminderCooldownError as exc:
             return result(request, "unsupported", data={"text": str(exc)})
@@ -313,6 +355,9 @@ class MainAgent:
                         else request.parameters,
                         missing_fields=prepared.missing_fields,
                         question=prepared.question,
+                        choices=AgentViewState.model_validate(prepared.data["choices"])
+                        if prepared.data.get("choices")
+                        else None,
                         revision=transaction.revision + 1,
                         expires_at=self._now() + timedelta(hours=24),
                     )
@@ -321,8 +366,26 @@ class MainAgent:
                 elif prepared.status == "done":
                     if not prepared.data:
                         output = await self._adapters.execute(request, transaction)
-                    if pending:
+                    if pending and not resolution_read:
                         await transaction.save_session(None)
+                    elif pending and resolution_read and pending.choices:
+                        await transaction.save_session(
+                            pending.model_copy(
+                                update={
+                                    "choices": None,
+                                    "revision": transaction.revision + 1,
+                                }
+                            )
+                        )
+                elif (
+                    self.voice_first
+                    and pending
+                    and prepared.status == "unsupported"
+                    and (pending.domain, pending.action)
+                    in {("reminder", "delete"), ("accounting", "undo")}
+                ):
+                    # A rejected replacement must never leave the previous target confirmed.
+                    await transaction.save_session(None)
                 await transaction.save_receipt(output)
         except AgentRevisionConflict:
             return await self._replay(context, request_id) or self._error(
@@ -346,6 +409,13 @@ class MainAgent:
         request_id: str,
         pending: AgentSessionState,
     ) -> AgentResult:
+        if self.voice_first:
+            context = context.model_copy(
+                update={
+                    "last_view": await self.store.get_last_view(context.user_id, self._now()),
+                    "target_choices": pending.choices,
+                }
+            )
         request = self._request(
             context,
             request_id,
@@ -361,6 +431,41 @@ class MainAgent:
             pending,
         )
         output = await self._adapters.prepare(request)
+        if self.voice_first and output.status in {"needs_input", "needs_confirmation"}:
+            params = (
+                cast(dict[str, JsonValue], output.data["draft"])
+                if output.status == "needs_confirmation"
+                else pending.parameters
+            )
+            choices = (
+                AgentViewState.model_validate(output.data["choices"])
+                if output.data.get("choices")
+                else None
+            )
+            if (params, output.missing_fields, output.question, choices) != (
+                pending.parameters,
+                pending.missing_fields,
+                pending.question,
+                pending.choices,
+            ):
+                try:
+                    async with self.store.transaction(
+                        context.user_id, pending.revision, now=self._now()
+                    ) as transaction:
+                        pending = pending.model_copy(
+                            update={
+                                "parameters": params,
+                                "missing_fields": output.missing_fields,
+                                "question": output.question,
+                                "choices": choices,
+                                "revision": transaction.revision + 1,
+                            }
+                        )
+                        await transaction.save_session(pending)
+                        output.data["revision"] = pending.revision
+                        await transaction.save_receipt(output)
+                except AgentRevisionConflict:
+                    return self._error(context, request_id, "stale_operation")
         output.data["revision"] = pending.revision
         return output
 
