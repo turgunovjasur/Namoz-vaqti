@@ -1,6 +1,6 @@
 # Menu Agents V2 Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Main agent yo‘naltiradigan, o‘z prompt/model/action vakolatiga ega yordamchi agentlarni implement qilish.
 **Architecture:** Routing/interpretation pipeline va typed handoff; har domain agent xizmat adapterining o‘z vakolatdagi amallarini ishlatadi. V1 persistence/UI reuse.
@@ -35,9 +35,9 @@ MenuAgent.interpret(handoff)->AgentHandoffReply, prepare(request)->AgentResult,
 execute(request,transaction)->AgentResult; RoutedAgentExtractor.extract(...,request_id=None)->AgentDecision;
 MenuAgentDispatcher.prepare/execute. MainAgent optional extractor request_id va executor Protocol.
 
-- [ ] Write tests for selected-only dispatch, untouched text, assistant/multi-task, cross-domain pending isolation, wrong reply IDs/domain, capability guard; run and observe missing module failure.
-- [ ] Implement protocol models/ports, PrayerAgent/ReminderAgent/AccountingAgent/SettingsAgent and fixed registry dispatcher; retain V1 methods.
-- [ ] Run focused tests, Ruff/mypy; commit `feat: add typed menu agent handoffs and capabilities`.
+- [x] Write tests for selected-only dispatch, untouched text, assistant/multi-task, cross-domain pending isolation, wrong reply IDs/domain, capability guard; run and observe missing module failure.
+- [x] Implement protocol models/ports, PrayerAgent/ReminderAgent/AccountingAgent/SettingsAgent and fixed registry dispatcher; retain V1 methods.
+- [x] Run focused tests, Ruff/mypy; commit `feat: add typed menu agent handoffs and capabilities`.
 
 ### Task 2: Gemini routing va per-domain interpreterlar
 
@@ -47,9 +47,9 @@ tests/unit/infrastructure/test_gemini_menu_agents.py.
 GeminiMainAgentClient configurable instruction/schema for reuse; Gemini menu client
 interpret(handoff)->AgentDecision with domain-specific schema and system instruction.
 
-- [ ] Write real mocked-HTTP tests for narrow router schema, single audio upload, specialist prompts/action schema, cross-domain output rejection and safe provider failures; observe RED.
-- [ ] Reuse shared HTTP/response parsing via configurable V1 client and small routing client; provide four narrow profiles with strict action-specific normalization.
-- [ ] Run V1/V2 provider tests, Ruff/mypy; commit `feat: add isolated Gemini router and menu interpreters`.
+- [x] Write real mocked-HTTP tests for narrow router schema, single audio upload, specialist prompts/action schema, cross-domain output rejection and safe provider failures; observe RED.
+- [x] Reuse shared HTTP/response parsing via configurable V1 client and small routing client; provide four narrow profiles with strict action-specific normalization.
+- [x] Run V1/V2 provider tests, Ruff/mypy; commit `feat: add isolated Gemini router and menu interpreters`.
 
 ### Task 3: Runtime wiring, compatibility va journey tests
 
@@ -57,22 +57,43 @@ interpret(handoff)->AgentDecision with domain-specific schema and system instruc
 tests/unit/test_config.py; tests/integration/test_main_agent_operations.py where needed.
 **Interfaces:** MAIN_AGENT_VERSION 1/2, per-domain model overrides; existing MainAgent/UI/service DI.
 
-- [ ] Write V2 text/audio journeys using distinct router/helper model URLs and real SQLite repositories; assert selected helper only, correct finance effects, reminder followup/save, helper failure preserves draft, replay skips both models, V1 draft survives V2 switch and wrong domain never writes. Observe RED.
-- [ ] Wire registry/pipeline/dispatcher for V2; preserve V1 and legacy fallbacks. Set V1-specific fixture version=1, add explicit V2 coverage.
-- [ ] Update README examples/config/protocol flow and two-call behavior.
-- [ ] Run focused journeys and existing suite; commit `feat: enable V2 menu agents with V1 compatibility`.
+- [x] Write V2 text/audio journeys using distinct router/helper model URLs and real SQLite repositories; assert selected helper only, correct finance effects, reminder followup/save, helper failure preserves draft, replay skips both models, V1 draft survives V2 switch and wrong domain never writes. Observe RED.
+- [x] Wire registry/pipeline/dispatcher for V2; preserve V1 and legacy fallbacks. Set V1-specific fixture version=1, add explicit V2 coverage.
+- [x] Update README examples/config/protocol flow and two-call behavior.
+- [x] Run focused journeys and existing suite; commit `feat: enable V2 menu agents with V1 compatibility`.
 
 ### Task 4: Verification, review va local activation
 
 **Files:** regression fixes/tests only; docs verification notes.
 
-- [ ] Full pytest with existing isolated PostgreSQL test DB, Ruff, mypy and git diff check.
-- [ ] Live synthetic router/helper/followup check without real user data or DB writes.
-- [ ] One independent read-only whole-branch review; fix important findings RED→GREEN, rerun affected/full checks after code changes.
-- [ ] Commit verified fixes, restart existing local test bot gracefully with its existing run script, and verify startup/config/logs without leaking keys. No new migration needed.
-- [ ] Record final evidence and branch status; no server deploy, merge or push.
+- [x] Full pytest with existing isolated PostgreSQL test DB, Ruff, mypy and git diff check.
+- [x] Live synthetic router/helper/followup check without real user data or DB writes.
+- [x] One independent read-only whole-branch review; fix important findings RED→GREEN, rerun affected/full checks after code changes.
+- [x] Commit verified fixes, restart existing local test bot gracefully with its existing run script, and verify startup/config/logs without leaking keys. No new migration needed.
+- [x] Record final evidence and branch status; no server deploy, merge or push.
 
 ## Execution authorization
 
 Foydalanuvchi oldindan ta’riflangan V2 oqimini «v2 implement qil» deb aniq so‘radi.
 Bu bosqich native bajariladi; yana umumiy start/permission savoli berilmaydi.
+
+## Final verification — 2026-10-13
+
+- Implementation commits: `0c1d3db`, `576a717`, `1fda167`; base `7db5fc3`.
+- Isolated PostgreSQL test configuration: **544 passed, 3 expected SQLite migration
+  skips**, 35.45s. No local bot database was used for the test suite.
+- Ruff clean; mypy clean for 60 source files; `git diff --check` clean.
+- Live synthetic Gemini extraction: prayer schedule, reminder create, accounting
+  expense, settings open, and partial reminder followup all passed. These checks
+  performed no business database writes.
+- Independent read-only review of `7db5fc3..1fda167`: no actionable findings.
+  Production deployment and runtime activation were excluded from that review;
+  local runtime activation was verified separately below.
+- Existing local test process stopped gracefully with SIGINT. `bash run_local_bot.sh`
+  completed its existing migration check and started the replacement process.
+  Startup at **11:14:54 Asia/Tashkent** confirmed
+  `main_agent_configured version=2 menus=prayer,reminder,accounting,settings`.
+  Telegram polling started for `@TestUzNamozTaqvimiBot`, ID `8922089476`.
+  Single active bot process verified, PID `82075`. No new migration was required.
+- No merge, push, or server deployment performed. Runtime version can be reverted
+  through `MAIN_AGENT_VERSION=1` followed by the usual restart.
