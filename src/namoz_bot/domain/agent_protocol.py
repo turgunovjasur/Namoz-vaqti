@@ -14,6 +14,20 @@ Domain = Literal["prayer", "reminder", "accounting", "settings", "assistant"]
 Status = Literal["done", "needs_input", "needs_confirmation", "unsupported", "error", "cancelled"]
 
 
+def _valid_month(value: str | None) -> str | None:
+    return AccountingRequest.valid_month(value)
+
+
+def _valid_date(value: str | None) -> str | None:
+    return AccountingRequest.valid_date(value)
+
+
+def _aware_time(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        raise ValueError("Timezone-aware time required")
+    return value
+
+
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True, str_strip_whitespace=True)
 
@@ -30,15 +44,15 @@ class FinanceParameters(StrictModel):
     month: str | None = None
     date: str | None = None
 
-    _month = field_validator("month")(AccountingRequest.valid_month)
-    _date = field_validator("date")(AccountingRequest.valid_date)
+    _month = field_validator("month")(_valid_month)
+    _date = field_validator("date")(_valid_date)
 
 
 class ReportParameters(StrictModel):
     month: str | None = None
     report_type: Literal["summary", "income", "expense", "salary"] = "summary"
 
-    _month = field_validator("month")(AccountingRequest.valid_month)
+    _month = field_validator("month")(_valid_month)
 
 
 class PageParameters(StrictModel):
@@ -52,7 +66,7 @@ class ReminderParameters(StrictModel):
     kind: Literal["once", "daily", "weekly"] | None = None
     weekdays: list[int] = Field(default_factory=list, max_length=7)
 
-    _date = field_validator("date")(AccountingRequest.valid_date)
+    _date = field_validator("date")(_valid_date)
 
     @field_validator("time")
     @classmethod
@@ -81,7 +95,7 @@ class ScheduleParameters(StrictModel):
     date: str | None = None
     prayer: PrayerKey | None = None
 
-    _date = field_validator("date")(AccountingRequest.valid_date)
+    _date = field_validator("date")(_valid_date)
 
 
 class ListParameters(PageParameters):
@@ -211,8 +225,8 @@ class AgentSessionState(StrictModel):
     revision: int = Field(ge=1)
     expires_at: datetime
 
-    _origin = field_validator("origin_time")(AgentContext.aware_time)
-    _expiry = field_validator("expires_at")(AgentContext.aware_time)
+    _origin = field_validator("origin_time")(_aware_time)
+    _expiry = field_validator("expires_at")(_aware_time)
 
 
 class AgentRevisionConflict(Exception):
