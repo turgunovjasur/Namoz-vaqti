@@ -33,6 +33,12 @@ class Settings(BaseSettings):
         validation_alias="GEMINI_VOICE_MODEL",
         pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$",
     )
+    main_agent_enabled: bool = Field(default=True, validation_alias="MAIN_AGENT_ENABLED")
+    gemini_main_agent_model: str | None = Field(
+        default=None,
+        validation_alias="GEMINI_MAIN_AGENT_MODEL",
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$",
+    )
     voice_reminder_cooldown_seconds: int = Field(
         default=20, ge=0, le=3600, validation_alias="VOICE_REMINDER_COOLDOWN_SECONDS"
     )

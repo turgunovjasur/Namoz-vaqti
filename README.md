@@ -5,6 +5,44 @@ Telegram foydalanuvchilariga yuboradigan asinxron bot.
 
 ## Ishlash tartibi
 
+### Asosiy agent — V1
+
+Botga bo‘limni oldindan tanlamasdan matn yoki ovoz yuboring:
+«Bugun shom nechida?», «Ertaga ertalab 9 da uchrashuvni eslat»,
+«120 mingga kiyim oldim», «Shu oy qancha sarfladim?».
+Asosiy agent so‘rovni namoz, eslatma yoki kirim-chiqim xizmatiga yo‘naltiradi.
+Menyu tugmalari ham ishlaydi. Namoz vaqti provider jadvalidan, balans va hisobot
+bazadan olinadi; AI bu raqamlarni hisoblamaydi.
+
+Yetishmayotgan ma’lumot qisqa javob bilan to‘ldiriladi. Eslatma **✅ Saqlash**
+tugmasi bosilgach saqlanadi; oddiy «ha» yozish tasdiq emas. Aniq amalga oshgan
+kirim/chiqim darhol yoziladi va **↩️ Yozuvni bekor qilish** bilan bekor qilinadi.
+Bitta xabarda bir nechta mustaqil vazifa bo‘lsa, avval bittasini alohida ayting.
+Tugallanmagan vazifada boshqa bo‘limga o‘tishdan oldin «Bekor qil» deb yozing.
+«Davom et» va `/start` saqlangan qoralamani qayta ochadi; qoralama oxirgi
+yangilanishdan 24 soat o‘tgach eskiradi. Restart qoralamani yo‘qotmaydi.
+
+Sozlamalar:
+
+```dotenv
+MAIN_AGENT_ENABLED=true
+# Berilmasa GEMINI_VOICE_MODEL ishlatiladi:
+# GEMINI_MAIN_AGENT_MODEL=audio_va_structured_output_qollaydigan_model
+```
+
+Mavjud `GEMINI_API_KEY` ishlatiladi. Kalit yo‘q yoki `MAIN_AGENT_ENABLED=false`
+bo‘lsa, oldingi menyu/ovozli yo‘llar ishlaydi. Agent yoqilgan paytda xizmat xatosi
+xabarni avtomatik eslatma yoki xarajatga aylantirmaydi. Audio chegarasi 2 daqiqa
+va 5 MiB; matn 2000 belgigacha. Audio diskka, transcript va summalar logga yozilmaydi.
+AI API ga faqat joriy input va vazifaga kerakli qoralama konteksti yuboriladi.
+Agent sessiyalari va javob receiptlari bazada saqlanadi; tugallangan receiptlar
+7 kundan keyin tozalanadi. Biznes jadvallaridagi unique keys takror yozishni to‘sadi.
+
+Yangilangan botni ishga tushirishdan **oldin** `alembic upgrade head` bajaring.
+`bash run_local_bot.sh` test bazasi uchun migratsiyani avtomatik bajaradi.
+V1 mavjud xizmat adapterlarini ishlatadi; V2 da shu protokolga alohida yordamchi
+agentlarni ulash mumkin. [Dizayn va protokol](docs/superpowers/specs/2026-10-13-main-agent-v1-design.md).
+
 - `/start` yangi foydalanuvchini standart **Toshkent** hududi bilan ro‘yxatdan o‘tkazadi
   va **🕌 Namoz vaqti** / **🔔 Eslatmalar** / **💰 Kirim-chiqim** /
   **⚙️ Sozlamalar** asosiy menyusini ochadi.
@@ -51,7 +89,7 @@ Qayd qilinmagan xarajat yoki tushum hisobga kirmaydi; bank ulanishi mavjud emas.
 Sana aytilmagan yozuv Toshkentdagi xabar sanasiga tegishli. Faqat oy aytilsa,
 kun to‘qilmaydi va tarixda «kun aytilmagan» ko‘rsatiladi. Oy aytilib yil aytilmasa,
 xabar yuborilgan yil ishlatiladi. Avvalgi yil uchun yilni ham ayting.
-Bo‘limdan chiqilgach ovozli kiritish yana eslatma yaratishga qaytadi; restartdan
+Asosiy agent o‘chirilgan rejimda bo‘limdan chiqilgach ovozli kiritish yana eslatma yaratishga qaytadi; restartdan
 keyin **💰 Kirim-chiqim**ni qayta oching. Asosiy menyu ochiq qoladi.
 Audio chegarasi 2 daqiqa/5 MB. Moliyaviy ovoz, transkript va summalar ilova logiga
 yozilmaydi; bazada izoh, summa, kategoriya, sana/oy va bekor qilish holati saqlanadi.
@@ -175,6 +213,9 @@ sanasi ko‘rsatiladi; **✅ Saqlash** yuqori qatorda, **⬅️ Orqaga** uning o
 Menyuni almashtirish va buyruq yuborish tugallanmagan kiritishni bekor qiladi.
 
 ### Ovoz orqali eslatma yaratish — 1-versiya
+
+Quyidagi oldingi ovozli eslatma oqimi `MAIN_AGENT_ENABLED=false` rejimiga tegishli.
+Asosiy agent yoqilganda ovoz barcha uch yo‘nalish uchun yuqoridagi V1 oqimidan o‘tadi.
 
 Bot bilan shaxsiy chatga ovozli xabar yuboring. Masalan:
 «Ertaga kechqurun soat sakkizda onamga qo‘ng‘iroq qilishni eslat» yoki

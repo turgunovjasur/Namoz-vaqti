@@ -222,6 +222,7 @@ class AgentSessionState(StrictModel):
     action: str
     parameters: dict[str, JsonValue] = Field(default_factory=dict)
     missing_fields: list[str] = Field(default_factory=list)
+    question: str | None = Field(default=None, max_length=300)
     revision: int = Field(ge=1)
     expires_at: datetime
 

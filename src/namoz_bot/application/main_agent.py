@@ -210,7 +210,9 @@ class MainAgent:
             prepared = await self._adapters.prepare(request)
         except ReligiousReminderCooldownError as exc:
             return result(request, "unsupported", data={"text": str(exc)})
-        except (ExternalServiceError, ValueError):
+        except ExternalServiceError:
+            return self._error(context, request_id, "provider_unavailable")
+        except ValueError:
             return self._error(context, request_id, "invalid_input")
         if prepared.status == "error":
             return prepared
@@ -230,6 +232,7 @@ class MainAgent:
                         action=request.action,
                         parameters=request.parameters,
                         missing_fields=prepared.missing_fields,
+                        question=prepared.question,
                         revision=transaction.revision + 1,
                         expires_at=self._now() + timedelta(hours=24),
                     )
@@ -269,6 +272,9 @@ class MainAgent:
                 action=pending.action,
                 parameters=pending.parameters,
                 transcript="Davom etish",
+                clarification=pending.question
+                if "clarification" in pending.missing_fields
+                else None,
             ),
             pending,
         )

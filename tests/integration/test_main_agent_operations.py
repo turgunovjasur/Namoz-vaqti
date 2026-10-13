@@ -239,3 +239,32 @@ async def test_cancel_result_uses_original_operation_identity(agent):
     output = await respond(agent, decision("reminder", "create", text="Kitob"))
     cancelled = await agent[0].respond(context=agent[4], request_id="cancel", text="Bekor qil")
     assert cancelled.status == "cancelled" and cancelled.operation_id == output.operation_id
+
+
+async def test_service_failure_is_retryable_not_invalid_input(agent):
+    from namoz_bot.application.agent_adapters import AgentAdapters
+    from namoz_bot.domain.errors import ExternalServiceError
+
+    class FailedAdapters(AgentAdapters):
+        async def prepare(self, request):
+            raise ExternalServiceError("Temporary provider failure")
+
+    agent[0]._adapters = FailedAdapters()
+    output = await respond(agent, decision("prayer", "schedule"))
+    assert output.status == "error" and output.retryable
+    assert output.error_code == "provider_unavailable"
+
+
+async def test_resume_does_not_lose_pending_clarification(agent):
+    agent[1].decision = decision(
+        "accounting",
+        "expense",
+        amount=120000,
+        currency="UZS",
+        category="kiyim",
+        description="Kiyim",
+    ).model_copy(update={"clarification": "Bu xarajat amalga oshdimi?"})
+    first = await agent[0].respond(context=agent[4], request_id="first", text="test")
+    assert first.status == "needs_input"
+    output = await agent[0].resume(context=agent[4], request_id="resume")
+    assert output.status == "needs_input" and output.question

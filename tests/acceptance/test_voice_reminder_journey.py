@@ -82,6 +82,7 @@ async def voice_journey(tmp_path, request):
     model_settings = {"GEMINI_VOICE_MODEL": voice_model} if voice_model is not None else {}
     app = create_application(
         Settings(
+            MAIN_AGENT_ENABLED=False,
             _env_file=None,
             telegram_bot_token="123456:LOCAL_TEST",
             database_url=f"sqlite+aiosqlite:///{tmp_path / 'voice.db'}",

@@ -167,6 +167,7 @@ class Journey:
 async def journey(tmp_path):
     app = create_application(
         Settings(
+            MAIN_AGENT_ENABLED=False,
             telegram_bot_token="123456:LOCAL_TEST",
             database_url=f"sqlite+aiosqlite:///{tmp_path / 'ui.db'}",
         )

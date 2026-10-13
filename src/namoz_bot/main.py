@@ -13,10 +13,12 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from namoz_bot.application.accounting import LedgerService
+from namoz_bot.application.agent_adapters import AgentAdapters
 from namoz_bot.application.daily_schedule import (
     DailyScheduleSettingsService,
     PersonalDailyBroadcastService,
 )
+from namoz_bot.application.main_agent import MainAgent
 from namoz_bot.application.religious_reminders import (
     PersonalReligiousBroadcastService,
     ReligiousIntervalService,
@@ -27,10 +29,12 @@ from namoz_bot.application.schedules import ScheduleService
 from namoz_bot.application.voice_reminders import VoiceReminderService
 from namoz_bot.config import Settings
 from namoz_bot.infrastructure.accounting import SqlAlchemyLedgerRepository
+from namoz_bot.infrastructure.agent_sessions import SqlAlchemyAgentStore
 from namoz_bot.infrastructure.daily_schedule import SqlAlchemyDailyScheduleRepository
 from namoz_bot.infrastructure.db import create_database
 from namoz_bot.infrastructure.gemini import GeminiReminderClient
 from namoz_bot.infrastructure.gemini_accounting import GeminiAccountingClient
+from namoz_bot.infrastructure.gemini_main_agent import GeminiMainAgentClient
 from namoz_bot.infrastructure.gemini_voice import GeminiVoiceReminderClient
 from namoz_bot.infrastructure.instance_lock import BotAlreadyRunningError, BotInstanceLock
 from namoz_bot.infrastructure.namoz_vaqti_api import NamozVaqtiApiClient
@@ -44,6 +48,7 @@ from namoz_bot.infrastructure.telegram import TelegramMessageSender, TelegramRat
 from namoz_bot.logging import configure_logging
 from namoz_bot.presentation.accounting import build_accounting_router
 from namoz_bot.presentation.handlers import build_prayer_router
+from namoz_bot.presentation.main_agent import build_main_agent_router
 from namoz_bot.presentation.middleware import ErrorHandlingMiddleware, ServicesMiddleware
 from namoz_bot.presentation.religious_settings import build_religious_settings_router
 from namoz_bot.presentation.reminders import build_reminder_router, build_voice_reminder_router
@@ -128,6 +133,23 @@ def create_application(settings: Settings) -> ApplicationResources:
         religious_intervals = ReligiousIntervalService(
             interval_repository, default_hours=settings.gemini_reminder_interval_hours
         )
+    main_agent = None
+    if (
+        settings.main_agent_enabled
+        and settings.gemini_api_key
+        and settings.gemini_api_key.get_secret_value().strip()
+    ):
+        main_agent = MainAgent(
+            GeminiMainAgentClient(
+                http_client,
+                api_key=settings.gemini_api_key,
+                model=settings.gemini_main_agent_model or settings.gemini_voice_model,
+            ),
+            SqlAlchemyAgentStore(session_factory),
+            adapters=AgentAdapters(schedule_service, religious_reminders),
+            cooldown_seconds=settings.voice_reminder_cooldown_seconds,
+        )
+    dispatcher["main_agent"] = main_agent
     middleware = ServicesMiddleware(
         session_factory,
         schedule_service,
@@ -135,11 +157,13 @@ def create_application(settings: Settings) -> ApplicationResources:
         religious_reminders=religious_reminders,
         religious_intervals=religious_intervals,
         daily_settings=daily_settings,
+        main_agent=main_agent,
     )
     dispatcher.message.outer_middleware(ErrorHandlingMiddleware())
     dispatcher.message.outer_middleware(middleware)
     dispatcher.callback_query.outer_middleware(ErrorHandlingMiddleware())
     dispatcher.callback_query.outer_middleware(middleware)
+    dispatcher.include_router(build_main_agent_router(main_agent))
     dispatcher.include_router(build_accounting_router())
     dispatcher.include_router(build_voice_reminder_router())
     dispatcher.include_router(build_prayer_router())

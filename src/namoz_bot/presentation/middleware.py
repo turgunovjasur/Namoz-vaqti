@@ -8,10 +8,11 @@ from zoneinfo import ZoneInfo
 
 from aiogram import BaseMiddleware
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message, TelegramObject
+from aiogram.types import CallbackQuery, Message, TelegramObject
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from namoz_bot.application.daily_schedule import DailyScheduleSettingsService
+from namoz_bot.application.main_agent import MainAgent
 from namoz_bot.application.religious_reminders import (
     ReligiousIntervalService,
     ReligiousReminderService,
@@ -32,6 +33,7 @@ from namoz_bot.presentation.keyboards import (
     SETTINGS_LABEL,
     TODAY_LABEL,
 )
+from namoz_bot.presentation.main_agent import NAVIGATION
 from namoz_bot.presentation.reminder_panel import discard_panel
 
 logger = logging.getLogger(__name__)
@@ -49,7 +51,8 @@ class ErrorHandlingMiddleware(BaseMiddleware):
         try:
             return await handler(event, data)
         except Exception as exc:
-            logger.exception("telegram_update_failed error=%s", type(exc).__name__)
+            # Provider/database exception strings can contain private request parameters.
+            logger.error("telegram_update_failed error=%s", type(exc).__name__)
             message = getattr(event, "message", None)
             answer_target = message if message is not None else event
             answer = getattr(answer_target, "answer", None)
@@ -75,6 +78,7 @@ class ServicesMiddleware(BaseMiddleware):
         religious_reminders: ReligiousReminderService | None = None,
         religious_intervals: ReligiousIntervalService | None = None,
         daily_settings: DailyScheduleSettingsService | None = None,
+        main_agent: MainAgent | None = None,
     ) -> None:
         self._session_factory = session_factory
         self._schedule_service = schedule_service
@@ -82,6 +86,7 @@ class ServicesMiddleware(BaseMiddleware):
         self._religious_reminders = religious_reminders
         self._religious_intervals = religious_intervals
         self._daily_settings = daily_settings
+        self._main_agent = main_agent
 
     async def __call__(
         self,
@@ -90,6 +95,40 @@ class ServicesMiddleware(BaseMiddleware):
         data: dict[str, Any],
     ) -> Any:
         state = data.get("state")
+        if self._main_agent is not None:
+            navigation = isinstance(event, Message) and event.text in NAVIGATION
+            callback_navigation = (
+                isinstance(event, CallbackQuery)
+                and event.data is not None
+                and not event.data.startswith("ag:")
+                and ":undo:" not in event.data
+            )
+            target = event.message if isinstance(event, CallbackQuery) else event
+            sender = getattr(event, "from_user", None)
+            if (
+                (navigation or callback_navigation)
+                and isinstance(target, Message)
+                and target.chat.type == "private"
+                and sender is not None
+                and target.chat.id == sender.id
+            ):
+                user = await SqlAlchemySubscriptionRepository(
+                    self._session_factory,
+                ).get_by_telegram_user_id(sender.id)
+                if (
+                    user
+                    and user.id
+                    and await self._main_agent.has_pending(
+                        user.id,
+                        datetime.now(self._timezone),
+                    )
+                ):
+                    text = "Tugallanmagan vazifa bor. «Davom et» yoki «Bekor qil» deb yozing."
+                    if isinstance(event, CallbackQuery):
+                        await event.answer(text, show_alert=True)
+                    else:
+                        await target.answer(text)
+                    return None
         if (
             isinstance(event, Message)
             and isinstance(state, FSMContext)

@@ -29,3 +29,16 @@ async def test_error_middleware_returns_safe_user_message() -> None:
     assert event.answers == [
         "Vaqtincha xatolik yuz berdi. Iltimos, birozdan keyin qayta urinib ko‘ring."
     ]
+
+
+async def test_error_middleware_does_not_log_private_exception_payload(caplog, monkeypatch):
+    from namoz_bot.presentation import middleware
+
+    monkeypatch.setattr(middleware.logger, "disabled", False)
+
+    async def failing_handler(_event, _data):
+        raise RuntimeError("PRIVATE_TRANSCRIPT_AMOUNT_API_KEY")
+
+    await ErrorHandlingMiddleware()(failing_handler, cast(TelegramObject, FakeEvent()), {})
+    assert "PRIVATE_TRANSCRIPT_AMOUNT_API_KEY" not in caplog.text
+    assert "telegram_update_failed" in caplog.text
