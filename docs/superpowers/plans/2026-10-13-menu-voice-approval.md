@@ -20,5 +20,25 @@ human action/field labels, not raw internal protocol names.
 - [x] Implement typed review and main-agent apply/approve methods; verify affected suites.
 - [x] Keep menus visible through voice/manual journeys; Ha/Yo‘q callbacks send a fresh result,
   retire buttons, and preserve manual menu functionality. Adapt superseded UI expectations.
-- [ ] Full PostgreSQL/static checks; one read-only final review and necessary fixes.
+- [x] Full PostgreSQL/static checks; one read-only final review and necessary fixes.
 - [ ] Gracefully restart local test bot; verify startup and record evidence. No push/merge.
+
+Final review covered immutable 9351d40..bb49f6a and requested four corrections:
+uncertain assistant confirmations must retain clarification/multiple-task flags and cannot
+execute a prior draft; completed reminder/accounting results must survive later navigation;
+failed or oversized replacement voices must retire earlier approvals; offset calendar
+navigation must append results. Each reproduction failed before the fixes. Regressions also
+cover uncertain resume, duration rejection and suspension of prior confirmation until its
+summary is shown again. The fixes preserve existing V1 behavior.
+
+Review scope rulings: no live Telegram messages or real business actions are sent during
+validation. Existing synthetic speech extraction evidence applies because model routing is
+unchanged. Scheduler delivery is unchanged. PostgreSQL locking is covered by the full
+configured integration suite. Activation is checked separately below. Importing individual
+spoken fields into legacy manual FSM drafts and downgrading V2 pending reviews into V1 are
+outside this change: a voice input from any manual step reaches the main agent, while manual
+field entry remains available through its original flow. No further review round is required.
+
+Final verification after review fixes: 698 passed, 3 expected SQLite-only migration skips,
+46.29 seconds with PostgreSQL integration enabled. Ruff passed; mypy passed for all 65 source
+files; git diff --check passed. No schema or dependency changes.

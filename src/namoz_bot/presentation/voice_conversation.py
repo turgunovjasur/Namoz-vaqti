@@ -179,10 +179,13 @@ async def receive_conversation(
 ) -> None:
     if message.from_user is None or message.chat.id != message.from_user.id:
         return
+    context = await agent_context(message, handler_services)
+    request_id = f"{context.bot_id}:{message.chat.id}:m:{message.message_id}"
     if message.voice and (
         message.voice.duration > MAX_VOICE_SECONDS
         or (message.voice.file_size or 0) > MAX_VOICE_BYTES
     ):
+        await VoiceApproval(main_agent).invalidate_input(context=context, request_id=request_id)
         await send_text(message, state, "2 daqiqagacha va 5 MB dan kichik ovoz yuboring.")
         return
     await discard_panel(message, state)
@@ -197,6 +200,7 @@ async def receive_conversation(
             )
             audio = buffer.getvalue()
         except (TelegramAPIError, TimeoutError, OSError):
+            await VoiceApproval(main_agent).invalidate_input(context=context, request_id=request_id)
             await send_text(message, state, "Ovozni yuklab bo‘lmadi. Qayta yuboring.")
             return
     text = message.text
@@ -212,12 +216,11 @@ async def receive_conversation(
         if text is None:
             await help_message(message, state)
             return
-    context = await agent_context(message, handler_services)
     if audio is not None:
         assert message.voice is not None
         output = await VoiceApproval(main_agent).preview(
             context=context,
-            request_id=f"{context.bot_id}:{message.chat.id}:m:{message.message_id}",
+            request_id=request_id,
             audio=audio,
             mime_type=message.voice.mime_type or "audio/ogg",
         )
@@ -225,7 +228,7 @@ async def receive_conversation(
         return
     output = await main_agent.respond(
         context=context,
-        request_id=f"{context.bot_id}:{message.chat.id}:m:{message.message_id}",
+        request_id=request_id,
         text=text if audio is None else None,
         audio=audio,
         mime_type=(message.voice.mime_type or "audio/ogg") if message.voice else "audio/ogg",

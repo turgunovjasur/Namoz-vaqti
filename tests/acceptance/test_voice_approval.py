@@ -1,3 +1,4 @@
+import pytest
 from aiogram.methods import SendMessage
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -185,3 +186,76 @@ async def test_manual_accounting_read_appends_result(conversation, routes):
     await conversation.approved_voice()
     assert (7, result_id) in conversation.session.messages
     assert "balans" in conversation.session.messages[(7, result_id)].text.lower()
+
+
+async def test_saved_reminder_result_survives_starting_next_reminder(conversation):
+    await conversation.text("🔔 Eslatmalar")
+    await conversation.click("📋 Eslatma ro‘yxati")
+    await conversation.click("➕ Qo‘shish")
+    await conversation.text("Kitob")
+    await conversation.choose_time(hour=20, minute=0)
+    await conversation.click("🔁 Har kuni")
+    await conversation.click("✅ Saqlash")
+    saved_id = conversation.session.last_ids[7]
+    saved_text = conversation.session.messages[(7, saved_id)].text
+    await conversation.click("➕ Qo‘shish")
+    assert conversation.session.messages[(7, saved_id)].text == saved_text
+    assert conversation.session.last_ids[7] != saved_id
+
+
+async def test_manual_balance_result_survives_switching_to_reminders(conversation):
+    await conversation.text("💰 Kirim-chiqim")
+    await conversation.click("💳 Balans")
+    saved_id = conversation.session.last_ids[7]
+    saved_text = conversation.session.messages[(7, saved_id)].text
+    await conversation.text("🔔 Eslatmalar")
+    assert conversation.session.messages[(7, saved_id)].text == saved_text
+    assert conversation.session.last_ids[7] != saved_id
+
+
+async def test_offset_result_survives_returning_to_calendar(conversation, respx_mock):
+    from datetime import datetime
+
+    from namoz_bot.domain.reminders import TASHKENT
+    from tests.integration.test_namoz_vaqti_api import today_payload
+
+    today = datetime.now(TASHKENT).date()
+    payload = today_payload()
+    payload["meta"]["date"] = today.isoformat()
+    payload["meta"]["ym"] = today.strftime("%Y-%m")
+    payload["period_table"] = [
+        {"date": today.strftime("%d.%m.%Y"), "times": payload["today"]["times"]}
+    ]
+    respx_mock.get("https://namoz-vaqti.uz/").respond(200, json=payload)
+    await conversation.text("🕌 Masjidga moslash")
+    await conversation.click(data="offset:shom")
+    await conversation.click("+1")
+    saved_id = conversation.session.last_ids[7]
+    saved_text = conversation.session.messages[(7, saved_id)].text
+    await conversation.click("📅 Taqvimga qaytish")
+    assert isinstance(conversation.last, SendMessage)
+    assert conversation.session.messages[(7, saved_id)].text == saved_text
+
+
+@pytest.mark.parametrize("failure", ["download", "size", "duration"])
+async def test_rejected_new_voice_retires_old_approval(conversation, routes, failure):
+    await conversation.voice()
+    old_yes = conversation.button("✅ Ha")
+    if failure == "download":
+
+        async def broken_download(*args, **kwargs):
+            raise OSError("synthetic download failure")
+            yield b"unreachable"
+
+        conversation.session.stream_content = broken_download
+        await conversation.voice()
+        assert "yuklab bo‘lmadi" in conversation.last.text
+    else:
+        await conversation.voice(
+            **({"size": 6_000_000} if failure == "size" else {"duration": 121})
+        )
+        assert "2 daqiqagacha" in conversation.last.text
+    await conversation.click(data=old_yes)
+    async with async_sessionmaker(conversation.app.db_engine)() as session:
+        assert not list(await session.scalars(select(FinanceEntryRecord)))
+    assert "eskirgan" in conversation.last.text

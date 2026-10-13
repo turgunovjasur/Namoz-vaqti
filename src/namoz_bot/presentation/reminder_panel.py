@@ -1,4 +1,4 @@
-"""Keep the reminder UI in one editable message per private chat."""
+"""Reuse dialog panels while retaining completed hybrid-menu results."""
 
 import logging
 
@@ -14,6 +14,7 @@ PANEL_ID = "reminder_panel_id"
 MAIN_ID = "main_menu_message_id"
 KEEP_MAIN_MENU = "reminder_keep_main_menu"
 APPEND_RESULTS = "append_results"
+PANEL_IS_RESULT = "reminder_panel_is_result"
 
 
 async def reset_draft(state: FSMContext) -> None:
@@ -21,7 +22,7 @@ async def reset_draft(state: FSMContext) -> None:
     data = await state.get_data()
     retained = {
         key: data[key]
-        for key in (PANEL_ID, MAIN_ID, KEEP_MAIN_MENU, APPEND_RESULTS)
+        for key in (PANEL_ID, PANEL_IS_RESULT, MAIN_ID, KEEP_MAIN_MENU, APPEND_RESULTS)
         if data.get(key) is not None
     }
     await state.clear()
@@ -90,7 +91,17 @@ async def render_panel(
         await _delete(message, int(data[MAIN_ID]))
         await state.update_data({MAIN_ID: None})
     panel_id = data.get(PANEL_ID)
-    if panel_id is not None and not (append_result and data.get(APPEND_RESULTS)):
+    preserve_result = bool(data.get(APPEND_RESULTS) and data.get(PANEL_IS_RESULT))
+    if panel_id is not None and preserve_result:
+        try:
+            await message.bot.edit_message_reply_markup(
+                chat_id=message.chat.id, message_id=int(panel_id), reply_markup=None
+            )
+        except TelegramAPIError:
+            pass
+    if panel_id is not None and not preserve_result and not (
+        append_result and data.get(APPEND_RESULTS)
+    ):
         try:
             await message.bot.edit_message_text(
                 rendered,
@@ -126,7 +137,7 @@ async def render_panel(
         sent = await message.answer(
             rendered, reply_markup=markup, parse_mode=None, entities=entities
         )
-        await state.update_data({PANEL_ID: sent.message_id})
+        await state.update_data({PANEL_ID: sent.message_id, PANEL_IS_RESULT: append_result})
     finally:
         if removal is not None:
             await _delete(message, removal.message_id)

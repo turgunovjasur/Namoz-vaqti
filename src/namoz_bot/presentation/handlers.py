@@ -273,13 +273,15 @@ async def handle_offsets(message: Message, handler_services: HandlerServices) ->
 async def handle_offsets_overview(
     callback: CallbackQuery,
     handler_services: HandlerServices,
+    hybrid_menu: bool = False,
 ) -> None:
     if callback.message is None:
         await callback.answer("So‘rov noto‘g‘ri", show_alert=True)
         return
     await handler_services.subscriptions.get(callback.from_user.id)
     message = cast(Any, callback.message)
-    await message.edit_text(
+    render = message.answer if hybrid_menu else message.edit_text
+    await render(
         _format_offsets_overview(),
         reply_markup=build_offsets_keyboard(),
     )
@@ -289,6 +291,7 @@ async def handle_offsets_overview(
 async def handle_offset_selection(
     callback: CallbackQuery,
     handler_services: HandlerServices,
+    hybrid_menu: bool = False,
 ) -> None:
     prayer = _parse_prayer_callback(callback.data)
     if callback.message is None or prayer is None:
@@ -303,7 +306,8 @@ async def handle_offset_selection(
         )
         text, keyboard = _build_offset_detail(schedule, subscription, prayer)
         message = cast(Any, callback.message)
-        await message.edit_text(
+        render = message.answer if hybrid_menu else message.edit_text
+        await render(
             text,
             reply_markup=keyboard,
         )
@@ -375,6 +379,7 @@ async def handle_offset_change(
 async def handle_offset_schedule(
     callback: CallbackQuery,
     handler_services: HandlerServices,
+    hybrid_menu: bool = False,
 ) -> None:
     if callback.message is None:
         await callback.answer("So‘rov noto‘g‘ri", show_alert=True)
@@ -387,7 +392,8 @@ async def handle_offset_schedule(
             handler_services.today(),
         )
         message = cast(Any, callback.message)
-        await message.edit_text(
+        render = message.answer if hybrid_menu else message.edit_text
+        await render(
             format_schedule(schedule, offsets=subscription.offsets),
             reply_markup=None,
         )

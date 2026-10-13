@@ -200,3 +200,43 @@ async def test_voice_control_does_not_resolve_prior_financial_clarification(voic
     assert result.status == "needs_input" and "amalga oshganmi" in result.question
     async with factory() as session:
         assert not list(await session.scalars(select(FinanceEntryRecord)))
+
+
+@pytest.mark.parametrize("control", ["confirm", "resume"])
+@pytest.mark.parametrize("uncertainty", ["clarification", "multiple_tasks"])
+async def test_uncertain_voice_control_preserves_flags_and_cannot_execute_prior(
+    voice_agent, control, uncertainty
+):
+    main, extractor, repo, _, context, _ = voice_agent
+    await command(
+        voice_agent,
+        "reminder",
+        "create",
+        {"text": "Kitob", "time": "09:00", "kind": "daily"},
+        key="prior",
+    )
+    flags = (
+        {"clarification": "Qaysi amalni avval bajarish kerak?"}
+        if uncertainty == "clarification"
+        else {"multiple_tasks": True}
+    )
+    extractor.decision = AgentDecision(
+        domain="assistant", action=control, transcript="Ha va boshqa amal", **flags
+    )
+    review = await VoiceApproval(main).preview(
+        context=context, request_id="voice", audio=b"synthetic", mime_type="audio/ogg"
+    )
+    output = await decide(voice_agent, review)
+    assert output.status == "needs_input"
+    assert not await main._adapters._reminders.repository.list_for_user(
+        context.user_id, offset=0, limit=20
+    )
+    assert review.data["draft"][uncertainty] == flags[uncertainty]
+    pending = await repo.get_session(context.user_id, NOW)
+    assert pending.voice_review is None and pending.missing_fields == ["confirmation"]
+    extractor.decision = AgentDecision(domain="assistant", action="confirm", transcript="Ha")
+    checked = await main.respond(context=context, request_id="check-prior", text="Ha")
+    assert checked.status == "needs_confirmation"
+    assert not await main._adapters._reminders.repository.list_for_user(
+        context.user_id, offset=0, limit=20
+    )

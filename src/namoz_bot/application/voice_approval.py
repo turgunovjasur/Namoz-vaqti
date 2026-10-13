@@ -32,6 +32,29 @@ class VoiceApproval:
             return None
         return AgentSessionState.model_validate(original.model_dump())
 
+    @staticmethod
+    def suspend_confirmation(prior: AgentSessionState | None) -> AgentSessionState | None:
+        if prior and not prior.missing_fields:
+            return prior.model_copy(
+                update={
+                    "missing_fields": ["confirmation"],
+                    "question": "Oldingi qoralama saqlangan. «Davom et» deb uni tekshiring.",
+                }
+            )
+        return prior
+
+    async def invalidate_input(self, *, context: AgentContext, request_id: str) -> AgentResult:
+        """Retire an older approval when a replacement voice cannot be processed."""
+        if cached := await self.main._replay(context, request_id):
+            return cached
+        current = await self.main.store.get_session(context.user_id, self.main._now())
+        return await self._finish(
+            current,
+            self.suspend_confirmation(self.prior(current)),
+            self.main._error(context, request_id, "invalid_input"),
+            context=context,
+        )
+
     def pending_result(self, state: AgentSessionState, request_id: str) -> AgentResult:
         review = state.voice_review
         assert review is not None
@@ -48,9 +71,13 @@ class VoiceApproval:
                 action=review.prior.action,
                 parameters=review.prior.parameters,
                 transcript=understood.transcript,
-                clarification=review.prior.question
-                if any(field != "confirmation" for field in review.prior.missing_fields)
-                else None,
+                multiple_tasks=understood.multiple_tasks,
+                clarification=understood.clarification
+                or (
+                    review.prior.question
+                    if any(field != "confirmation" for field in review.prior.missing_fields)
+                    else None
+                ),
             )
         return result(
             request,
@@ -101,13 +128,7 @@ class VoiceApproval:
             )
             decision = decision.model_copy(update={"parameters": merged.parameters})
         except (ExternalServiceError, ValueError):
-            if prior and not prior.missing_fields:
-                prior = prior.model_copy(
-                    update={
-                        "missing_fields": ["confirmation"],
-                        "question": "Oldingi qoralama saqlangan. «Davom et» deb uni tekshiring.",
-                    }
-                )
+            prior = self.suspend_confirmation(prior)
             output = self.main._error(context, request_id, "provider_unavailable")
             return await self._finish(current, prior, output, context=context)
         review = AgentVoiceReview(
@@ -229,6 +250,18 @@ class VoiceApproval:
             )
         decision = review.decision
         if decision.domain == "assistant":
+            if decision.multiple_tasks or decision.clarification:
+                request = self.main._request(context, request_id, decision)
+                output = result(
+                    request,
+                    "needs_input",
+                    missing_fields=["single_task" if decision.multiple_tasks else "clarification"],
+                    question=decision.clarification
+                    or "Bitta vazifani tanlang va alohida ayting. Qaysisini avval bajaray?",
+                )
+                return await self._finish(
+                    current, self.suspend_confirmation(prior), output, context=context
+                )
             if decision.action in {"confirm", "resume"} and prior:
                 decision = AgentDecision(
                     domain=prior.domain,
