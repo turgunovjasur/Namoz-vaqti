@@ -80,7 +80,11 @@ def legacy_menu_input(message: Message, raw_state: str | None) -> bool:
     command = text.split()[0].split("@")[0] if text.strip() else ""
     return (
         text in NAVIGATION
-        or (raw_state is not None and not text.startswith("/"))
+        or (
+            raw_state is not None
+            and raw_state != AccountingStates.active.state
+            and not text.startswith("/")
+        )
         or command in {"/today", "/settings", "/offsets"}
     )
 

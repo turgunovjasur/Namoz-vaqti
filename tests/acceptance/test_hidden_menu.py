@@ -128,6 +128,26 @@ async def test_plain_text_after_menu_returns_to_main_conversation(conversation, 
     assert keyboard_labels(conversation) == ["ℹ️ Yordam"]
 
 
+async def test_free_text_in_accounting_menu_returns_to_main_for_another_domain(
+    conversation, routes,
+):
+    from sqlalchemy import select
+
+    from namoz_bot.infrastructure.orm import DailyScheduleRecord
+    from tests.acceptance.test_main_agent_journey import response
+    from tests.acceptance.test_menu_agent_journey import route_response
+
+    await conversation.text("/menu")
+    await conversation.text("💰 Kirim-chiqim")
+    routes[0].respond(200, json=route_response("settings", "Kunlik jadval ertalab 7 da kelsin"))
+    routes[4].respond(200, json=response("settings", "set_daily", {"time": "07:00"}))
+    await conversation.text("Kunlik jadval ertalab 7 da kelsin")
+    async with async_sessionmaker(conversation.app.db_engine)() as session:
+        item = await session.scalar(select(DailyScheduleRecord))
+    assert item is not None and item.at == "07:00"
+    assert keyboard_labels(conversation) == ["ℹ️ Yordam"]
+
+
 async def test_retired_agent_callback_exits_hidden_mode_without_reviving_menu_callbacks(
     conversation, routes,
 ):
