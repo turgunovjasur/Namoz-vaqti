@@ -95,3 +95,64 @@ async def test_oversized_voice_rejected_before_http(respx_mock):
                 pending=None,
             )
     assert not respx_mock.calls
+
+
+async def test_unused_known_nullable_provider_fields_are_normalized(respx_mock):
+    respx_mock.post(URL).respond(
+        200,
+        json=response(
+            domain="reminder",
+            action="create",
+            parameters={
+                "text": "Kitob",
+                "time": "09:00",
+                "kind": "once",
+                "date": "2026-10-14",
+                "weekdays": [],
+                "view": None,
+            },
+        ),
+    )
+    async with httpx.AsyncClient() as http:
+        client = GeminiMainAgentClient(http, api_key=SecretStr("secret"), model="test-model")
+        decision = await client.extract(
+            text="test", audio=None, mime_type="audio/ogg", context=context(), pending=None
+        )
+    assert "view" not in decision.parameters and decision.parameters["date"] == "2026-10-14"
+
+
+async def test_unused_provider_pagination_defaults_are_normalized(respx_mock):
+    respx_mock.post(URL).respond(
+        200,
+        json=response(
+            domain="reminder",
+            action="create",
+            parameters={
+                "text": "Kitob",
+                "time": "09:00",
+                "kind": "daily",
+                "weekdays": [],
+                "page": 0,
+                "today": False,
+            },
+        ),
+    )
+    async with httpx.AsyncClient() as http:
+        client = GeminiMainAgentClient(http, api_key=SecretStr("secret"), model="test-model")
+        decision = await client.extract(
+            text="test", audio=None, mime_type="audio/ogg", context=context(), pending=None
+        )
+    assert "page" not in decision.parameters and "today" not in decision.parameters
+
+
+@pytest.mark.parametrize("parameters", [{"owner_id": None}, {"view": "daily"}])
+async def test_unknown_or_nonnull_wrong_action_fields_stay_rejected(respx_mock, parameters):
+    respx_mock.post(URL).respond(
+        200, json=response(domain="reminder", action="create", parameters=parameters)
+    )
+    async with httpx.AsyncClient() as http:
+        client = GeminiMainAgentClient(http, api_key=SecretStr("secret"), model="test-model")
+        with pytest.raises(ExternalServiceError):
+            await client.extract(
+                text="test", audio=None, mime_type="audio/ogg", context=context(), pending=None
+            )

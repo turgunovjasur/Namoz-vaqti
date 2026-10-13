@@ -2,14 +2,21 @@
 
 import base64
 import json
+from datetime import timedelta
 from typing import Any
 
 import httpx
 from pydantic import SecretStr
 
 from namoz_bot.application.voice_reminders import MAX_VOICE_BYTES
-from namoz_bot.domain.agent_protocol import AgentContext, AgentDecision, AgentSessionState
+from namoz_bot.domain.agent_protocol import (
+    ACTION_MODELS,
+    AgentContext,
+    AgentDecision,
+    AgentSessionState,
+)
 from namoz_bot.domain.errors import ExternalServiceError
+from namoz_bot.domain.reminders import TASHKENT
 
 SYSTEM_INSTRUCTION = """
 Sen namoz, eslatma va kirim-chiqim Telegram botining yagona yo‘naltiruvchi yordamchisisan.
@@ -32,7 +39,7 @@ assistant.clarify; hech birini o‘zing tanlama. 'Bekor qil'=assistant.cancel,
 'Davom et'=assistant.resume. Oddiy 'ha' saqlashga tasdiq emas.
 
 Context.pending bo‘lsa, qisqa javobni shu vazifaning yetishmagan maydoniga qo‘sh.
-Faqat yangi/aniq tuzatilgan parametersni qaytar; oldingi maydonlarni taxmin bilan o‘zgartirma.
+Oldingi to‘g‘ri maydonlarni aynan saqla; faqat yangi/aniq tuzatilgan qiymatlarni o‘zgartir.
 Yangi aniq domain so‘rovi o‘z domain/action ini saqlasin, pendingga majburan qo‘shilmasin.
 
 Sana YYYY-MM-DD, oy YYYY-MM, vaqt HH:MM; message_time va Asia/Tashkentdan hisobla.
@@ -41,6 +48,9 @@ Eslatma: time noaniq ('sakkizda', kun qismi yo‘q) bo‘lsa null va aniqlashtir
 kind once/daily/weekly. Haftaning dushanbasi=0, yakshanba=6.
 Har kuni/hafta uchun date=null. Takrorsiz 'juma kuni'=kelajakdagi eng yaqin sana, once.
 Nisbiy sana joriy message_time bo‘yicha; oldindan aytilgan pending sanani saqla.
+Masalan 'ertaga ertalab 9 da kitob o‘qishni eslat' uchun text='Kitob o‘qish',
+time='09:00', kind='once', date=ertangi YYYY-MM-DD, weekdays=[] majburiy ajratiladi.
+Eslatma kunini date va takrorlanishini kind orqali qaytar; view bu maydonlar o‘rnini bosmaydi.
 
 Kirim-chiqim: faqat amalga oshgan operatsiya. Summa musbat BUTUN SO‘M:
 '120 ming'=120000, '10 million'=10000000. Valyuta aytilmasa UZS, boshqa valyuta OTHER.
@@ -52,6 +62,8 @@ assistant.clarify. Oylik qancha tushdi=report.salary; qancha sarfladim=report.ex
 Balans, hisobot raqamlarini hisoblama; bazadagi yozuvlarni bilmaysan.
 
 Hamma yuqori maydonlar: domain,action,parameters,transcript,clarification,multiple_tasks.
+Parameters schema maydonlarining barchasini qaytar: aloqasiz qiymatlar null,
+aloqasiz page=0, today=false, weekdays=[]. Qisman so‘rovdagi noma'lum qiymat null.
 Aniq so‘rovda clarification=null. Faqat JSON, markdown yoki erkin javob yo‘q.
 """.strip()
 
@@ -95,6 +107,23 @@ RESPONSE_SCHEMA: dict[str, Any] = {
     "required": ["domain", "action", "parameters", "transcript", "clarification", "multiple_tasks"],
 }
 
+PARAMETER_SCHEMA = RESPONSE_SCHEMA["properties"]["parameters"]
+PARAMETER_SCHEMA["required"] = list(PARAMETER_SCHEMA["properties"])
+for name, choices in {
+    "kind": ["once", "daily", "weekly"],
+    "currency": ["UZS", "OTHER"],
+    "prayer": ["bomdod", "quyosh", "peshin", "asr", "shom", "xufton"],
+    "report_type": ["summary", "income", "expense", "salary"],
+    "view": ["general", "region", "offsets", "interval", "daily"],
+}.items():
+    PARAMETER_SCHEMA["properties"][name]["enum"] = choices
+PARAMETER_SCHEMA["properties"]["kind"]["description"] = (
+    "Reminder recurrence: explicit date/ertaga -> once, har kuni -> daily, har hafta -> weekly."
+)
+PARAMETER_SCHEMA["properties"]["date"]["description"] = (
+    "YYYY-MM-DD occurrence date. For ertaga use context.tomorrow_date; once reminder needs date."
+)
+
 
 class GeminiMainAgentClient:
     def __init__(self, http_client: httpx.AsyncClient, *, api_key: SecretStr, model: str) -> None:
@@ -130,7 +159,11 @@ class GeminiMainAgentClient:
         ):
             raise ValueError("Ovozli xabar formati yoki hajmi noto‘g‘ri.")
         safe_context = {
-            "message_time": context.message_time.isoformat(),
+            "message_time": context.message_time.astimezone(TASHKENT).isoformat(),
+            "current_date": context.message_time.astimezone(TASHKENT).date().isoformat(),
+            "tomorrow_date": (context.message_time.astimezone(TASHKENT) + timedelta(days=1))
+            .date()
+            .isoformat(),
             "timezone": context.timezone,
             "language": context.language,
             "pending": pending.model_dump(
@@ -188,6 +221,31 @@ class GeminiMainAgentClient:
             )
             if len(result) > 16000:
                 raise ValueError("Oversized response")
-            return AgentDecision.model_validate_json(result)
+            payload = json.loads(result)
+            model = ACTION_MODELS.get((payload.get("domain"), payload.get("action")))
+            parameters = payload.get("parameters")
+            if model is not None and isinstance(parameters, dict):
+                known_fields = RESPONSE_SCHEMA["properties"]["parameters"]["properties"]
+                # Gemini can materialize inactive fields in the superset schema. Only
+                # known null/empty default placeholders may be dropped; everything else
+                # still passes through the strict action model.
+                payload["parameters"] = {
+                    key: value
+                    for key, value in parameters.items()
+                    if not (
+                        key in known_fields
+                        and key not in model.model_fields
+                        and (
+                            value is None
+                            or (key == "page" and type(value) is int and value == 0)
+                            or (key == "today" and value is False)
+                            or (key == "weekdays" and value == [])
+                        )
+                    )
+                }
+                for key in ("view", "report_type"):
+                    if key in model.model_fields and payload["parameters"].get(key) is None:
+                        payload["parameters"].pop(key, None)
+            return AgentDecision.model_validate_json(json.dumps(payload))
         except (ValueError, KeyError, TypeError, IndexError, AttributeError):
             raise ExternalServiceError("Xabardan vazifani ajratib bo‘lmadi.") from None

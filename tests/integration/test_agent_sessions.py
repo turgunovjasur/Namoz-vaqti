@@ -1,7 +1,10 @@
+import os
 from datetime import UTC, datetime, timedelta
+from uuid import uuid4
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, text
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from namoz_bot.domain.agent_protocol import AgentResult, AgentRevisionConflict, AgentSessionState
@@ -10,21 +13,38 @@ from namoz_bot.infrastructure.agent_sessions import SqlAlchemyAgentStore
 from namoz_bot.infrastructure.orm import Base, FinanceEntryRecord
 from namoz_bot.infrastructure.repositories import SqlAlchemySubscriptionRepository
 from tests.integration.test_accounting import request as finance_request
+from tests.integration.test_reminder_repository import migrate
 
 NOW = datetime(2026, 10, 13, 10, tzinfo=UTC)
 
 
-@pytest.fixture
-async def store(tmp_path):
-    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'agent.db'}")
+@pytest.fixture(params=["sqlite", "postgres"])
+async def store(tmp_path, request):
+    admin = None
+    schema = f"agent_test_{uuid4().hex}"
+    if request.param == "postgres":
+        url = os.getenv("NAMOZ_TEST_DATABASE_URL")
+        if not url:
+            pytest.skip("NAMOZ_TEST_DATABASE_URL is not configured")
+        assert "test" in (make_url(url).database or "")
+        admin = create_async_engine(url)
+        async with admin.begin() as connection:
+            await connection.execute(text(f'CREATE SCHEMA "{schema}"'))
+        engine = create_async_engine(url, connect_args={"server_settings": {"search_path": schema}})
+    else:
+        engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'agent.db'}")
     async with engine.begin() as connection:
-        await connection.run_sync(Base.metadata.create_all)
+        await connection.run_sync(migrate if admin else Base.metadata.create_all)
     factory = async_sessionmaker(engine, expire_on_commit=False)
     users = SqlAlchemySubscriptionRepository(factory)
     first = await users.add(UserSubscription(7, 7, "Toshkent", True))
     other = await users.add(UserSubscription(8, 8, "Toshkent", True))
     yield SqlAlchemyAgentStore(factory), factory, first.id, other.id
     await engine.dispose()
+    if admin:
+        async with admin.begin() as connection:
+            await connection.execute(text(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE'))
+        await admin.dispose()
 
 
 def draft(revision=1):
