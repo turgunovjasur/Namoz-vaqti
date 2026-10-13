@@ -6,6 +6,32 @@ from pydantic import ValidationError
 from namoz_bot.config import Settings
 
 
+def test_menu_agents_version_and_models_are_configurable():
+    settings = Settings(
+        _env_file=None,
+        telegram_bot_token="test-token",
+        database_url="sqlite+aiosqlite:///:memory:",
+        GEMINI_PRAYER_AGENT_MODEL="prayer-model",
+        GEMINI_REMINDER_AGENT_MODEL="reminder-model",
+        GEMINI_ACCOUNTING_AGENT_MODEL="finance-model",
+        GEMINI_SETTINGS_AGENT_MODEL="settings-model",
+    )
+    assert settings.main_agent_version == 2
+    assert settings.gemini_prayer_agent_model == "prayer-model"
+    assert settings.gemini_accounting_agent_model == "finance-model"
+
+
+@pytest.mark.parametrize("value", [0, 3, -1, "other"])
+def test_menu_agent_version_rejects_unknown_values(value):
+    with pytest.raises(ValidationError):
+        Settings(
+            _env_file=None,
+            telegram_bot_token="test-token",
+            database_url="sqlite+aiosqlite:///:memory:",
+            MAIN_AGENT_VERSION=value,
+        )
+
+
 def test_settings_use_tashkent_schedule_defaults() -> None:
     settings = Settings(
         telegram_bot_token="test-token",
@@ -18,6 +44,33 @@ def test_settings_use_tashkent_schedule_defaults() -> None:
     assert settings.broadcast_batch_size == 500
     assert settings.telegram_max_concurrency == 10
     assert settings.telegram_messages_per_second == 25.0
+
+
+def test_menu_agent_version_accepts_environment_numeric_string(monkeypatch):
+    monkeypatch.setenv("MAIN_AGENT_VERSION", "1")
+    settings = Settings(
+        _env_file=None, telegram_bot_token="test-token", database_url="sqlite+aiosqlite:///:memory:"
+    )
+    assert settings.main_agent_version == 1
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "GEMINI_PRAYER_AGENT_MODEL",
+        "GEMINI_REMINDER_AGENT_MODEL",
+        "GEMINI_ACCOUNTING_AGENT_MODEL",
+        "GEMINI_SETTINGS_AGENT_MODEL",
+    ],
+)
+def test_menu_models_reject_url_components(key):
+    with pytest.raises(ValidationError):
+        Settings(
+            _env_file=None,
+            telegram_bot_token="test-token",
+            database_url="sqlite+aiosqlite:///:memory:",
+            **{key: "../models/other?secret=x"},
+        )
 
 
 def test_settings_accept_environment_style_aliases() -> None:

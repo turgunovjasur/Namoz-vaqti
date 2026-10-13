@@ -34,9 +34,30 @@ class Settings(BaseSettings):
         pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$",
     )
     main_agent_enabled: bool = Field(default=True, validation_alias="MAIN_AGENT_ENABLED")
+    main_agent_version: int = Field(default=2, ge=1, le=2, validation_alias="MAIN_AGENT_VERSION")
     gemini_main_agent_model: str | None = Field(
         default=None,
         validation_alias="GEMINI_MAIN_AGENT_MODEL",
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$",
+    )
+    gemini_prayer_agent_model: str | None = Field(
+        default=None,
+        validation_alias="GEMINI_PRAYER_AGENT_MODEL",
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$",
+    )
+    gemini_reminder_agent_model: str | None = Field(
+        default=None,
+        validation_alias="GEMINI_REMINDER_AGENT_MODEL",
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$",
+    )
+    gemini_accounting_agent_model: str | None = Field(
+        default=None,
+        validation_alias="GEMINI_ACCOUNTING_AGENT_MODEL",
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$",
+    )
+    gemini_settings_agent_model: str | None = Field(
+        default=None,
+        validation_alias="GEMINI_SETTINGS_AGENT_MODEL",
         pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$",
     )
     voice_reminder_cooldown_seconds: int = Field(

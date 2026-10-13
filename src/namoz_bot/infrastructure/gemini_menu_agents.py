@@ -69,6 +69,8 @@ SQL/kod yoki erkin tool nomini bajarma. User/operation/request IDsni qaytarma.
 JSON: domain,action,parameters,transcript,clarification,multiple_tasks.
 Parameters sxemasining hamma maydonlarini qaytar; aloqasizlari null, page=0,
 today=false,weekdays=[]. Aniqlanmagan kerakli qiymat null va aniq savol.
+Bir nechta mustaqil vazifa yoki moliyaviy operatsiya bo‘lsa assistant.clarify,
+multiple_tasks=true. Summalarni qo‘shib bitta operatsiyaga aylantirma.
 Pending bo‘lsa oldingi to‘g‘ri qiymatlarni aynan saqla, yangi aniq javobni qo‘sh.
 Yangi/tuzatilmagan qiymatlarni taxmin qilma. Sana YYYY-MM-DD, oy YYYY-MM, vaqt HH:MM.
 Nisbiy kunlar message_time/Asia/Tashkent va current_date/tomorrow_date kontekstidan.

@@ -5,7 +5,16 @@ Telegram foydalanuvchilariga yuboradigan asinxron bot.
 
 ## Ishlash tartibi
 
-### Asosiy agent — V1
+### Asosiy agent — V2
+
+Standart oqim: **user → main/router agent → menu agent → xizmat → main agent**.
+Namoz, eslatma, kirim-chiqim va sozlamalar o‘z ko‘rsatma hamda vakolatiga ega
+yordamchi agent orqali ishlaydi. Foydalanuvchi bitta bot bilan gaplashadi.
+Router faqat yo‘nalish va transkriptni aniqlaydi; tafsilotlarni tanlangan agent
+ajratadi. Boshqa yordamchi agentlar chaqirilmaydi. Yangi matn/ovozli so‘rov odatda
+router va bitta yordamchi uchun **ikki AI chaqiruvi** qiladi; kitobdan nasihat
+tanlash mavjud alohida xizmat chaqiruvidir. Audio faqat routerga yuboriladi,
+yordamchi agent matnni qabul qiladi. V1 dagi saqlangan qoralamalar V2 da davom etadi.
 
 Botga bo‘limni oldindan tanlamasdan matn yoki ovoz yuboring:
 «Bugun shom nechida?», «Ertaga ertalab 9 da uchrashuvni eslat»,
@@ -26,8 +35,14 @@ Sozlamalar:
 
 ```dotenv
 MAIN_AGENT_ENABLED=true
+MAIN_AGENT_VERSION=2
 # Berilmasa GEMINI_VOICE_MODEL ishlatiladi:
 # GEMINI_MAIN_AGENT_MODEL=audio_va_structured_output_qollaydigan_model
+# Yordamchi agent modellari berilmasa yuqoridagi model ishlatiladi:
+# GEMINI_PRAYER_AGENT_MODEL=...
+# GEMINI_REMINDER_AGENT_MODEL=...
+# GEMINI_ACCOUNTING_AGENT_MODEL=...
+# GEMINI_SETTINGS_AGENT_MODEL=...
 ```
 
 Mavjud `GEMINI_API_KEY` ishlatiladi. Kalit yo‘q yoki `MAIN_AGENT_ENABLED=false`
@@ -40,8 +55,11 @@ Agent sessiyalari va javob receiptlari bazada saqlanadi; tugallangan receiptlar
 
 Yangilangan botni ishga tushirishdan **oldin** `alembic upgrade head` bajaring.
 `bash run_local_bot.sh` test bazasi uchun migratsiyani avtomatik bajaradi.
-V1 mavjud xizmat adapterlarini ishlatadi; V2 da shu protokolga alohida yordamchi
-agentlarni ulash mumkin. [Dizayn va protokol](docs/superpowers/specs/2026-10-13-main-agent-v1-design.md).
+V2 mavjud xizmat va transactionlarni yordamchi agentlar orqali ishlatadi.
+`MAIN_AGENT_VERSION=1` bir chaqiruvli V1 oqimini qaytaradi. V2 uchun qo‘shimcha
+migratsiya kerak emas; V1 migratsiyasi bazada bo‘lishi kerak.
+[V2 dizayni](docs/superpowers/specs/2026-10-13-menu-agents-v2-design.md),
+[request/result protokoli](docs/superpowers/specs/2026-10-13-main-agent-v1-design.md).
 
 - `/start` yangi foydalanuvchini standart **Toshkent** hududi bilan ro‘yxatdan o‘tkazadi
   va **🕌 Namoz vaqti** / **🔔 Eslatmalar** / **💰 Kirim-chiqim** /

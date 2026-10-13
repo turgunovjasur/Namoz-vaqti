@@ -18,7 +18,16 @@ from namoz_bot.application.daily_schedule import (
     DailyScheduleSettingsService,
     PersonalDailyBroadcastService,
 )
-from namoz_bot.application.main_agent import MainAgent
+from namoz_bot.application.main_agent import AgentActionExecutor, AgentExtractor, MainAgent
+from namoz_bot.application.menu_agents import (
+    AccountingAgent,
+    MenuAgent,
+    MenuAgentDispatcher,
+    PrayerAgent,
+    ReminderAgent,
+    RoutedAgentExtractor,
+    SettingsAgent,
+)
 from namoz_bot.application.religious_reminders import (
     PersonalReligiousBroadcastService,
     ReligiousIntervalService,
@@ -28,6 +37,7 @@ from namoz_bot.application.reminders import ReminderService
 from namoz_bot.application.schedules import ScheduleService
 from namoz_bot.application.voice_reminders import VoiceReminderService
 from namoz_bot.config import Settings
+from namoz_bot.domain.agent_protocol import Domain
 from namoz_bot.infrastructure.accounting import SqlAlchemyLedgerRepository
 from namoz_bot.infrastructure.agent_sessions import SqlAlchemyAgentStore
 from namoz_bot.infrastructure.daily_schedule import SqlAlchemyDailyScheduleRepository
@@ -35,6 +45,7 @@ from namoz_bot.infrastructure.db import create_database
 from namoz_bot.infrastructure.gemini import GeminiReminderClient
 from namoz_bot.infrastructure.gemini_accounting import GeminiAccountingClient
 from namoz_bot.infrastructure.gemini_main_agent import GeminiMainAgentClient
+from namoz_bot.infrastructure.gemini_menu_agents import GeminiMenuAgentClient, GeminiRoutingClient
 from namoz_bot.infrastructure.gemini_voice import GeminiVoiceReminderClient
 from namoz_bot.infrastructure.instance_lock import BotAlreadyRunningError, BotInstanceLock
 from namoz_bot.infrastructure.namoz_vaqti_api import NamozVaqtiApiClient
@@ -134,22 +145,66 @@ def create_application(settings: Settings) -> ApplicationResources:
             interval_repository, default_hours=settings.gemini_reminder_interval_hours
         )
     main_agent = None
+    menu_agents: dict[Domain, MenuAgent] = {}
     if (
         settings.main_agent_enabled
         and settings.gemini_api_key
         and settings.gemini_api_key.get_secret_value().strip()
     ):
-        main_agent = MainAgent(
-            GeminiMainAgentClient(
+        base_model = settings.gemini_main_agent_model or settings.gemini_voice_model
+        service_adapters = AgentAdapters(schedule_service, religious_reminders)
+        extractor: AgentExtractor
+        executor: AgentActionExecutor
+        if settings.main_agent_version == 2:
+            models: dict[Domain, str] = {
+                "prayer": settings.gemini_prayer_agent_model or base_model,
+                "reminder": settings.gemini_reminder_agent_model or base_model,
+                "accounting": settings.gemini_accounting_agent_model or base_model,
+                "settings": settings.gemini_settings_agent_model or base_model,
+            }
+            classes: tuple[type[MenuAgent], ...] = (
+                PrayerAgent,
+                ReminderAgent,
+                AccountingAgent,
+                SettingsAgent,
+            )
+            menu_agents = {
+                cls.domain: cls(
+                    GeminiMenuAgentClient(
+                        http_client,
+                        api_key=settings.gemini_api_key,
+                        model=models[cls.domain],
+                        domain=cls.domain,
+                    ),
+                    service_adapters,
+                )
+                for cls in classes
+            }
+            extractor = RoutedAgentExtractor(
+                GeminiRoutingClient(http_client, api_key=settings.gemini_api_key, model=base_model),
+                menu_agents,
+            )
+            executor = MenuAgentDispatcher(menu_agents)
+        else:
+            extractor = GeminiMainAgentClient(
                 http_client,
                 api_key=settings.gemini_api_key,
-                model=settings.gemini_main_agent_model or settings.gemini_voice_model,
-            ),
+                model=base_model,
+            )
+            executor = service_adapters
+        main_agent = MainAgent(
+            extractor,
             SqlAlchemyAgentStore(session_factory),
-            adapters=AgentAdapters(schedule_service, religious_reminders),
+            adapters=executor,
             cooldown_seconds=settings.voice_reminder_cooldown_seconds,
         )
+        logger.info(
+            "main_agent_configured version=%d menus=%s",
+            settings.main_agent_version,
+            ",".join(menu_agents),
+        )
     dispatcher["main_agent"] = main_agent
+    dispatcher["menu_agents"] = menu_agents
     middleware = ServicesMiddleware(
         session_factory,
         schedule_service,

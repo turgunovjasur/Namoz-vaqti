@@ -19,6 +19,7 @@ async def agent_journey(tmp_path, request):
     options = getattr(request, "param", {})
     app = create_application(
         Settings(
+            MAIN_AGENT_VERSION=1,
             _env_file=None,
             telegram_bot_token="123456:LOCAL_TEST",
             database_url=f"sqlite+aiosqlite:///{tmp_path / 'main-agent.db'}",
@@ -283,6 +284,7 @@ async def test_restart_and_old_valid_save_create_one_reminder(agent_journey, age
     await old.close()
     new = create_application(
         Settings(
+            MAIN_AGENT_VERSION=1,
             _env_file=None,
             telegram_bot_token="123456:LOCAL_TEST",
             database_url=database_url,
