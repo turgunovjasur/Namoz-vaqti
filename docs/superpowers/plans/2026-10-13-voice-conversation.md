@@ -126,3 +126,22 @@ and survives legacy handlers clearing their own drafts; no schema or dependency 
 Acceptance tests exercise the real dispatcher and SQLite effects: all main sections,
 manual reminder creation, settings callbacks/custom input, exit paths, retired
 callbacks, user isolation, group handling, active main-agent drafts and normal text.
+
+Follow-up completed in `4b4b00c` and `6096c48`. One read-only review of
+`bf89bca..4b4b00c` found that the broad accounting section state trapped ordinary
+text. A cross-domain settings request reproduced RED; excluding that state from the
+manual-field bypass produced GREEN. Final focused suite: 54 passed. Full isolated
+PostgreSQL suite: **657 passed, 3 expected skips**, 42.66 seconds. Ruff/mypy and diff
+checks passed. No additional review pass was dispatched.
+
+Review scope rulings: same-user update races are excluded by existing event isolation;
+reopened legacy region/offset callbacks retain their current authenticated-user rules;
+durable mode storage, owner-only restrictions, other legacy group commands, V1 expansion
+and unsupported media were not requested. The new explicit menu exception supersedes
+the earlier global Help-only wording. Existing Telegram transport/command configuration,
+AI accuracy and broader business services are unchanged; local startup is verified below.
+
+Local activation on 2026-10-13 (Asia/Tashkent): process `94481` stopped with SIGINT
+and exited; new process `2368` started at 14:46:13. Logs at 14:46:16 confirmed
+`version=2 voice_first=True` and polling `@TestUzNamozTaqvimiBot`, ID `8922089476`.
+Process inventory confirmed exactly one bot process. No push, merge or server deployment.
