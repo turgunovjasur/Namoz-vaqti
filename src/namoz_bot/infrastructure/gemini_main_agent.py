@@ -126,12 +126,22 @@ PARAMETER_SCHEMA["properties"]["date"]["description"] = (
 
 
 class GeminiMainAgentClient:
-    def __init__(self, http_client: httpx.AsyncClient, *, api_key: SecretStr, model: str) -> None:
+    def __init__(
+        self,
+        http_client: httpx.AsyncClient,
+        *,
+        api_key: SecretStr,
+        model: str,
+        system_instruction: str = SYSTEM_INSTRUCTION,
+        response_schema: dict[str, Any] | None = None,
+    ) -> None:
         self._http = http_client
         self._key = api_key
         self._url = (
             f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
         )
+        self._instruction = system_instruction
+        self._schema = response_schema if response_schema is not None else RESPONSE_SCHEMA
 
     async def extract(
         self,
@@ -191,18 +201,58 @@ class GeminiMainAgentClient:
             )
         else:
             parts.append({"text": text})
+        payload = await self.generate_json(parts)
+        try:
+            domain, action = payload.get("domain"), payload.get("action")
+            model = (
+                ACTION_MODELS.get((domain, action))
+                if isinstance(domain, str) and isinstance(action, str)
+                else None
+            )
+            parameters = payload.get("parameters")
+            if model is not None and isinstance(parameters, dict):
+                known_fields = self._schema["properties"]["parameters"]["properties"]
+                # Normalize only known inactive empty/default fields, then revalidate.
+                payload["parameters"] = {
+                    key: value
+                    for key, value in parameters.items()
+                    if not (
+                        key in known_fields
+                        and key not in model.model_fields
+                        and (
+                            value is None
+                            or (key == "page" and type(value) is int and value == 0)
+                            or (key == "today" and value is False)
+                            or (key == "weekdays" and value == [])
+                        )
+                    )
+                }
+                for key in ("view", "report_type"):
+                    if key in model.model_fields and payload["parameters"].get(key) is None:
+                        payload["parameters"].pop(key, None)
+            return AgentDecision.model_validate_json(json.dumps(payload))
+        except (ValueError, KeyError, TypeError, IndexError, AttributeError):
+            raise ExternalServiceError("Xabardan vazifani ajratib bo‘lmadi.") from None
+
+    async def generate_json(
+        self,
+        parts: list[dict[str, Any]],
+        *,
+        max_output_tokens: int = 4096,
+    ) -> dict[str, Any]:
+        """Shared bounded HTTP transport; callers apply their own strict protocol models."""
         try:
             response = await self._http.post(
                 self._url,
                 headers={"x-goog-api-key": self._key.get_secret_value().strip()},
                 json={
-                    "systemInstruction": {"parts": [{"text": SYSTEM_INSTRUCTION}]},
+                    "systemInstruction": {"parts": [{"text": self._instruction}]},
                     "contents": [{"role": "user", "parts": parts}],
                     "generationConfig": {
                         "temperature": 0,
-                        "maxOutputTokens": 4096,
+                        "maxOutputTokens": max_output_tokens,
                         "responseMimeType": "application/json",
-                        "responseSchema": RESPONSE_SCHEMA,
+                        "responseSchema": self._schema,
                     },
                 },
                 timeout=httpx.Timeout(connect=5, read=60, write=15, pool=5),
@@ -223,30 +273,8 @@ class GeminiMainAgentClient:
             if len(result) > 16000:
                 raise ValueError("Oversized response")
             payload = json.loads(result)
-            model = ACTION_MODELS.get((payload.get("domain"), payload.get("action")))
-            parameters = payload.get("parameters")
-            if model is not None and isinstance(parameters, dict):
-                known_fields = RESPONSE_SCHEMA["properties"]["parameters"]["properties"]
-                # Gemini can materialize inactive fields in the superset schema. Only
-                # known null/empty default placeholders may be dropped; everything else
-                # still passes through the strict action model.
-                payload["parameters"] = {
-                    key: value
-                    for key, value in parameters.items()
-                    if not (
-                        key in known_fields
-                        and key not in model.model_fields
-                        and (
-                            value is None
-                            or (key == "page" and type(value) is int and value == 0)
-                            or (key == "today" and value is False)
-                            or (key == "weekdays" and value == [])
-                        )
-                    )
-                }
-                for key in ("view", "report_type"):
-                    if key in model.model_fields and payload["parameters"].get(key) is None:
-                        payload["parameters"].pop(key, None)
-            return AgentDecision.model_validate_json(json.dumps(payload))
+            if not isinstance(payload, dict):
+                raise ValueError("Response must be an object")
+            return payload
         except (ValueError, KeyError, TypeError, IndexError, AttributeError):
             raise ExternalServiceError("Xabardan vazifani ajratib bo‘lmadi.") from None
