@@ -2,7 +2,9 @@
 
 from datetime import date, datetime
 
+from pydantic import JsonValue
 from sqlalchemy import (
+    JSON,
     BigInteger,
     Boolean,
     CheckConstraint,
@@ -179,3 +181,25 @@ class FinanceEntryRecord(Base):
     source_key: Mapped[str] = mapped_column(String(64))
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class AgentSessionRecord(Base):
+    __tablename__ = "agent_sessions"
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    revision: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    state: Mapped[dict[str, JsonValue] | None] = mapped_column(JSON, nullable=True)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+
+
+class AgentReceiptRecord(Base):
+    __tablename__ = "agent_receipts"
+    __table_args__ = (UniqueConstraint("user_id", "request_id", name="uq_agent_request"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    request_id: Mapped[str] = mapped_column(String(100))
+    result: Mapped[dict[str, JsonValue]] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)

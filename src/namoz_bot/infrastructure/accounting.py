@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from namoz_bot.domain.accounting import LedgerEntry, LedgerSpec, LedgerSummary
 from namoz_bot.infrastructure.orm import FinanceEntryRecord
+from namoz_bot.infrastructure.session_scope import session_scope
 
 
 def _entry(row: FinanceEntryRecord) -> LedgerEntry:
@@ -25,13 +26,16 @@ def _entry(row: FinanceEntryRecord) -> LedgerEntry:
 
 
 class SqlAlchemyLedgerRepository:
-    def __init__(self, factory: async_sessionmaker[AsyncSession]) -> None:
+    def __init__(
+        self, factory: async_sessionmaker[AsyncSession], *, session: AsyncSession | None = None
+    ) -> None:
         self._factory = factory
+        self._session = session
 
     async def create(self, user_id: int, spec: LedgerSpec, source_key: str) -> LedgerEntry:
         if not source_key or len(source_key) > 64:
             raise ValueError("Yozuv manbasi noto‘g‘ri.")
-        async with self._factory.begin() as session:
+        async with session_scope(self._factory, self._session, write=True) as session:
             insert = pg_insert if session.get_bind().dialect.name == "postgresql" else sqlite_insert
             await session.execute(
                 insert(FinanceEntryRecord)
@@ -59,7 +63,7 @@ class SqlAlchemyLedgerRepository:
     async def balance(self, user_id: int) -> int:
         r = FinanceEntryRecord
         signed = case((r.kind == "income", r.amount), else_=-r.amount)
-        async with self._factory() as session:
+        async with session_scope(self._factory, self._session, write=False) as session:
             total = await session.scalar(
                 select(func.coalesce(func.sum(signed), 0)).where(
                     r.user_id == user_id, r.cancelled_at.is_(None)
@@ -89,12 +93,12 @@ class SqlAlchemyLedgerRepository:
             ),
             func.coalesce(func.sum(case((r.period < month, signed), else_=0)), 0),
         ).where(r.user_id == user_id, r.cancelled_at.is_(None))
-        async with self._factory() as session:
+        async with session_scope(self._factory, self._session, write=False) as session:
             row = (await session.execute(query)).one()
             return LedgerSummary(month, int(row[0]), int(row[1]), int(row[2]), int(row[3]))
 
     async def history(self, user_id: int, *, offset: int, limit: int) -> list[LedgerEntry]:
-        async with self._factory() as session:
+        async with session_scope(self._factory, self._session, write=False) as session:
             rows = await session.scalars(
                 select(FinanceEntryRecord)
                 .where(FinanceEntryRecord.user_id == user_id)
@@ -105,7 +109,7 @@ class SqlAlchemyLedgerRepository:
             return [_entry(row) for row in rows]
 
     async def cancel(self, user_id: int, entry_id: int) -> bool:
-        async with self._factory.begin() as session:
+        async with session_scope(self._factory, self._session, write=True) as session:
             cancelled = await session.scalar(
                 update(FinanceEntryRecord)
                 .where(

@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from namoz_bot.domain.reminders import Reminder, ReminderDelivery, ReminderSpec, parse_time
 from namoz_bot.infrastructure.orm import ReminderDeliveryRecord, ReminderRecord
+from namoz_bot.infrastructure.session_scope import session_scope
 
 
 def _spec(row: ReminderRecord) -> ReminderSpec:
@@ -24,14 +25,17 @@ def _entity(row: ReminderRecord) -> Reminder:
 
 
 class SqlAlchemyReminderRepository:
-    def __init__(self, factory: async_sessionmaker[AsyncSession]) -> None:
+    def __init__(
+        self, factory: async_sessionmaker[AsyncSession], *, session: AsyncSession | None = None
+    ) -> None:
         self._factory = factory
+        self._session = session
 
     async def create(
         self, user_id: int, chat_id: int, spec: ReminderSpec, token: str, now: datetime
     ) -> Reminder:
         due = spec.next_after(now)
-        async with self._factory.begin() as session:
+        async with session_scope(self._factory, self._session, write=True) as session:
             insert = pg_insert if session.get_bind().dialect.name == "postgresql" else sqlite_insert
             await session.execute(
                 insert(ReminderRecord)
@@ -58,7 +62,7 @@ class SqlAlchemyReminderRepository:
             return _entity(row)
 
     async def list_for_user(self, user_id: int, *, offset: int, limit: int) -> list[Reminder]:
-        async with self._factory() as session:
+        async with session_scope(self._factory, self._session, write=False) as session:
             rows = await session.scalars(
                 select(ReminderRecord)
                 .where(ReminderRecord.user_id == user_id)
@@ -76,7 +80,7 @@ class SqlAlchemyReminderRepository:
         self, user_id: int, on_date: date, *, offset: int, limit: int
     ) -> list[Reminder]:
         # Match the schedule, not next_due: sent occurrences still belong to this date.
-        async with self._factory() as session:
+        async with session_scope(self._factory, self._session, write=False) as session:
             rows = await session.scalars(
                 select(ReminderRecord)
                 .where(
@@ -98,7 +102,7 @@ class SqlAlchemyReminderRepository:
 
     async def claim_due(self, now: datetime, *, limit: int) -> list[ReminderDelivery]:
         claimed = []
-        async with self._factory.begin() as session:
+        async with session_scope(self._factory, self._session, write=True) as session:
             rows = (
                 await session.scalars(
                     select(ReminderRecord)
@@ -137,7 +141,7 @@ class SqlAlchemyReminderRepository:
         return claimed
 
     async def get_for_user(self, user_id: int, reminder_id: int) -> Reminder | None:
-        async with self._factory() as session:
+        async with session_scope(self._factory, self._session, write=False) as session:
             row = await session.scalar(
                 select(ReminderRecord).where(
                     ReminderRecord.id == reminder_id, ReminderRecord.user_id == user_id
@@ -146,7 +150,7 @@ class SqlAlchemyReminderRepository:
             return _entity(row) if row is not None else None
 
     async def delete_for_user(self, user_id: int, reminder_id: int) -> bool:
-        async with self._factory.begin() as session:
+        async with session_scope(self._factory, self._session, write=True) as session:
             # Serialize against claim_due's row update before removing its ledger.
             owned = await session.scalar(
                 select(ReminderRecord.id)
@@ -168,7 +172,7 @@ class SqlAlchemyReminderRepository:
             return True
 
     async def can_send(self, delivery: ReminderDelivery) -> bool:
-        async with self._factory() as session:
+        async with session_scope(self._factory, self._session, write=False) as session:
             return (
                 await session.scalar(
                     select(ReminderDeliveryRecord.id)
@@ -186,7 +190,7 @@ class SqlAlchemyReminderRepository:
     async def finish(
         self, delivery: ReminderDelivery, status: str, error: str | None = None
     ) -> None:
-        async with self._factory.begin() as session:
+        async with session_scope(self._factory, self._session, write=True) as session:
             # Use the same parent-before-ledger lock order as delete_for_user.
             await session.execute(
                 update(ReminderRecord)
@@ -203,7 +207,7 @@ class SqlAlchemyReminderRepository:
             )
 
     async def pause_user(self, user_id: int) -> None:
-        async with self._factory.begin() as session:
+        async with session_scope(self._factory, self._session, write=True) as session:
             await session.execute(
                 update(ReminderRecord)
                 .where(
