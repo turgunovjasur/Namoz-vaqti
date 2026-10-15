@@ -14,6 +14,7 @@ from namoz_bot.domain.agent_protocol import AgentDecision, AgentResult
 from namoz_bot.domain.models import PrayerKey
 from namoz_bot.domain.reminders import ReminderSpec, parse_time
 from namoz_bot.domain.workforce.capabilities import CapabilitySelection
+from namoz_bot.domain.workforce.tasks import TaskPlan
 from namoz_bot.presentation.keyboards import PRAYER_LABELS
 
 FIELD_LABELS = {
@@ -218,3 +219,22 @@ def render_result(output: AgentResult, *, legacy: bool = False) -> str:
             lines.append("Davomi uchun «Keyingi sahifa» deng.")
         return "\n\n".join(lines)
     return VOICE_HELP
+
+
+def render_task_plan(plan: TaskPlan, registry: CapabilityRegistry) -> str:
+    details = render_interpretation(plan.transcript, plan.selection, registry).splitlines()
+    # Keep the common parameter rendering, with the workforce's requested conversation labels.
+    details = [
+        line
+        for line in details[1:]
+        if not line.startswith("Eshitilgan gap:") and line.strip() != "To‘g‘ri tushundimmi?"
+    ]
+    name = registry.get(plan.selection.capability_id).spec.name
+    return "\n".join(
+        [
+            f"Eshitdim: “{plan.transcript}”",
+            f"Tushundim: {plan.role.name} — {name}.",
+            *details,
+            "To‘g‘ri tushundimmi?",
+        ]
+    )

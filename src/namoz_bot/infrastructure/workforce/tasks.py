@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from typing import cast
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -24,6 +24,7 @@ from namoz_bot.domain.workforce.tasks import (
 )
 from namoz_bot.infrastructure.agent_sessions import _aware
 from namoz_bot.infrastructure.orm import (
+    AgentReceiptRecord,
     AgentSessionRecord,
     WorkforceOutboxRecord,
     WorkforceRevisionRecord,
@@ -93,11 +94,29 @@ class SqlTaskTransaction(SqlPermissionTransaction):
     ) -> None:
         self.task, self.task_revision, self.token, self.clock = task, revision, token, clock
 
-    async def save_result(self, result: AgentResult) -> None:
+    async def save_result(self, result: AgentResult, *, replace_read: bool = False) -> None:
         lease_valid(self.task, self.task_revision.revision, self.token, self.clock())
-        if self.task_revision.service_result is not None:
-            raise TaskConflict("Result already committed")
-        await self.save_receipt(result)
+        previous = self.task_revision.service_result
+        if previous is not None:
+            if (
+                not replace_read
+                or previous.get("effect") == "committed"
+                or result.effect != "none"
+                or self.task_revision.review_attempts != 1
+            ):
+                raise TaskConflict("Result already committed")
+            await self._session.execute(
+                update(AgentReceiptRecord)
+                .where(
+                    AgentReceiptRecord.user_id == self.task.user_id,
+                    AgentReceiptRecord.request_id == result.request_id,
+                )
+                .values(result=result.model_dump(mode="json"))
+            )
+        else:
+            if replace_read:
+                raise TaskConflict("Missing original read result")
+            await self.save_receipt(result)
         self.task_revision.service_result = result.model_dump(mode="json")
         self.task_revision.status = self.task.status = "reviewing"
         await put_outbox(
@@ -157,6 +176,18 @@ class SqlAlchemyTaskStore:
                 row = await session.get(WorkforceRevisionRecord, (task.id, task.revision))
                 assert row is not None
                 return revision_value(row)
+            previous = await session.get(
+                WorkforceUpdateRecord, (plan.context.user_id, plan.context.bot_id, plan.request_id)
+            )
+            if previous is not None:
+                if previous.action != "input":
+                    raise TaskConflict("Update already used")
+                old = await session.get(
+                    WorkforceRevisionRecord, (previous.task_id, previous.revision)
+                )
+                if old is None:
+                    raise TaskConflict("Missing input revision")
+                return revision_value(old)
             status = "needs_input" if plan.question else "awaiting_approval"
             if expected_revision is None:
                 if plan.revision != 1:
@@ -193,6 +224,16 @@ class SqlAlchemyTaskStore:
                 review_attempts=0,
             )
             session.add(row)
+            session.add(
+                WorkforceUpdateRecord(
+                    user_id=plan.context.user_id,
+                    bot_id=plan.context.bot_id,
+                    request_id=plan.request_id,
+                    task_id=plan.task_id,
+                    revision=plan.revision,
+                    action="input",
+                )
+            )
             await session.flush()
             return revision_value(row)
 
@@ -314,3 +355,87 @@ class SqlAlchemyTaskStore:
             assert outbox is not None
             outbox.payload, outbox.status = message.model_dump(mode="json"), "pending"
             task.lease_token = task.lease_until = None
+
+    async def pending(self, context: AgentContext) -> TaskRevision | None:
+        async with self.factory() as session:
+            task = await session.scalar(
+                select(WorkforceTaskRecord)
+                .where(
+                    WorkforceTaskRecord.user_id == context.user_id,
+                    WorkforceTaskRecord.bot_id == context.bot_id,
+                    WorkforceTaskRecord.chat_id == context.chat_id,
+                    WorkforceTaskRecord.status.in_(
+                        ["needs_input", "awaiting_approval", "awaiting_correction"]
+                    ),
+                )
+                .order_by(
+                    WorkforceTaskRecord.created_at.desc(), WorkforceTaskRecord.revision.desc()
+                )
+                .limit(1)
+            )
+            if task is None:
+                return None
+            row = await session.get(WorkforceRevisionRecord, (task.id, task.revision))
+            assert row is not None
+            return revision_value(row)
+
+    async def find_input(self, context: AgentContext, request_id: str) -> TaskRevision | None:
+        async with self.factory() as session:
+            update_record = await session.get(
+                WorkforceUpdateRecord, (context.user_id, context.bot_id, request_id)
+            )
+            if update_record and update_record.action == "input":
+                await self._owned(session, update_record.task_id, context)
+                row = await session.get(
+                    WorkforceRevisionRecord, (update_record.task_id, update_record.revision)
+                )
+                return revision_value(row) if row else None
+            task = await session.scalar(
+                select(WorkforceTaskRecord).where(
+                    WorkforceTaskRecord.user_id == context.user_id,
+                    WorkforceTaskRecord.bot_id == context.bot_id,
+                    WorkforceTaskRecord.chat_id == context.chat_id,
+                    WorkforceTaskRecord.request_id == request_id,
+                )
+            )
+            if task is None:
+                return None
+            row = await session.get(WorkforceRevisionRecord, (task.id, task.revision))
+            return revision_value(row) if row else None
+
+    async def invalidate(self, context: AgentContext, *, questions: bool = False) -> None:
+        async with self.factory.begin() as session:
+            await lock_owner(session, context.user_id)
+            tasks = list(
+                await session.scalars(
+                    select(WorkforceTaskRecord)
+                    .where(
+                        WorkforceTaskRecord.user_id == context.user_id,
+                        WorkforceTaskRecord.bot_id == context.bot_id,
+                        WorkforceTaskRecord.chat_id == context.chat_id,
+                        WorkforceTaskRecord.status.in_(
+                            ["awaiting_approval", "needs_input", "awaiting_correction"]
+                            if questions
+                            else ["awaiting_approval"]
+                        ),
+                    )
+                    .with_for_update()
+                )
+            )
+            for task in tasks:
+                row = await session.get(WorkforceRevisionRecord, (task.id, task.revision))
+                assert row is not None
+                row.status = task.status = "cancelled"
+
+    async def begin_review_retry(self, claim: ClaimedTask) -> bool:
+        plan = claim.task.plan
+        async with self.factory.begin() as session:
+            await lock_owner(session, plan.context.user_id)
+            task = await self._owned(session, plan.task_id, plan.context, lock=True)
+            lease_valid(task, plan.revision, claim.lease_token, self.clock())
+            row = await session.get(WorkforceRevisionRecord, (task.id, task.revision))
+            assert row is not None
+            if row.review_attempts >= 1:
+                return False
+            row.review_attempts += 1
+            return True

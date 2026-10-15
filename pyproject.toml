@@ -39,6 +39,7 @@ where = ["src"]
 addopts = "-ra"
 asyncio_mode = "auto"
 testpaths = ["tests"]
+pythonpath = ["."]
 
 [tool.ruff]
 line-length = 100

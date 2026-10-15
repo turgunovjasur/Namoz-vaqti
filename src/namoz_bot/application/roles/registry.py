@@ -3,7 +3,7 @@
 from collections.abc import Iterable
 from typing import TYPE_CHECKING, cast
 
-from namoz_bot.application.roles.base import COMMON_INSTRUCTION
+from namoz_bot.application.roles.base import COMMON_INSTRUCTION, LEGACY_OUTPUT_INSTRUCTION
 from namoz_bot.domain.agent_protocol import Domain
 from namoz_bot.domain.workforce.capabilities import CapabilitySelection
 from namoz_bot.domain.workforce.roles import RoleDefinition
@@ -71,7 +71,9 @@ def build_role_registry(capabilities: "CapabilityRegistry") -> RoleRegistry:
 
 def specialist_instructions() -> dict[Domain, str]:
     return {
-        cast(Domain, role.id): role.instruction.removeprefix(COMMON_INSTRUCTION + "\n\n")
+        cast(Domain, role.id): LEGACY_OUTPUT_INSTRUCTION
+        + "\n\n"
+        + role.instruction.removeprefix(COMMON_INSTRUCTION + "\n\n")
         for role in definitions()
         if not role.system_role
     }

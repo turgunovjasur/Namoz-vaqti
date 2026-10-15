@@ -13,8 +13,10 @@ from aiogram.exceptions import (
     TelegramRetryAfter,
     TelegramServerError,
 )
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from namoz_bot.domain.errors import RecipientBlockedError
+from namoz_bot.domain.workforce.tasks import TaskMessage
 
 
 class RateLimiter(Protocol):
@@ -93,6 +95,20 @@ class TelegramMessageSender:
                 delay = self._retry_delays[delay_index] if self._retry_delays else 0.0
                 await self._sleep(delay)
 
+    async def deliver_task(self, chat_id: int, message: TaskMessage) -> None:
+        chunks = [message.text[i : i + 4000] for i in range(0, len(message.text), 4000)]
+        for index, text in enumerate(chunks):
+            await self._rate_limiter.acquire()
+            try:
+                await self._bot.send_message(
+                    chat_id,
+                    text,
+                    parse_mode=None,
+                    reply_markup=task_markup(message) if index == len(chunks) - 1 else None,
+                )
+            except TelegramForbiddenError as exc:
+                raise RecipientBlockedError("Recipient blocked") from exc
+
     @staticmethod
     def _is_permanent_recipient_error(exc: TelegramBadRequest) -> bool:
         message = str(exc).lower()
@@ -104,3 +120,21 @@ class TelegramMessageSender:
                 "bot was blocked",
             )
         )
+
+
+def task_markup(message: TaskMessage) -> InlineKeyboardMarkup | None:
+    if not message.buttons or not message.task_id or message.revision is None:
+        return None
+    prefix = "wf" if message.buttons == "approval" else "wff"
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="✅ Ha", callback_data=f"{prefix}:{message.task_id}:{message.revision}:y"
+                ),
+                InlineKeyboardButton(
+                    text="❌ Yo‘q", callback_data=f"{prefix}:{message.task_id}:{message.revision}:n"
+                ),
+            ]
+        ]
+    )

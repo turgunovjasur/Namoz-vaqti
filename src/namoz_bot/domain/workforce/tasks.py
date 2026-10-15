@@ -25,6 +25,10 @@ TaskStatus = Literal[
 ]
 
 
+class ClarificationRequired(Exception):
+    """A safe question instead of guessing a role or operation."""
+
+
 class TaskConflict(Exception):
     """A foreign, stale, expired or superseded task cannot advance."""
 
@@ -44,6 +48,7 @@ class TaskPlan(BaseModel):
     expires_at: datetime
     question: str | None = Field(default=None, max_length=500)
     parent_revision: int | None = None
+    review_instruction: str = ""
 
     @model_validator(mode="after")
     def trusted_binding(self) -> "TaskPlan":

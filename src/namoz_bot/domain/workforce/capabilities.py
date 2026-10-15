@@ -49,4 +49,5 @@ class CapabilitySelection(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid", strict=True)
     role_id: str = Field(pattern=r"^[a-z][a-z0-9_]*$", max_length=32)
     capability_id: str = Field(max_length=64)
+    question: str | None = Field(default=None, max_length=500)
     parameters: dict[str, JsonValue] = Field(default_factory=dict)

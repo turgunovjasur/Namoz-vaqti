@@ -10,7 +10,7 @@ import httpx
 from pydantic import SecretStr
 
 from namoz_bot.application.roles.base import COMMON_INSTRUCTION as COMMON_INSTRUCTION
-from namoz_bot.application.roles.manager import INSTRUCTION as ROUTER_INSTRUCTION
+from namoz_bot.application.roles.manager import LEGACY_ROUTER_INSTRUCTION as ROUTER_INSTRUCTION
 from namoz_bot.application.roles.registry import specialist_instructions
 from namoz_bot.application.voice_reminders import MAX_VOICE_BYTES
 from namoz_bot.domain.agent_protocol import (

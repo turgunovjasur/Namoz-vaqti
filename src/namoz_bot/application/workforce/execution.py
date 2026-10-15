@@ -15,9 +15,17 @@ class TaskExecutionService:
         self.store, self.access, self.capabilities = store, access, capabilities
 
     async def run(self, claim: ClaimedTask) -> TaskRevision:
+        return await self._execute(claim, replace_read=False)
+
+    async def reread(self, claim: ClaimedTask) -> TaskRevision:
+        if self.capabilities.get(claim.task.plan.selection.capability_id).spec.effect != "read":
+            raise ValueError("Writes cannot be repeated during review")
+        return await self._execute(claim, replace_read=True)
+
+    async def _execute(self, claim: ClaimedTask, *, replace_read: bool) -> TaskRevision:
         plan = claim.task.plan
         current = await self.store.get_owned(plan.task_id, plan.context)
-        if current.service_result is not None:
+        if current.service_result is not None and not replace_read:
             return current
         selection = self.access.roles.validate_selection(plan.selection)
         await self.access.require(plan.context.user_id, selection.role_id, selection.capability_id)
@@ -62,5 +70,5 @@ class TaskExecutionService:
                     result = await capability.execute(request, tx)
                 elif prepared.status == "done" and not prepared.data:
                     result = await capability.execute(request, tx)
-                await tx.save_result(result)
+                await tx.save_result(result, replace_read=replace_read)
         return await self.store.get_owned(plan.task_id, plan.context)

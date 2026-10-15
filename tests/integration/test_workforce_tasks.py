@@ -118,3 +118,37 @@ async def test_expired_worker_cannot_mark_task_failed_or_commit_partial_effect(w
     current[0] += timedelta(seconds=181)
     await queue.fail(claim, permanent=True, now=current[0])
     assert (await tasks.get_owned(plan.task_id, plan.context)).status == "running"
+
+
+async def test_input_replay_lookup_is_not_limited_to_recent_hundred_tasks(workforce):
+    from namoz_bot.infrastructure.orm import WorkforceRevisionRecord, WorkforceTaskRecord
+
+    tasks, _, _, plan, factory, _, _ = workforce
+    await tasks.save_plan(plan, expected_revision=None)
+    async with factory.begin() as session:
+        for n in range(101):
+            other = plan.model_copy(update={"task_id": uuid4().hex[:20], "request_id": f"new-{n}"})
+            session.add(
+                WorkforceTaskRecord(
+                    id=other.task_id,
+                    user_id=plan.context.user_id,
+                    bot_id=plan.context.bot_id,
+                    chat_id=plan.context.chat_id,
+                    request_id=other.request_id,
+                    revision=1,
+                    status="done",
+                    attempts=0,
+                    created_at=NOW + timedelta(minutes=1),
+                )
+            )
+            await session.flush()
+            session.add(
+                WorkforceRevisionRecord(
+                    task_id=other.task_id,
+                    revision=1,
+                    status="done",
+                    plan=other.model_dump(mode="json"),
+                    review_attempts=0,
+                )
+            )
+    assert (await tasks.find_input(plan.context, plan.request_id)).plan.task_id == plan.task_id

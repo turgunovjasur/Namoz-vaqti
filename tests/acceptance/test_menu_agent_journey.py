@@ -384,7 +384,10 @@ async def test_legacy_nasihat_draft_survives_section_split(
         assert output.data["revision"] == 1 and routes[0].call_count == 0
 
 
-async def test_v1_draft_is_resumed_after_switching_to_v2(menu_journey, routes, respx_mock):
+@pytest.mark.parametrize("target_version", [2, 3])
+async def test_v1_draft_is_resumed_after_switching_runtime(
+    menu_journey, routes, respx_mock, target_version
+):
     old = menu_journey.app
     database_url = str(old.db_engine.url)
     await old.dispatcher.storage.close()
@@ -420,7 +423,7 @@ async def test_v1_draft_is_resumed_after_switching_to_v2(menu_journey, routes, r
             telegram_bot_token="123456:LOCAL_TEST",
             database_url=database_url,
             GEMINI_API_KEY="test-key",
-            MAIN_AGENT_VERSION=2,
+            MAIN_AGENT_VERSION=target_version,
             GEMINI_MAIN_AGENT_MODEL="router-model",
             GEMINI_REMINDER_AGENT_MODEL="reminder-model",
             VOICE_REMINDER_COOLDOWN_SECONDS=0,

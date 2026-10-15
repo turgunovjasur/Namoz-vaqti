@@ -3,6 +3,8 @@
 import asyncio
 import logging
 from dataclasses import dataclass
+from datetime import UTC, datetime
+from functools import partial
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -45,12 +47,21 @@ from namoz_bot.application.roles.registry import build_role_registry
 from namoz_bot.application.schedules import ScheduleService
 from namoz_bot.application.voice_reminders import VoiceReminderService
 from namoz_bot.application.workforce.access import AccessService
+from namoz_bot.application.workforce.assistant import AssistantService
+from namoz_bot.application.workforce.execution import TaskExecutionService
+from namoz_bot.application.workforce.manager import ManagedExecution
+from namoz_bot.application.workforce.planning import Manager
+from namoz_bot.application.workforce.review import ReviewService
+from namoz_bot.application.workforce.worker import Worker
 from namoz_bot.config import Settings
 from namoz_bot.domain.agent_protocol import Domain
 from namoz_bot.infrastructure.accounting import SqlAlchemyLedgerRepository
 from namoz_bot.infrastructure.agent_sessions import SqlAlchemyAgentStore
 from namoz_bot.infrastructure.ai.gemini_client import GeminiClient
 from namoz_bot.infrastructure.ai.model_catalog import ModelCatalog
+from namoz_bot.infrastructure.ai.result_reviewer import GeminiResultReviewer
+from namoz_bot.infrastructure.ai.role_interpreter import GeminiRoleInterpreter
+from namoz_bot.infrastructure.ai.transcription import GeminiTranscriber
 from namoz_bot.infrastructure.daily_schedule import SqlAlchemyDailyScheduleRepository
 from namoz_bot.infrastructure.db import create_database
 from namoz_bot.infrastructure.gemini import GeminiReminderClient
@@ -67,7 +78,10 @@ from namoz_bot.infrastructure.repositories import (
     SqlAlchemySubscriptionRepository,
 )
 from namoz_bot.infrastructure.telegram import TelegramMessageSender, TelegramRateLimiter
+from namoz_bot.infrastructure.workforce.outbox import SqlAlchemyTaskOutbox
 from namoz_bot.infrastructure.workforce.profiles import SqlAlchemyProfileRepository
+from namoz_bot.infrastructure.workforce.queue import SqlAlchemyTaskQueue
+from namoz_bot.infrastructure.workforce.tasks import SqlAlchemyTaskStore
 from namoz_bot.logging import configure_logging
 from namoz_bot.presentation.accounting import build_accounting_router
 from namoz_bot.presentation.handlers import build_prayer_router
@@ -77,7 +91,9 @@ from namoz_bot.presentation.nasihat import build_nasihat_router
 from namoz_bot.presentation.profiles.router import build_profile_router
 from namoz_bot.presentation.religious_settings import build_religious_settings_router
 from namoz_bot.presentation.reminders import build_reminder_router, build_voice_reminder_router
+from namoz_bot.presentation.result_messages import render_result, render_task_plan
 from namoz_bot.presentation.settings import build_settings_router
+from namoz_bot.presentation.workforce import build_workforce_router
 
 logger = logging.getLogger(__name__)
 
@@ -93,10 +109,13 @@ class ApplicationResources:
     scheduler: AsyncIOScheduler
     religious_intervals: ReligiousIntervalService | None = None
     daily_settings: DailyScheduleSettingsService | None = None
+    workforce_worker: Worker | None = None
 
     async def close(self) -> None:
         if self.scheduler.running:
             self.scheduler.shutdown(wait=False)
+        if self.workforce_worker is not None:
+            await self.workforce_worker.close()
         await self.bot.session.close()
         await self.http_client.aclose()
         await self.db_engine.dispose()
@@ -202,7 +221,7 @@ def create_application(settings: Settings) -> ApplicationResources:
         service_adapters = AgentAdapters(schedule_service, religious_reminders)
         extractor: AgentExtractor
         executor: AgentActionExecutor
-        if settings.main_agent_version == 2:
+        if settings.main_agent_version in (2, 3):
             service_adapters = ConversationAdapters(
                 schedule_service,
                 religious_reminders,
@@ -258,7 +277,7 @@ def create_application(settings: Settings) -> ApplicationResources:
             ),
             adapters=executor,
             cooldown_seconds=settings.voice_reminder_cooldown_seconds,
-            voice_first=settings.main_agent_version == 2,
+            voice_first=settings.main_agent_version in (2, 3),
         )
         logger.info(
             "main_agent_configured version=%d voice_first=%s voice_approval=%s "
@@ -286,6 +305,29 @@ def create_application(settings: Settings) -> ApplicationResources:
     dispatcher.callback_query.outer_middleware(ErrorHandlingMiddleware())
     dispatcher.callback_query.outer_middleware(middleware)
     dispatcher.include_router(build_profile_router(profile_service))
+    workforce_worker = None
+    workforce_outbox = None
+    if settings.main_agent_version == 3 and main_agent is not None and transport is not None:
+        tasks = SqlAlchemyTaskStore(session_factory)
+        queue = SqlAlchemyTaskQueue(session_factory)
+        workforce_outbox = SqlAlchemyTaskOutbox(session_factory)
+        manager = Manager(access, profile_service, GeminiRoleInterpreter(transport), tasks)
+        assistant = AssistantService(
+            manager,
+            GeminiTranscriber(transport),
+            tasks,
+            profile_service,
+            partial(render_task_plan, registry=capabilities),
+        )
+        runner = ManagedExecution(
+            tasks,
+            TaskExecutionService(tasks, access, capabilities),
+            ReviewService(GeminiResultReviewer(transport), render_result),
+        )
+        workforce_worker = Worker(queue, runner)
+        dispatcher["assistant_service"] = assistant
+        dispatcher["task_store"] = tasks
+        dispatcher.include_router(build_workforce_router(assistant, main_agent))
     dispatcher.include_router(build_main_agent_router(main_agent))
     dispatcher.include_router(build_accounting_router())
     dispatcher.include_router(build_voice_reminder_router())
@@ -300,6 +342,23 @@ def create_application(settings: Settings) -> ApplicationResources:
         rate_limiter=TelegramRateLimiter(messages_per_second=settings.telegram_messages_per_second),
     )
     scheduler = AsyncIOScheduler(timezone=ZoneInfo(settings.timezone))
+    if workforce_worker is not None and workforce_outbox is not None:
+
+        async def process_workforce() -> None:
+            assert workforce_worker is not None and workforce_outbox is not None
+            await workforce_outbox.send_due(sender)
+            await workforce_worker.run_once(datetime.now(UTC))
+            await workforce_outbox.send_due(sender)
+
+        scheduler.add_job(
+            process_workforce,
+            trigger="interval",
+            seconds=1,
+            id="workforce",
+            replace_existing=True,
+            coalesce=True,
+            max_instances=1,
+        )
     daily_broadcast = PersonalDailyBroadcastService(
         daily_repository,
         SqlAlchemySubscriptionRepository(session_factory),
@@ -364,7 +423,14 @@ def create_application(settings: Settings) -> ApplicationResources:
         max_instances=1,
     )
     return ApplicationResources(
-        bot, dispatcher, http_client, engine, scheduler, religious_intervals, daily_settings
+        bot,
+        dispatcher,
+        http_client,
+        engine,
+        scheduler,
+        religious_intervals,
+        daily_settings,
+        workforce_worker,
     )
 
 

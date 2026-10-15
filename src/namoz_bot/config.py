@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     )
 
     main_agent_enabled: bool = Field(default=True, validation_alias="MAIN_AGENT_ENABLED")
-    main_agent_version: int = Field(default=2, ge=1, le=2, validation_alias="MAIN_AGENT_VERSION")
+    main_agent_version: int = Field(default=2, ge=1, le=3, validation_alias="MAIN_AGENT_VERSION")
     gemini_main_agent_model: str | None = Field(
         default=None,
         validation_alias="GEMINI_MAIN_AGENT_MODEL",
