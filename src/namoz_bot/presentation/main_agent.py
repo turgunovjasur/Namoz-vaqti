@@ -1,7 +1,7 @@
 """One conversational entry point with deterministic, service-backed responses."""
 
 import asyncio
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 from io import BytesIO
 from typing import cast
 
@@ -16,11 +16,8 @@ from namoz_bot.application.agent_adapters import HELP_TEXT
 from namoz_bot.application.main_agent import MainAgent
 from namoz_bot.application.reminders import ReminderService
 from namoz_bot.application.voice_reminders import MAX_VOICE_BYTES, MAX_VOICE_SECONDS
-from namoz_bot.domain.accounting import CATEGORY_LABELS, LedgerSummary, format_money
 from namoz_bot.domain.agent_protocol import AgentContext, AgentResult
-from namoz_bot.domain.models import PrayerKey
-from namoz_bot.domain.reminders import ReminderSpec, parse_time
-from namoz_bot.presentation.accounting import AccountingStates, _button, _keyboard, _summary_text
+from namoz_bot.presentation.accounting import AccountingStates, _button, _keyboard
 from namoz_bot.presentation.handlers import (
     HandlerServices,
     handle_offsets,
@@ -36,7 +33,6 @@ from namoz_bot.presentation.keyboards import (
     LIST_LABEL,
     NASIHAT_LABEL,
     OFFSETS_LABEL,
-    PRAYER_LABELS,
     PRAYER_MENU_LABEL,
     REGION_LABEL,
     RELIGIOUS_INTERVAL_LABEL,
@@ -49,6 +45,7 @@ from namoz_bot.presentation.keyboards import (
 from namoz_bot.presentation.religious_settings import show_interval
 from namoz_bot.presentation.reminder_panel import KEEP_MAIN_MENU, delete_input, render_panel
 from namoz_bot.presentation.reminders import _show_list
+from namoz_bot.presentation.result_messages import render_result
 from namoz_bot.presentation.settings import show_daily, show_settings
 
 NAVIGATION = {
@@ -127,87 +124,34 @@ def _agent_button(result: AgentResult, action: str, label: str) -> InlineKeyboar
 
 async def render_agent_result(message: Message, state: FSMContext, result: AgentResult) -> None:
     data = result.data
+    text = render_result(result, legacy=True)
     markup = None
-    if result.status == "needs_input":
-        text = result.question or "Xabarni aniqlashtiring."
-    elif result.status == "needs_confirmation":
-        draft = cast(dict[str, JsonValue], data["draft"])
-        schedule = ReminderSpec(
-            str(draft["text"]),
-            parse_time(str(draft["time"])),
-            str(draft["kind"]),
-            date.fromisoformat(str(draft["date"])) if draft.get("date") else None,
-            tuple(cast(list[int], draft.get("weekdays", []))),
-        ).schedule_label()
-        text = (
-            f"📝 {draft.get('text')}\n🕒 {draft.get('time')} · Toshkent\n"
-            f"📅 {schedule}\n\nSaqlashni tasdiqlang."
-        )
+    if result.status == "needs_confirmation":
         markup = InlineKeyboardMarkup(
             inline_keyboard=[
                 [_agent_button(result, "save", "✅ Saqlash")],
                 [_agent_button(result, "cancel", "❌ Bekor qilish")],
             ]
         )
-    elif result.status == "error":
-        text = {
-            "no_active_task": "Tugallanmagan vazifa yo‘q.\n\n" + HELP_TEXT,
-            "stale_operation": "Bu tasdiqlash eskirgan. «Davom et» deb joriy vazifani oching.",
-            "voice_cooldown": "Yangi ovozli xabar uchun biroz kuting.",
-            "invalid_input": "Ma’lumotlar mos kelmadi. Aniqlashtirib qayta yuboring.",
-        }.get(
-            result.error_code or "",
-            "Xabarni qayta ishlay olmadim. Birozdan keyin qayta yuboring "
-            "yoki menyudan foydalaning.",
-        )
-    elif result.status == "cancelled":
-        text = str(data.get("text") or "Bu vazifa yakunlangan yoki bekor qilingan.")
     elif result.domain == "accounting" and result.status == "done":
         assert message.from_user is not None
         markup = _keyboard(message.from_user.id)
         await state.set_state(AccountingStates.active)
-        if result.action in {"income", "expense"}:
-            if data.get("cancelled"):
-                text = "↩️ Bu yozuv bekor qilingan. Qayta hisobga qo‘shilmadi."
-            else:
-                text = (
-                    "✅ Kirim qayd etildi" if result.action == "income" else "✅ Chiqim qayd etildi"
-                )
-                text += f"\n\n{format_money(int(str(data['amount'])))}\n{data['description']}"
-                markup.inline_keyboard.insert(
-                    0,
-                    [
-                        _button(
-                            message.from_user.id,
-                            "↩️ Yozuvni bekor qilish",
-                            "undo",
-                            str(data["entry_id"]),
-                        )
-                    ],
-                )
-            text += f"\n\nJoriy balans: {format_money(int(str(data['balance'])))}"
-        elif result.action == "balance":
-            text = f"💳 Joriy balans: {format_money(int(str(data['balance'])))}"
-        elif result.action == "report":
-            summary = LedgerSummary(
-                date.fromisoformat(str(data["month"])),
-                int(str(data["income"])),
-                int(str(data["expense"])),
-                int(str(data["salary"])),
-                int(str(data["opening_balance"])),
+        if result.action in {"income", "expense"} and not data.get("cancelled"):
+            markup.inline_keyboard.insert(
+                0,
+                [
+                    _button(
+                        message.from_user.id,
+                        "↩️ Yozuvni bekor qilish",
+                        "undo",
+                        str(data["entry_id"]),
+                    )
+                ],
             )
-            text = _summary_text(summary, str(data.get("report_type", "summary")))
-        else:
-            text = "📒 Kirim-chiqim tarixi\n\n"
+        elif result.action == "history":
             entries = cast(list[dict[str, JsonValue]], data.get("entries", []))
             for entry in entries:
-                text += (
-                    f"#{entry['id']} · {entry['kind']} · "
-                    f"{format_money(int(str(entry['amount'])))}\n"
-                    f"{entry['description']} · {CATEGORY_LABELS[str(entry['category'])]}"
-                    + (" · Bekor qilingan" if entry.get("cancelled") else "")
-                    + "\n\n"
-                )
                 if not entry.get("cancelled"):
                     markup.inline_keyboard.insert(
                         0,
@@ -220,8 +164,6 @@ async def render_agent_result(message: Message, state: FSMContext, result: Agent
                             )
                         ],
                     )
-            if not entries:
-                text += "Hozircha yozuvlar yo‘q."
             if data.get("more"):
                 markup.inline_keyboard.insert(
                     0,
@@ -234,23 +176,6 @@ async def render_agent_result(message: Message, state: FSMContext, result: Agent
                         )
                     ],
                 )
-    elif result.domain == "prayer" and data.get("prayer"):
-        text = (
-            f"🕌 {PRAYER_LABELS[cast(PrayerKey, data['prayer'])]}: {data['time']}\n"
-            f"📍 {data['region']} · {data['date']}\nManba: namoz-vaqti.uz"
-        )
-    elif result.domain == "reminder" and result.action == "create" and result.status == "done":
-        text = (
-            f"✅ Eslatma saqlandi.\n\n📝 {data['text']}\n🕒 {data['time']}\n📅 {data['schedule']}"
-        )
-    elif result.domain == "reminder" and result.action == "list":
-        text = "📋 Eslatmalar\n\n"
-        entries = cast(list[dict[str, JsonValue]], data.get("entries", []))
-        text += "\n\n".join(f"{e['time']} · {e['text']}\n{e['schedule']}" for e in entries)
-        if not entries:
-            text += "Hozircha eslatmalar yo‘q."
-    else:
-        text = str(data.get("text") or HELP_TEXT)
     await state.update_data({KEEP_MAIN_MENU: True})
     await render_panel(message, state, text, markup)
 
@@ -407,6 +332,7 @@ async def agent_callback(
 def build_main_agent_router(main_agent: MainAgent | None = None) -> Router:
     if main_agent is not None and main_agent.voice_first:
         from namoz_bot.presentation.voice_conversation import build_voice_conversation_router
+
         return build_voice_conversation_router(main_agent)
     router = Router(name="main-agent")
     if main_agent is not None:

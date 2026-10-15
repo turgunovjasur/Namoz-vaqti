@@ -8,6 +8,7 @@ import httpx
 from pydantic import SecretStr
 
 from namoz_bot.domain.errors import ExternalServiceError
+from namoz_bot.infrastructure.ai.gemini_client import GeminiClient
 from namoz_bot.infrastructure.books import BookCorpus
 
 SYSTEM_INSTRUCTION = (
@@ -32,13 +33,10 @@ class GeminiReminderClient:
         model: str,
         corpus_path: Path,
     ) -> None:
-        self._http_client = http_client
-        self._api_key = api_key
+        self._transport = GeminiClient(http_client, api_key=api_key)
+        self._model = model
         self._book = BookCorpus.load(corpus_path)
         self._last_id: str | None = None
-        self._url = (
-            f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-        )
 
     async def generate(self) -> str:
         pool = [p for p in self._book.passages if p.id != self._last_id] or self._book.passages
@@ -50,55 +48,26 @@ class GeminiReminderClient:
             "translator": self._book.translator,
             "passages": [p.model_dump() for p in options],
         }
+        selection = await self._transport.generate_json(
+            model=self._model,
+            instruction=SYSTEM_INSTRUCTION,
+            schema={
+                "type": "OBJECT",
+                "properties": {"passage_id": {"type": "STRING", "enum": list(offered)}},
+                "required": ["passage_id"],
+            },
+            parts=[{"text": json.dumps(source, ensure_ascii=False)}],
+            max_output_tokens=1024,
+            temperature=0.3,
+            timeout=httpx.Timeout(connect=5, read=35, write=5, pool=5),
+            max_response_chars=1200,
+        )
         try:
-            response = await self._http_client.post(
-                self._url,
-                headers={"x-goog-api-key": self._api_key.get_secret_value().strip()},
-                json={
-                    "systemInstruction": {"parts": [{"text": SYSTEM_INSTRUCTION}]},
-                    "contents": [
-                        {
-                            "role": "user",
-                            "parts": [
-                                {
-                                    "text": json.dumps(source, ensure_ascii=False),
-                                }
-                            ],
-                        }
-                    ],
-                    "generationConfig": {
-                        "maxOutputTokens": 1024,
-                        "temperature": 0.3,
-                        "responseMimeType": "application/json",
-                        "responseSchema": {
-                            "type": "OBJECT",
-                            "properties": {
-                                "passage_id": {"type": "STRING", "enum": list(offered)},
-                            },
-                            "required": ["passage_id"],
-                        },
-                    },
-                },
-                timeout=httpx.Timeout(connect=5.0, read=35.0, write=5.0, pool=5.0),
-            )
-        except httpx.HTTPError:
-            raise ExternalServiceError("Gemini bilan aloqa qilib bo‘lmadi") from None
-        if not response.is_success:
-            raise ExternalServiceError(f"Gemini HTTP xatosi: {response.status_code}")
-        try:
-            payload = response.json()
-            candidate = payload["candidates"][0]
-            if candidate.get("finishReason") != "STOP":
-                raise ValueError("incomplete response")
-            parts = candidate["content"]["parts"]
-            text = "".join(
-                part["text"] for part in parts if "text" in part and not part.get("thought")
-            ).strip()
-            if not text or len(text) > 1200:
-                raise ValueError("empty or oversized text")
-            selection = json.loads(text)
-            passage = offered[selection["passage_id"]]
-        except (ValueError, KeyError, TypeError, IndexError, AttributeError):
+            passage_id = selection["passage_id"]
+            if not isinstance(passage_id, str):
+                raise TypeError("Invalid passage ID")
+            passage = offered[passage_id]
+        except (KeyError, TypeError):
             raise ExternalServiceError("Gemini to‘liq nasihat qaytarmadi") from None
         self._last_id = passage.id
         return self._book.format_passage(passage)

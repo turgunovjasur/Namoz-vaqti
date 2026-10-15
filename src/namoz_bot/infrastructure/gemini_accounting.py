@@ -12,6 +12,7 @@ from namoz_bot.application.voice_reminders import MAX_VOICE_BYTES
 from namoz_bot.domain.accounting import CATEGORY_LABELS, AccountingRequest
 from namoz_bot.domain.errors import ExternalServiceError
 from namoz_bot.domain.reminders import TASHKENT
+from namoz_bot.infrastructure.ai.gemini_client import GeminiClient
 
 SYSTEM_INSTRUCTION = """
 Sen shaxsiy kirim-chiqim jurnalining yordamchisisan. Audio nutqini yoki foydalanuvchi
@@ -94,11 +95,8 @@ RESPONSE_SCHEMA: dict[str, Any] = {
 
 class GeminiAccountingClient:
     def __init__(self, http_client: httpx.AsyncClient, *, api_key: SecretStr, model: str) -> None:
-        self._http_client = http_client
-        self._api_key = api_key
-        self._url = (
-            f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-        )
+        self._transport = GeminiClient(http_client, api_key=api_key)
+        self._model = model
 
     async def extract(
         self, *, text: str | None, audio: bytes | None, mime_type: str, now: datetime
@@ -135,37 +133,13 @@ class GeminiAccountingClient:
             if text is None or not 1 <= len(text.strip()) <= 2000:
                 raise ValueError("2000 belgidan qisqa, aniq kirim yoki chiqimni ayting.")
             parts.append({"text": text})
+        payload = await self._transport.generate_json(
+            model=self._model,
+            instruction=SYSTEM_INSTRUCTION,
+            schema=RESPONSE_SCHEMA,
+            parts=parts,
+        )
         try:
-            response = await self._http_client.post(
-                self._url,
-                headers={"x-goog-api-key": self._api_key.get_secret_value().strip()},
-                json={
-                    "systemInstruction": {"parts": [{"text": SYSTEM_INSTRUCTION}]},
-                    "contents": [{"role": "user", "parts": parts}],
-                    "generationConfig": {
-                        "temperature": 0,
-                        "maxOutputTokens": 4096,
-                        "responseMimeType": "application/json",
-                        "responseSchema": RESPONSE_SCHEMA,
-                    },
-                },
-                timeout=httpx.Timeout(connect=5, read=60, write=15, pool=5),
-            )
-        except httpx.HTTPError:
-            raise ExternalServiceError("Kirim-chiqim AI bilan aloqa bo‘lmadi.") from None
-        if not response.is_success:
-            raise ExternalServiceError(f"Kirim-chiqim AI HTTP xatosi: {response.status_code}")
-        try:
-            candidate = response.json()["candidates"][0]
-            if candidate.get("finishReason") != "STOP":
-                raise ValueError("incomplete response")
-            result = "".join(
-                part["text"]
-                for part in candidate["content"]["parts"]
-                if "text" in part and not part.get("thought")
-            )
-            if len(result) > 16000:
-                raise ValueError("oversized response")
-            return AccountingRequest.model_validate_json(result)
-        except (ValueError, KeyError, TypeError, IndexError, AttributeError):
+            return AccountingRequest.model_validate(payload)
+        except ValueError:
             raise ExternalServiceError("Kirim-chiqim xabari to‘liq tushunilmadi.") from None

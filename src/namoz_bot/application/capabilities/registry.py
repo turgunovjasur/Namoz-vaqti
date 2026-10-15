@@ -14,7 +14,7 @@ from namoz_bot.application.capabilities import (
     settings,
 )
 from namoz_bot.application.capabilities.base import BusinessAdapters, Capability
-from namoz_bot.domain.agent_protocol import AgentRequest, AgentResult
+from namoz_bot.domain.agent_protocol import AgentDecision, AgentRequest, AgentResult
 
 if TYPE_CHECKING:
     from namoz_bot.application.roles.registry import RoleRegistry
@@ -43,7 +43,7 @@ class CapabilityRegistry:
     def all(self) -> tuple[Capability, ...]:
         return tuple(self._items.values())
 
-    def for_request(self, request: AgentRequest) -> Capability:
+    def for_request(self, request: AgentDecision) -> Capability:
         view = request.parameters.get("view")
         key = (request.domain, request.action, view if isinstance(view, str) else None)
         try:

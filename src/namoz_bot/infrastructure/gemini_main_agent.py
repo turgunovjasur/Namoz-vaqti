@@ -17,6 +17,7 @@ from namoz_bot.domain.agent_protocol import (
 )
 from namoz_bot.domain.errors import ExternalServiceError
 from namoz_bot.domain.reminders import TASHKENT
+from namoz_bot.infrastructure.ai.gemini_client import GeminiClient
 
 SYSTEM_INSTRUCTION = """
 Sen namoz, nasihat, eslatma va kirim-chiqim Telegram botining yagona yo‘naltiruvchi yordamchisisan.
@@ -146,11 +147,8 @@ class GeminiMainAgentClient:
         system_instruction: str = SYSTEM_INSTRUCTION,
         response_schema: dict[str, Any] | None = None,
     ) -> None:
-        self._http = http_client
-        self._key = api_key
-        self._url = (
-            f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-        )
+        self._transport = GeminiClient(http_client, api_key=api_key)
+        self._model = model
         self._instruction = system_instruction
         self._schema = response_schema if response_schema is not None else RESPONSE_SCHEMA
 
@@ -274,41 +272,10 @@ class GeminiMainAgentClient:
         *,
         max_output_tokens: int = 4096,
     ) -> dict[str, Any]:
-        """Shared bounded HTTP transport; callers apply their own strict protocol models."""
-        try:
-            response = await self._http.post(
-                self._url,
-                headers={"x-goog-api-key": self._key.get_secret_value().strip()},
-                json={
-                    "systemInstruction": {"parts": [{"text": self._instruction}]},
-                    "contents": [{"role": "user", "parts": parts}],
-                    "generationConfig": {
-                        "temperature": 0,
-                        "maxOutputTokens": max_output_tokens,
-                        "responseMimeType": "application/json",
-                        "responseSchema": self._schema,
-                    },
-                },
-                timeout=httpx.Timeout(connect=5, read=60, write=15, pool=5),
-            )
-        except httpx.HTTPError:
-            raise ExternalServiceError("Agent xizmati bilan aloqa bo‘lmadi.") from None
-        if not response.is_success:
-            raise ExternalServiceError("Agent xizmati vaqtincha ishlamayapti.")
-        try:
-            candidate = response.json()["candidates"][0]
-            if candidate.get("finishReason") != "STOP":
-                raise ValueError("Incomplete response")
-            result = "".join(
-                part["text"]
-                for part in candidate["content"]["parts"]
-                if "text" in part and not part.get("thought")
-            )
-            if len(result) > 16000:
-                raise ValueError("Oversized response")
-            payload = json.loads(result)
-            if not isinstance(payload, dict):
-                raise ValueError("Response must be an object")
-            return payload
-        except (ValueError, KeyError, TypeError, IndexError, AttributeError):
-            raise ExternalServiceError("Xabardan vazifani ajratib bo‘lmadi.") from None
+        return await self._transport.generate_json(
+            model=self._model,
+            instruction=self._instruction,
+            schema=self._schema,
+            parts=parts,
+            max_output_tokens=max_output_tokens,
+        )
