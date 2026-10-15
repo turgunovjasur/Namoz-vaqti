@@ -116,7 +116,11 @@ class ServicesMiddleware(BaseMiddleware):
                 or sender is None
                 or target.chat.id != sender.id
             ):
-                if isinstance(target, Message) and target.chat.type != "private":
+                if (
+                    isinstance(target, Message)
+                    and target.chat.type != "private"
+                    and self._main_agent is None
+                ):
                     await target.answer("Botdan shaxsiy chat orqali foydalaning.", parse_mode=None)
                 if isinstance(event, CallbackQuery):
                     await event.answer("Bu amal sizga tegishli emas.", show_alert=True)
