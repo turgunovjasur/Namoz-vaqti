@@ -6,6 +6,7 @@ from typing import Any
 from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message
 
 from namoz_bot.application.profiles.service import ProfileService
@@ -14,7 +15,11 @@ from namoz_bot.domain.workforce.profiles import AccessDenied, ProfileConflict
 from namoz_bot.presentation.handlers import HandlerServices
 from namoz_bot.presentation.keyboards import PROFILE_LABEL, build_main_menu
 from namoz_bot.presentation.profiles.keyboards import profile_keyboard
-from namoz_bot.presentation.profiles.views import profile_text, role_text
+from namoz_bot.presentation.profiles.views import history_text, profile_text, role_text
+
+
+class ProfileStates(StatesGroup):
+    search = State()
 
 
 class ProfileController:
@@ -60,6 +65,8 @@ class ProfileController:
         buttons: list[tuple[str, dict[str, Any]]] = (
             [
                 ("👥 Foydalanuvchilar", {"type": "users", "after": 0}),
+                ("🔎 ID bo‘yicha qidirish", {"type": "search"}),
+                ("🕘 O‘zgarishlar tarixi", {"type": "history", "before": 0}),
                 ("🎭 Rollar va modellar", {"type": "catalog"}),
             ]
             if profile.profile_type == "admin"
@@ -137,6 +144,22 @@ class ProfileController:
                         ("Keyingi ➡️", {"type": "users", "after": page.users[-1].user_id})
                     )
                 await self._card(message, state, "Foydalanuvchini tanlang:", buttons, owner=actor)
+            elif kind == "search":
+                await state.set_state(ProfileStates.search)
+                await state.update_data(profile_ui={})
+                await message.answer(
+                    "Foydalanuvchining raqamli Telegram ID sini yuboring.", parse_mode=None
+                )
+            elif kind == "history":
+                history = await self.service.history(actor, before_id=action["before"])
+                buttons = []
+                if history.more:
+                    buttons.append(
+                        ("Keyingi ➡️", {"type": "history", "before": history.changes[-1].id})
+                    )
+                await self._card(
+                    message, state, history_text(history, self.service.roles), buttons, owner=actor
+                )
             elif kind == "user":
                 target = await self.service.user_view(actor, action["user"])
                 buttons = [
@@ -235,6 +258,31 @@ class ProfileController:
             )
         await callback.answer()
 
+    async def search(
+        self, message: Message, state: FSMContext, handler_services: HandlerServices
+    ) -> None:
+        assert message.from_user is not None and message.text is not None
+        actor = await self._actor(message.from_user.id, handler_services)
+        try:
+            user = await self.service.find_user(actor, int(message.text))
+        except (AccessDenied, ValueError):
+            await state.clear()
+            await message.answer(
+                "Qidirish uchun admin huquqi va to‘g‘ri Telegram ID kerak.", parse_mode=None
+            )
+            return
+        await state.set_state(None)
+        buttons = (
+            [(str(user.telegram_user_id), {"type": "user", "user": user.user_id})] if user else []
+        )
+        await self._card(
+            message,
+            state,
+            "Qidiruv natijasi:" if user else "Foydalanuvchi topilmadi.",
+            buttons,
+            owner=actor,
+        )
+
 
 def build_profile_router(service: ProfileService) -> Router:
     controller = ProfileController(service)
@@ -242,5 +290,6 @@ def build_profile_router(service: ProfileService) -> Router:
     router.message.filter(F.chat.type == "private")
     router.message.register(controller.open, F.text == PROFILE_LABEL)
     router.message.register(controller.open, Command("profile"))
+    router.message.register(controller.search, ProfileStates.search, F.text.regexp(r"^\d{1,20}$"))
     router.callback_query.register(controller.callback, F.data.startswith("pf:"))
     return router

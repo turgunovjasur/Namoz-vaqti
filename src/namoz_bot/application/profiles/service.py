@@ -4,6 +4,7 @@ from namoz_bot.application.profiles.ports import ModelCatalog, ProfileManagement
 from namoz_bot.application.roles.registry import RoleRegistry
 from namoz_bot.domain.workforce.profiles import (
     AccessDenied,
+    AuditPage,
     ProfileView,
     RoleModelSetting,
     UserPage,
@@ -38,6 +39,18 @@ class ProfileService:
         await self._admin(actor_id)
         return await self.repository.list_users(
             actor_id, after_id=max(0, after_id), limit=min(20, max(1, limit))
+        )
+
+    async def find_user(self, actor_id: int, telegram_id: int) -> ProfileView | None:
+        await self._admin(actor_id)
+        if not 0 < telegram_id < 2**63:
+            raise ValueError("Musbat Telegram ID kiriting.")
+        return await self.repository.find_user(actor_id, telegram_id)
+
+    async def history(self, actor_id: int, *, before_id: int = 0, limit: int = 10) -> AuditPage:
+        await self._admin(actor_id)
+        return await self.repository.history(
+            actor_id, before_id=max(0, before_id), limit=min(20, max(1, limit))
         )
 
     async def set_grants(

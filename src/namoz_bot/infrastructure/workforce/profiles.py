@@ -2,7 +2,7 @@
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Literal, cast
 
 from sqlalchemy import delete, select, update
@@ -14,6 +14,8 @@ from namoz_bot.application.profiles.ports import PermissionTransaction
 from namoz_bot.application.roles.registry import RoleRegistry
 from namoz_bot.domain.workforce.profiles import (
     AccessDenied,
+    AdminChange,
+    AuditPage,
     PermissionSnapshot,
     ProfileConflict,
     ProfileView,
@@ -210,6 +212,44 @@ class SqlAlchemyProfileRepository:
                 users=tuple([await self._profile(session, uid) for uid in ids[:limit]]),
                 more=len(ids) > limit,
             )
+
+    async def find_user(self, actor_id: int, telegram_id: int) -> ProfileView | None:
+        async with self.factory.begin() as session:
+            await self.require_admin(session, actor_id)
+            user_id = await session.scalar(
+                select(UserRecord.id).where(UserRecord.telegram_user_id == telegram_id)
+            )
+            return await self._profile(session, user_id) if user_id is not None else None
+
+    async def history(self, actor_id: int, *, before_id: int, limit: int) -> AuditPage:
+        async with self.factory.begin() as session:
+            await self.require_admin(session, actor_id)
+            query = select(AdminAuditRecord).order_by(AdminAuditRecord.id.desc()).limit(limit + 1)
+            if before_id:
+                query = query.where(AdminAuditRecord.id < before_id)
+            rows = list(await session.scalars(query))
+            changes = []
+            for row in rows[:limit]:
+                actor = await session.get(UserRecord, row.actor_id)
+                target = (
+                    await session.get(UserRecord, row.target_id)
+                    if row.target_id is not None
+                    else None
+                )
+                assert actor is not None
+                changes.append(
+                    AdminChange(
+                        id=row.id,
+                        actor_telegram_id=actor.telegram_user_id,
+                        target_telegram_id=target.telegram_user_id if target else None,
+                        action=row.action,
+                        detail=row.detail,
+                        created_at=row.created_at
+                        if row.created_at.tzinfo
+                        else row.created_at.replace(tzinfo=UTC),
+                    )
+                )
+            return AuditPage(changes=tuple(changes), more=len(rows) > limit)
 
     async def get_model(self, role_id: str, default: str) -> RoleModelSetting:
         async with self.factory() as session:

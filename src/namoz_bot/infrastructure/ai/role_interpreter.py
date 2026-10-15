@@ -73,6 +73,10 @@ def safe_context(context: AgentContext, pending: TaskRevision | None) -> dict[st
         "current_time": context.message_time.astimezone(TASHKENT).isoformat(),
         "timezone": context.timezone,
         "language": context.language,
+        "last_view": context.last_view.model_dump(mode="json") if context.last_view else None,
+        "target_choices": context.target_choices.model_dump(mode="json")
+        if context.target_choices
+        else None,
         "pending": {
             "selection": pending.plan.selection.model_dump(mode="json"),
             "status": pending.status,
@@ -149,6 +153,9 @@ class GeminiRoleInterpreter:
         pending: TaskRevision | None,
         model: str,
     ) -> CapabilitySelection:
+        correcting = bool(
+            pending and (pending.status == "awaiting_correction" or pending.plan.original_result)
+        )
         fields: dict[str, JsonValue] = {}
         for spec in capabilities:
             properties = cast(
@@ -175,7 +182,7 @@ class GeminiRoleInterpreter:
             model=model,
             instruction=role.instruction
             + "\nPending.status=awaiting_correction bo‘lsa oldingi natijadagi xatoni "
-            "tuzatish continuation=true; "
+            "tuzatish continuation=true; tuzatish savoliga javobda ham continuation=true. "
             "mustaqil yangi so‘rov continuation=false. Noaniq bo‘lsa question ber. "
             + "\nPROTOCOL 2: faqat capability_id, parameters, question JSON. "
             "Faqat berilgan imkoniyatni tanla, qolganini rad et. Avvalgi "
@@ -199,11 +206,7 @@ class GeminiRoleInterpreter:
                     "capability_id",
                     "question",
                     *(["parameters"] if fields else []),
-                    *(
-                        ["continuation"]
-                        if pending and pending.status == "awaiting_correction"
-                        else []
-                    ),
+                    *(["continuation"] if correcting else []),
                 ],
             },
             parts=[
@@ -222,7 +225,7 @@ class GeminiRoleInterpreter:
                 }
             ],
         )
-        if pending and pending.status == "awaiting_correction" and "continuation" not in payload:
+        if correcting and "continuation" not in payload:
             raise ValueError("Correction relation must be explicit")
         output = SpecialistResponse.model_validate(payload)
         if output.capability_id is None:

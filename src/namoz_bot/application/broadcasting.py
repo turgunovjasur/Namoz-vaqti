@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import date
 
 from namoz_bot.application.ports import (
+    DeliveryAccess,
     DeliveryRepository,
     MessageSender,
     SubscriptionRepository,
@@ -45,8 +46,10 @@ class BroadcastService:
         *,
         batch_size: int = 500,
         max_concurrency: int = 10,
+        access: DeliveryAccess | None = None,
     ) -> None:
         self._subscriptions = subscriptions
+        self._access = access
         self._deliveries = deliveries
         self._schedules = schedules
         self._sender = sender
@@ -102,6 +105,8 @@ class BroadcastService:
                     sent += 1
                 elif outcome == "deactivated":
                     deactivated += 1
+                elif outcome == "skipped":
+                    skipped += 1
                 else:
                     failed += 1
                     if outcome == "region_failed" and region_code not in failed_regions:
@@ -179,6 +184,11 @@ class BroadcastService:
             return "failed", region_code
 
         async with self._semaphore:
+            if self._access is not None and not await self._access.allowed(
+                subscription.id or 0, "settings", "settings.deliver_daily"
+            ):
+                await self._mark_failed(subscription, target_date, "permission_revoked")
+                return "skipped", region_code
             try:
                 await self._sender.send(subscription.chat_id, text)
             except RecipientBlockedError:

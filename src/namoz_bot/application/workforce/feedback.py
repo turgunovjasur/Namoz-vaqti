@@ -121,6 +121,7 @@ class FeedbackService:
                 "selection": selection,
                 "permission": permission,
                 "question": selected.question,
+                "original_result": old.service_result,
             }
         )
         return (await self.tasks.save_plan(plan, expected_revision=revision)).plan

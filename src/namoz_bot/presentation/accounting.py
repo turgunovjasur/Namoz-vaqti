@@ -12,9 +12,12 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMar
 
 from namoz_bot.application.accounting import LedgerService
 from namoz_bot.application.voice_reminders import MAX_VOICE_BYTES, MAX_VOICE_SECONDS
+from namoz_bot.application.workforce.access import AccessService
+from namoz_bot.application.workforce.authorization import selected_operation
 from namoz_bot.domain.accounting import CATEGORY_LABELS, LedgerEntry, LedgerSummary, format_money
 from namoz_bot.domain.errors import ExternalServiceError
 from namoz_bot.domain.reminders import TASHKENT
+from namoz_bot.domain.workforce.profiles import AccessDenied
 from namoz_bot.presentation.handlers import HandlerServices
 from namoz_bot.presentation.keyboards import (
     ACCOUNTING_LABEL,
@@ -111,12 +114,14 @@ async def open_accounting(
     await state.clear()
     await state.update_data({KEEP_MAIN_MENU: True})
     await state.set_state(AccountingStates.active)
+    try:
+        balance_text = f"Joriy balans: {format_money(await ledger_service.balance(owner))}\n\n"
+    except AccessDenied:
+        balance_text = ""
     await render_panel(
         message,
         state,
-        "💰 Kirim-chiqim\n\n"
-        f"Joriy balans: {format_money(await ledger_service.balance(owner))}\n\n"
-        "Ovoz yoki matn bilan bitta kirim/chiqimni ayting:\n"
+        "💰 Kirim-chiqim\n\n" + balance_text + "Ovoz yoki matn bilan bitta kirim/chiqimni ayting:\n"
         "«Oktyabrda 10 million oylik tushdi»\n«120 mingga kiyim oldim»\n\n"
         "Hisobot: «Oktyabrda qancha sarfladim?» yoki «Balansim qancha?»\n"
         "Valyuta: so‘m. Aniq yozuv darhol saqlanadi, bekor qilish mumkin.",
@@ -172,6 +177,7 @@ async def receive_accounting(
     state: FSMContext,
     handler_services: HandlerServices,
     ledger_service: LedgerService,
+    access_service: AccessService,
 ) -> None:
     assert message.from_user is not None
     telegram_id = message.from_user.id
@@ -236,9 +242,17 @@ async def receive_accounting(
     entry = None
     try:
         if request.intent in {"income", "expense"}:
-            entry = await ledger_service.record(
-                owner, request, f"telegram:{message.chat.id}:{message.message_id}", message.date
-            )
+            with selected_operation("accounting", f"finance.{request.intent}"):
+                async with access_service.effect_scope(
+                    owner, "accounting", f"finance.{request.intent}", now=message.date
+                ) as tx:
+                    entry = await tx.ledger.record(
+                        owner,
+                        request,
+                        f"telegram:{message.chat.id}:{message.message_id}",
+                        message.date,
+                    )
+                    balance = await tx.ledger.balance(owner)
             if entry.cancelled:
                 text = "Bu xabardagi yozuv avval bekor qilingan. Qayta hisobga qo‘shilmadi."
             else:
@@ -252,7 +266,7 @@ async def receive_accounting(
                     f"✅ {title}\n\n{format_money(entry.amount)}\n"
                     f"{entry.description} · {CATEGORY_LABELS[entry.category]}\n📅 {stamp}"
                 )
-            text += f"\n\nJoriy balans: {format_money(await ledger_service.balance(owner))}"
+            text += f"\n\nJoriy balans: {format_money(balance)}"
         elif request.intent == "report":
             text = _summary_text(
                 await ledger_service.summary(owner, request.period(message.date)),
@@ -274,6 +288,7 @@ async def accounting_callback(
     state: FSMContext,
     handler_services: HandlerServices,
     ledger_service: LedgerService,
+    access_service: AccessService,
 ) -> None:
     message = callback.message
     parts = (callback.data or "").split(":")
@@ -297,13 +312,16 @@ async def accounting_callback(
         if action == "undo":
             if not value.isdigit():
                 raise ValueError("Yozuv raqami noto‘g‘ri.")
-            cancelled = await ledger_service.cancel(owner, int(value))
+            with selected_operation("accounting", "finance.undo"):
+                async with access_service.effect_scope(owner, "accounting", "finance.undo") as tx:
+                    cancelled = await tx.ledger.cancel(owner, int(value))
+                    balance = await tx.ledger.balance(owner)
             text = (
                 "↩️ Yozuv bekor qilindi."
                 if cancelled
                 else "Bu yozuv topilmadi yoki avval bekor qilingan."
             )
-            text += f"\n\nJoriy balans: {format_money(await ledger_service.balance(owner))}"
+            text += f"\n\nJoriy balans: {format_money(balance)}"
             if active:
                 await render_panel(
                     message, state, text, _keyboard(callback.from_user.id), append_result=True

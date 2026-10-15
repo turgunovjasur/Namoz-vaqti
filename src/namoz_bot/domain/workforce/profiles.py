@@ -1,9 +1,10 @@
 """Account profiles are independent of AI roles and deny absent grants."""
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, JsonValue
 
 
 class AccessDenied(Exception):
@@ -48,6 +49,22 @@ class RoleModelSetting(BaseModel):
 class UserPage(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
     users: tuple[ProfileView, ...]
+    more: bool
+
+
+class AdminChange(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    id: int
+    actor_telegram_id: int
+    target_telegram_id: int | None
+    action: str
+    detail: dict[str, JsonValue]
+    created_at: datetime
+
+
+class AuditPage(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    changes: tuple[AdminChange, ...]
     more: bool
 
 

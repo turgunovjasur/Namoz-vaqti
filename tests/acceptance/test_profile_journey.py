@@ -61,3 +61,30 @@ async def test_fresh_user_has_only_profile_help_and_no_admin_controls(profile_jo
     await j.text("/profile", user=8)
     assert "yoqilmagan" in j.last.text.lower()
     assert j.last.reply_markup is None or not j.last.reply_markup.inline_keyboard
+
+
+async def test_admin_search_and_history_are_private_and_paged(profile_journey):
+    j = profile_journey
+    await j.text("👤 Profil")
+    await j.click("🔎 ID bo‘yicha qidirish")
+    await j.text("8")
+    await j.click("8")
+    await j.click("Hisobchi")
+    await j.click("⏸ Rol o‘chiq")
+    await j.click("⬜ Xarajat yozish")
+    await j.click("💾 Saqlash")
+    await j.text("👤 Profil")
+    await j.click("🕘 O‘zgarishlar tarixi")
+    assert "Hisobchi" in j.last.text and "8" in j.last.text and "Xarajat yozish" in j.last.text
+    history = j.last.text
+    await j.text("👤 Profil", user=8)
+    assert j.last.text != history
+    service = j.app.dispatcher["profile_service"]
+    import pytest
+
+    from namoz_bot.domain.workforce.profiles import AccessDenied
+
+    user = await service.repository.find_user(2, 8)
+    # User DB IDs are assigned by /start order; resolve through trusted admin lookup.
+    with pytest.raises(AccessDenied):
+        await service.history(user.user_id)

@@ -76,3 +76,33 @@ async def test_disabled_deliveries_advance_without_backlog_and_resume_future(
     current += timedelta(days=1)
     await send()
     assert len(sender.messages) == 1 and sender.messages[0][0] == 7
+
+
+async def test_daily_revocation_during_provider_fetch_prevents_send(access_setup, store):
+    profiles, access, user, _ = access_setup
+    _, factory, _, _ = store
+    await grant(profiles, user, user, "settings", {"settings.deliver_daily"})
+    sender = Sender()
+
+    class RevokingProvider(FakeScheduleProvider):
+        async def get_for_date(self, region_code, target_date):
+            await grant(profiles, user, user, "settings", set())
+            return await super().get_for_date(region_code, target_date)
+
+    current = NOW + timedelta(days=2)
+    repo = SqlAlchemyDailyScheduleRepository(factory)
+    await repo.ensure_defaults(time(15), NOW)
+    service = PersonalDailyBroadcastService(
+        repo,
+        SqlAlchemySubscriptionRepository(factory),
+        SqlAlchemyDeliveryRepository(factory),
+        ScheduleService(RevokingProvider()),
+        sender,
+        access=access,
+        clock=lambda: current,
+    )
+    report = await service.send()
+    assert not sender.messages and report.sent == 0
+    await grant(profiles, user, user, "settings", {"settings.deliver_daily"})
+    await service.send()
+    assert not sender.messages

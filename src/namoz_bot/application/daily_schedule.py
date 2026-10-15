@@ -72,6 +72,7 @@ class PersonalDailyBroadcastService:
             sender,
             batch_size=batch_size,
             max_concurrency=max_concurrency,
+            access=access,
         )
 
     async def send(self) -> BroadcastReport:

@@ -6,6 +6,7 @@ from typing import Protocol
 
 from namoz_bot.application.agent_sessions import AgentTransaction
 from namoz_bot.domain.workforce.profiles import (
+    AuditPage,
     ModelOption,
     PermissionSnapshot,
     ProfileView,
@@ -47,6 +48,8 @@ class ModelCatalog(Protocol):
 
 
 class ProfileManagementRepository(ProfileRepository, Protocol):
+    async def find_user(self, actor_id: int, telegram_id: int) -> ProfileView | None: ...
+    async def history(self, actor_id: int, *, before_id: int, limit: int) -> AuditPage: ...
     async def list_users(self, actor_id: int, *, after_id: int, limit: int) -> UserPage: ...
     async def get_model(self, role_id: str, default: str) -> RoleModelSetting: ...
     async def set_model(

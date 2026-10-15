@@ -9,6 +9,7 @@ from namoz_bot.application.agent_sessions import AgentTransaction
 from namoz_bot.application.religious_reminders import ReligiousReminderService
 from namoz_bot.application.reminders import ReminderService
 from namoz_bot.application.schedules import ScheduleService
+from namoz_bot.application.view_context import ordinal_target
 from namoz_bot.domain.accounting import format_money
 from namoz_bot.domain.agent_protocol import AgentRequest, AgentResult
 from namoz_bot.domain.models import PRAYER_KEYS, PrayerKey
@@ -147,16 +148,14 @@ class ConversationAdapters(AgentAdapters):
         p, user = request.parameters, request.context.user_id
         target_id = p.get("target_id")
         if p.get("ordinal") is not None and target_id is None:
-            view = request.context.target_choices or request.context.last_view
-            index = cast(int, p["ordinal"]) - 1
-            if view is None or view.domain != request.domain or index >= len(view.ids):
+            target_id = ordinal_target(p, request.domain, request.context)
+            if target_id is None:
                 return result(
                     request,
                     "needs_input",
                     missing_fields=["target_id"],
                     question="Qaysi yozuv? Avval ro‘yxatni so‘rang yoki ID raqamini ayting.",
                 )
-            target_id = view.ids[index]
         if request.action == "delete":
             if target_id is not None:
                 reminder = await self._reminders.get(user, cast(int, target_id))

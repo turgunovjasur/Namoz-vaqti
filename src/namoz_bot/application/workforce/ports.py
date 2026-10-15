@@ -22,6 +22,7 @@ class TaskTransaction(PermissionTransaction, Protocol):
 
 
 class TaskStore(Protocol):
+    async def displayed_view(self, context: AgentContext) -> TaskRevision | None: ...
     async def rate(
         self, context: AgentContext, task_id: str, revision: int, accepted: bool, request_id: str
     ) -> None: ...

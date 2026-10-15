@@ -11,6 +11,7 @@ from pydantic import JsonValue
 
 from namoz_bot.application.agent_adapters import AgentAdapters, result
 from namoz_bot.application.agent_sessions import AgentStore, AgentTransaction
+from namoz_bot.application.view_context import page_parameters
 from namoz_bot.domain.agent_protocol import (
     AgentContext,
     AgentDecision,
@@ -101,13 +102,7 @@ class MainAgent:
         params.update(decision.parameters)
         if "page" in decision.parameters and not decision.parameters.get("page_step"):
             params.pop("page_step", None)
-        if params.get("page_step") and context.last_view:
-            view = context.last_view
-            if (view.domain, view.action) == (decision.domain, decision.action):
-                direction = 1 if params["page_step"] == "next" else -1
-                params["page"] = max(0, min(100000, view.page + direction))
-                if decision.action == "list":
-                    params["today"] = view.today
+        params = page_parameters(params, decision.domain, decision.action, context.last_view)
         if (
             not pending
             and decision.domain == "accounting"

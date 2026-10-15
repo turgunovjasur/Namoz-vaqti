@@ -3,7 +3,7 @@
 import json
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import cast
 
 from sqlalchemy import select, update
@@ -379,6 +379,35 @@ class SqlAlchemyTaskStore:
             assert row is not None
             return revision_value(row)
 
+    async def displayed_view(self, context: AgentContext) -> TaskRevision | None:
+        async with self.factory() as session:
+            row = await session.scalar(
+                select(WorkforceRevisionRecord)
+                .join(
+                    WorkforceTaskRecord, WorkforceTaskRecord.id == WorkforceRevisionRecord.task_id
+                )
+                .join(
+                    WorkforceOutboxRecord,
+                    (WorkforceOutboxRecord.task_id == WorkforceRevisionRecord.task_id)
+                    & (WorkforceOutboxRecord.revision == WorkforceRevisionRecord.revision),
+                )
+                .where(
+                    WorkforceTaskRecord.user_id == context.user_id,
+                    WorkforceTaskRecord.bot_id == context.bot_id,
+                    WorkforceTaskRecord.chat_id == context.chat_id,
+                    WorkforceOutboxRecord.kind == "result",
+                    WorkforceOutboxRecord.status == "sent",
+                    WorkforceOutboxRecord.next_attempt > self.clock() - timedelta(minutes=30),
+                    WorkforceRevisionRecord.service_result["status"].as_string() == "done",
+                    WorkforceRevisionRecord.service_result["action"]
+                    .as_string()
+                    .in_(["list", "history"]),
+                )
+                .order_by(WorkforceOutboxRecord.id.desc())
+                .limit(1)
+            )
+            return revision_value(row) if row else None
+
     async def find_input(self, context: AgentContext, request_id: str) -> TaskRevision | None:
         async with self.factory() as session:
             update_record = await session.get(
@@ -481,7 +510,7 @@ class SqlAlchemyTaskStore:
         async with self.factory.begin() as session:
             await lock_owner(session, context.user_id)
             task = await self._owned(session, task_id, context, lock=True)
-            if task.revision == revision and task.status == "awaiting_correction":
+            if task.revision == revision and task.status in {"awaiting_correction", "needs_input"}:
                 row = await session.get(WorkforceRevisionRecord, (task_id, revision))
                 assert row is not None
                 row.status = task.status = "done"

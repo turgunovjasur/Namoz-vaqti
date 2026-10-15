@@ -109,6 +109,55 @@ async def test_text_input_uses_same_extraction_and_saves_whole_amount(
     assert not any("inlineData" in part for part in parts)
 
 
+@pytest.mark.parametrize("operation", ["expense", "undo"])
+async def test_manual_write_without_balance_grant_has_truthful_receipt(
+    ledger_journey, finance_route, operation
+):
+    from sqlalchemy import delete
+
+    from namoz_bot.application.accounting import LedgerService
+    from namoz_bot.domain.accounting import AccountingRequest
+    from namoz_bot.infrastructure.accounting import SqlAlchemyLedgerRepository
+    from namoz_bot.infrastructure.orm import RoleCapabilityRecord
+
+    j = ledger_journey
+    factory = async_sessionmaker(j.app.db_engine, expire_on_commit=False)
+    owner = await SqlAlchemySubscriptionRepository(factory).get_by_telegram_user_id(7)
+    ledger = LedgerService(SqlAlchemyLedgerRepository(factory))
+    if operation == "undo":
+        entry = await ledger.record(
+            owner.id,
+            AccountingRequest.model_validate(accounting_input()),
+            "seed",
+            datetime.now(UTC),
+        )
+    async with factory.begin() as session:
+        await session.execute(
+            delete(RoleCapabilityRecord).where(
+                RoleCapabilityRecord.capability_id.startswith("finance."),
+                RoleCapabilityRecord.capability_id != f"finance.{operation}",
+            )
+        )
+    await open_finance(j)
+    assert "yoqilmagan" not in j.last.text and "Kirim-chiqim" in j.last.text
+    if operation == "expense":
+        finance_route.respond(
+            200,
+            json=response(
+                accounting_input(
+                    intent="expense", category="kiyim", description="Kiyim", amount=120000
+                )
+            ),
+        )
+        await j.text("120 mingga kiyim oldim")
+        assert "Chiqim qayd etildi" in j.last.text
+        assert len(await entries(j)) == 1
+    else:
+        await j.click(data=f"acct:7:undo:{entry.id}")
+        assert "Yozuv bekor qilindi" in j.last.text
+        assert (await entries(j))[0].cancelled
+
+
 async def test_old_undo_button_cancels_only_its_record_and_repeat_is_safe(
     ledger_journey, finance_route
 ):

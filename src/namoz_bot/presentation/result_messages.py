@@ -248,6 +248,21 @@ def render_task_plan(plan: TaskPlan, registry: CapabilityRegistry) -> str:
         if not line.startswith("Eshitilgan gap:") and line.strip() != "To‘g‘ri tushundimmi?"
     ]
     name = registry.get(plan.selection.capability_id).spec.name
+    if plan.original_result and registry.get(plan.selection.capability_id).spec.requires_result:
+        before = plan.original_result.data
+        if plan.original_result.domain == "accounting":
+            old = (
+                f"#{before['entry_id']} · {before['description']} · "
+                f"{format_money(int(str(before['amount'])))} · "
+                f"{CATEGORY_LABELS[str(before['category'])]} · "
+                f"{before.get('occurred_on') or str(before['period'])[:7]}"
+            )
+        else:
+            old = (
+                f"#{before['reminder_id']} · {before['text']} · "
+                f"{before['time']} · {before['schedule']}"
+            )
+        details = [f"Oldin: {old}", "Keyin:", *details]
     return "\n".join(
         [
             f"Eshitdim: “{plan.transcript}”",

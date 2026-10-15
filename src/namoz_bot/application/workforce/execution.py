@@ -66,6 +66,7 @@ class TaskExecutionService:
                     request = AgentRequest.model_validate(
                         {
                             **request.model_dump(),
+                            "context": request.context,
                             "parameters": cast(dict[str, JsonValue], prepared.data["draft"]),
                         }
                     )

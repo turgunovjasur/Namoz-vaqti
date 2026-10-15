@@ -52,6 +52,9 @@ rollar va imkoniyatlarni ko‘radi. Admin foydalanuvchini tanlab, rolni hamda un
 ichidagi alohida imkoniyatlarni yoqadi/o‘chiradi va **Saqlash**ni bosadi. Rolni
 o‘chirish tanlangan imkoniyatlarni o‘chirmaydi, vaqtincha to‘xtatadi. Rollar
 katalogida har bir rolning vazifasi va imkoniyat tavsifi ko‘rsatiladi.
+**ID bo‘yicha qidirish** ma’lum Telegram IDli userni topadi.
+**O‘zgarishlar tarixi** rol/imkoniyat va model o‘zgarishlarini sahifalab ko‘rsatadi;
+unda foydalanuvchining moliyaviy yozuvlari yoki xabarlari bo‘lmaydi.
 
 Yangi userda mutaxassis huquqlari yo‘q. Migratsiya mavjud userlarga faqat oldindan
 belgilangan eski imkoniyatlarni beradi. Keyin qo‘shilgan `finance.correct` va

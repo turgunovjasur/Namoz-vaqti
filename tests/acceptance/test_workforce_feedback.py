@@ -47,6 +47,7 @@ async def test_negative_result_then_voice_correction_needs_approval_and_replaces
     )
     await j.voice()
     assert "Eshitdim:" in j.last.text and "150 000" in j.last.text
+    assert "Oldin:" in j.last.text and "120 000" in j.last.text and "Keyin:" in j.last.text
     async with factory() as session:
         assert len(list(await session.scalars(select(FinanceEntryRecord)))) == 1
     await j.click("✅ Ha")
