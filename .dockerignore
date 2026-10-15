@@ -11,3 +11,10 @@
 !src/**
 **/__pycache__/
 **/*.pyc
+!Dockerfile.admin
+!web/
+!web/admin/
+!web/admin/**
+web/admin/node_modules/
+web/admin/dist/
+web/admin/*.tsbuildinfo

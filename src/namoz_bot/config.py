@@ -44,6 +44,8 @@ class Settings(BaseSettings):
 
     admin_web_url: str = Field(default="http://127.0.0.1:8088", validation_alias="ADMIN_WEB_URL")
 
+    admin_web_dist: Path = Field(default=Path("web/admin/dist"), validation_alias="ADMIN_WEB_DIST")
+
     @field_validator("admin_web_url")
     @classmethod
     def validate_admin_url(cls, value: str) -> str:
@@ -61,8 +63,12 @@ class Settings(BaseSettings):
             raise ValueError(
                 "ADMIN_WEB_URL must be HTTPS or loopback HTTP, without path or secrets"
             )
-        _ = url.port
-        return value.rstrip("/")
+        host = url.hostname.encode("idna").decode("ascii").lower()
+        if ":" in host:
+            host = f"[{host}]"
+        port = url.port
+        suffix = f":{port}" if port and port != (443 if url.scheme == "https" else 80) else ""
+        return f"{url.scheme}://{host}{suffix}"
 
     main_agent_enabled: bool = Field(default=True, validation_alias="MAIN_AGENT_ENABLED")
     main_agent_version: int = Field(default=3, ge=1, le=3, validation_alias="MAIN_AGENT_VERSION")

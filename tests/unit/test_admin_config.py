@@ -31,3 +31,13 @@ def test_admin_url_allows_loopback_or_public_https(url):
         ).admin_web_url
         == url
     )
+
+
+def test_admin_url_normalizes_browser_origin():
+    settings = Settings(
+        telegram_bot_token="123:test",
+        database_url="unused",
+        admin_web_url="HTTPS://ADMIN.EXAMPLE:443/",
+        _env_file=None,
+    )
+    assert settings.admin_web_url == "https://admin.example"

@@ -535,3 +535,67 @@ yoki Telegram qabul qilganidan keyin `SENT` yozilishidan oldin to‘xtasa, yozuv
 avtomatik qayta claim qilinmaydi. Natijada dublikat bo‘lmaydi, ammo shu kam uchraydigan
 crash oynasida bitta xabar o‘tmay qolishi mumkin. `FAILED`/`PENDING` yozuvlarini qayta
 yuborish kelajakdagi operator recovery vositasi orqali ongli ravishda bajariladi.
+
+## Admin web panel
+
+Panel foydalanuvchilar, ularga biriktirilgan rollar va har bir rolning imkoniyatlarini
+boshqaradi. Bir nechta rol bitta tranzaksiyada saqlanadi; eskirgan tahrir boshqa
+adminning o‘zgarishini bosa olmaydi. Rollar katalogi umumiy registrydan olinadi.
+Gemini modeli har bir rol uchun global almashtiriladi, saqlashdan oldin haqiqiy
+Gemini tekshiruvidan o‘tadi. Ruxsat/model o‘zgarishlari audit jurnalida saqlanadi.
+Panel foydalanuvchining xarajatlari, eslatma mazmuni yoki shaxsiy suhbatlarini ochmaydi.
+
+Loyiha ildizida bir marta:
+
+```bash
+.venv/bin/python -m pip install -e '.[admin,dev]'
+npm ci --prefix web/admin
+npm run build --prefix web/admin
+```
+
+Lokal TEST bot/baza bilan:
+
+```bash
+# TEST_DATABASE_URL uchun migratsiyani run_local_bot.sh ham avtomatik bajaradi.
+bash run_local_bot.sh
+# Boshqa terminalda, shu loyiha ildizida:
+.venv/bin/python -m namoz_bot.admin --local serve
+```
+
+`ADMIN_TELEGRAM_IDS` ichidagi admin botga `/admin` yuboradi yoki **Profil →
+🌐 Admin web panel** tugmasini bosadi. Bot besh daqiqalik, bir marta ishlaydigan
+havola beradi. Ochiq panel manzili o‘zi kirish huquqini bermaydi. Sessiya 8 soat
+amal qiladi; “Hisobdan chiqish” uni serverda bekor qiladi. Botdagi ism va username
+keyingi xabardan boshlab panel uchun yangilanadi; ilgari yozmagan hisob ID bilan ko‘rinadi.
+
+Ishonchli lokal terminaldan ham havola olish mumkin:
+
+```bash
+.venv/bin/python -m namoz_bot.admin --local link
+# Bir nechta admin bo‘lsa: --telegram-id RAQAM
+# Havolani terminalga chiqarmaslik uchun: --output /tmp/admin-login.txt (0600 fayl)
+```
+
+Standart `http://127.0.0.1:8088` faqat shu kompyuterda ochiladi. Telefon yoki boshqa
+kompyuterdan kirish uchun `ADMIN_WEB_URL=https://admin.example.uz` ni **bot va web
+serverda bir xil** belgilang, HTTPS reverse proxy orqali panelga yo‘naltiring va
+original Host hamda Originni saqlang. Public HTTP qabul qilinmaydi; HTTPSda sessiya
+cookie’si Secure bo‘ladi. Proxy access logida query/header/cookie yoki so‘rov tanasini
+saqlamang; kirish tokeni URL fragmentida beriladi va ilova uni darhol tozalaydi.
+
+Production server aniq tanlanadi:
+
+```bash
+.venv/bin/python -m alembic upgrade head
+.venv/bin/python -m namoz_bot.admin --production serve --port 8088
+# Ixtiyoriy alohida image:
+docker build -f Dockerfile.admin -t yordamchi-admin .
+# HTTPS proxy oldida; tashqi internetga to‘g‘ridan-to‘g‘ri port ochmang:
+docker run --env-file .env -p 127.0.0.1:8088:8088 yordamchi-admin
+```
+
+`ADMIN_WEB_DIST` yig‘ilgan frontend manzilini o‘zgartiradi. Docker image uni ichiga
+oladi. Lokal frontendni qayta o‘zgartirganda `npm run build --prefix web/admin`
+bajaring. Bot va panel bir xil bazadan foydalanadi; ruxsat o‘zgarishlari botda ham
+amal qiladi. Admin profilini webdan o‘zgartirib bo‘lmaydi; ishonchli adminlar faqat
+server konfiguratsiyasida belgilanadi.

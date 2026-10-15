@@ -11,7 +11,6 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from namoz_bot.application.capabilities.registry import build_capability_registry
 from namoz_bot.application.profiles.service import ProfileService
 from namoz_bot.config import Settings
 from namoz_bot.domain.errors import ExternalServiceError
@@ -22,7 +21,6 @@ from namoz_bot.infrastructure.workforce.profiles import SqlAlchemyProfileReposit
 from namoz_bot.presentation.admin_web.schemas import AssignmentInput, ModelInput, TicketInput
 
 COOKIE = "yordamchi_admin"
-DEFAULT_DIST = Path(__file__).resolve().parents[4] / "web" / "admin" / "dist"
 
 
 def create_app(
@@ -30,8 +28,9 @@ def create_app(
     factory: async_sessionmaker[AsyncSession],
     service: ProfileService,
     *,
-    dist: Path = DEFAULT_DIST,
+    dist: Path | None = None,
 ) -> FastAPI:
+    dist = dist or settings.admin_web_dist
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
     auth = AdminAuth(factory, settings.admin_telegram_ids)
     app.state.auth = auth
@@ -39,7 +38,7 @@ def create_app(
     if not isinstance(profiles, SqlAlchemyProfileRepository):
         raise TypeError("Admin panel requires the SQL profile repository")
     queries = AdminQueries(profiles)
-    capabilities = build_capability_registry()
+    capabilities = service.roles.capabilities
     origin = settings.admin_web_url
     authority = urlsplit(origin).netloc.lower()
     secure = origin.startswith("https://")
@@ -101,7 +100,9 @@ def create_app(
         except AccessDenied as exc:
             raise HTTPException(401, str(exc)) from None
         if request.method not in ("GET", "HEAD", "OPTIONS"):
-            if not hmac.compare_digest(request.headers.get("x-csrf-token", ""), actor.csrf_token):
+            if not hmac.compare_digest(
+                request.headers.get("x-csrf-token", "").encode(), actor.csrf_token.encode()
+            ):
                 raise HTTPException(403, "Sahifani yangilang va qayta urinib ko‘ring.")
         return actor
 

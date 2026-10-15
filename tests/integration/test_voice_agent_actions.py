@@ -481,9 +481,11 @@ async def test_new_list_replaces_ambiguity_context_and_resume_refreshes_choices(
 async def test_failed_interpretation_suspends_previous_confirmation(voice_agent):
     from namoz_bot.domain.errors import ExternalServiceError
     from namoz_bot.domain.reminders import ReminderSpec, parse_time
+
     main, extractor, _, _, context, _ = voice_agent
-    target = await main._adapters._reminders.create(context.user_id, 7,
-        ReminderSpec("Kitob", parse_time("09:00"), "daily"), "original")
+    target = await main._adapters._reminders.create(
+        context.user_id, 7, ReminderSpec("Kitob", parse_time("09:00"), "daily"), "original"
+    )
     await command(voice_agent, "reminder", "delete", {"target_id": target.id})
     extractor.error = ExternalServiceError("synthetic provider error")
     failed = await main.respond(context=context, request_id="change", text="Sportni o‘chir")

@@ -138,3 +138,42 @@ async def test_session_token_stored_only_as_hash_and_expiry(web):
         assert len(row.token_hash) == 64
         row.expires_at = NOW - timedelta(days=1)
     assert (await client.get("/api/users")).status_code == 401
+
+
+async def test_concurrent_ticket_exchange_has_only_one_winner(web):
+    import asyncio
+
+    from namoz_bot.domain.workforce.profiles import AccessDenied
+
+    _, auth, _, _, _, _ = web
+    ticket = await auth.issue_ticket(7)
+    result = await asyncio.gather(
+        auth.exchange_ticket(ticket), auth.exchange_ticket(ticket), return_exceptions=True
+    )
+    assert sum(isinstance(value, str) for value in result) == 1
+    assert sum(isinstance(value, AccessDenied) for value in result) == 1
+
+
+async def test_model_probe_failure_keeps_original_setting_and_history(web):
+    client, auth, _, _, _, _ = web
+    await login(client, auth)
+    before = (await client.get("/api/history")).json()
+    response = await client.put(
+        "/api/models/accounting", json={"model_id": "test-model", "expected_version": 0}
+    )
+    assert response.status_code == 502
+    assert (await client.get("/api/history")).json() == before
+    row = next(
+        m
+        for m in (await client.get("/api/models")).json()["models"]
+        if m["role_id"] == "accounting"
+    )
+    assert row["model_id"] == "test-model" and row["version"] == 0
+
+
+async def test_non_ascii_csrf_is_rejected_without_server_error(web):
+    client, auth, _, _, _, _ = web
+    await login(client, auth)
+    response = await client.post("/api/auth/logout", headers=[(b"X-CSRF-Token", b"\xff")])
+    assert response.status_code == 403
+    assert (await client.get("/api/session")).status_code == 200

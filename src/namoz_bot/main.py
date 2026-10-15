@@ -55,6 +55,7 @@ from namoz_bot.application.workforce.worker import Worker
 from namoz_bot.config import Settings
 from namoz_bot.domain.agent_protocol import Domain
 from namoz_bot.infrastructure.accounting import SqlAlchemyLedgerRepository
+from namoz_bot.infrastructure.admin_web.auth import AdminAuth
 from namoz_bot.infrastructure.agent_sessions import SqlAlchemyAgentStore
 from namoz_bot.infrastructure.ai.gemini_client import GeminiClient
 from namoz_bot.infrastructure.ai.result_reviewer import GeminiResultReviewer
@@ -83,6 +84,7 @@ from namoz_bot.infrastructure.workforce.queue import SqlAlchemyTaskQueue
 from namoz_bot.infrastructure.workforce.tasks import SqlAlchemyTaskStore
 from namoz_bot.logging import configure_logging
 from namoz_bot.presentation.accounting import build_accounting_router
+from namoz_bot.presentation.admin_web.router import AdminWebEntry, build_admin_web_router
 from namoz_bot.presentation.handlers import build_prayer_router
 from namoz_bot.presentation.main_agent import build_main_agent_router
 from namoz_bot.presentation.middleware import ErrorHandlingMiddleware, ServicesMiddleware
@@ -285,7 +287,11 @@ def create_application(settings: Settings) -> ApplicationResources:
     dispatcher.message.outer_middleware(middleware)
     dispatcher.callback_query.outer_middleware(ErrorHandlingMiddleware())
     dispatcher.callback_query.outer_middleware(middleware)
-    dispatcher.include_router(build_profile_router(profile_service))
+    web_auth = AdminAuth(session_factory, settings.admin_telegram_ids)
+    web_entry = AdminWebEntry(web_auth, settings.admin_web_url)
+    dispatcher["admin_web_auth"] = web_auth
+    dispatcher.include_router(build_admin_web_router(web_entry))
+    dispatcher.include_router(build_profile_router(profile_service, web_entry=web_entry))
     workforce_worker = None
     workforce_outbox = None
     if settings.main_agent_version == 3 and main_agent is not None and transport is not None:

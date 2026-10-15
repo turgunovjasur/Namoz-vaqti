@@ -1,0 +1,19 @@
+FROM node:24-alpine AS frontend
+WORKDIR /frontend
+COPY web/admin/package*.json ./
+RUN npm ci --ignore-scripts
+COPY web/admin/ ./
+RUN npm run build
+
+FROM python:3.12-slim
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 ADMIN_WEB_DIST=/app/web/admin/dist
+WORKDIR /app
+RUN addgroup --system bot && adduser --system --ingroup bot bot
+COPY pyproject.toml README.md alembic.ini ./
+COPY alembic ./alembic
+COPY src ./src
+RUN pip install --no-cache-dir '.[admin]'
+COPY --from=frontend /frontend/dist ./web/admin/dist
+USER bot
+EXPOSE 8088
+CMD ["python", "-m", "namoz_bot.admin", "--production", "serve", "--host", "0.0.0.0", "--port", "8088"]

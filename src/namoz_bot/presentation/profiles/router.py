@@ -12,6 +12,7 @@ from aiogram.types import CallbackQuery, Message
 from namoz_bot.application.profiles.service import ProfileService
 from namoz_bot.domain.errors import ExternalServiceError
 from namoz_bot.domain.workforce.profiles import AccessDenied, ProfileConflict
+from namoz_bot.presentation.admin_web.router import AdminWebEntry
 from namoz_bot.presentation.handlers import HandlerServices
 from namoz_bot.presentation.keyboards import PROFILE_LABEL, build_main_menu
 from namoz_bot.presentation.profiles.keyboards import profile_keyboard
@@ -23,8 +24,8 @@ class ProfileStates(StatesGroup):
 
 
 class ProfileController:
-    def __init__(self, service: ProfileService):
-        self.service = service
+    def __init__(self, service: ProfileService, web_entry: AdminWebEntry | None = None):
+        self.service, self.web_entry = service, web_entry
 
     async def _actor(self, telegram_id: int, services: HandlerServices) -> int:
         user = await services.subscriptions.get(telegram_id)
@@ -72,6 +73,8 @@ class ProfileController:
             if profile.profile_type == "admin"
             else []
         )
+        if profile.profile_type == "admin" and self.web_entry is not None:
+            buttons.insert(0, ("🌐 Admin web panel", {"type": "web_panel"}))
         await self._card(
             message, state, profile_text(profile, self.service.roles), buttons, owner=actor
         )
@@ -133,7 +136,9 @@ class ProfileController:
             # Even catalog/selection cards cannot be opened by forged user callbacks.
             if (await self.service.self_view(actor)).profile_type != "admin":
                 raise AccessDenied("Bu boshqaruv administrator uchun.")
-            if kind == "users":
+            if kind == "web_panel" and self.web_entry is not None:
+                await self.web_entry.send(message, callback.from_user.id)
+            elif kind == "users":
                 page = await self.service.list_users(actor, after_id=action["after"], limit=10)
                 buttons = [
                     (str(u.telegram_user_id), {"type": "user", "user": u.user_id})
@@ -284,8 +289,10 @@ class ProfileController:
         )
 
 
-def build_profile_router(service: ProfileService) -> Router:
-    controller = ProfileController(service)
+def build_profile_router(
+    service: ProfileService, *, web_entry: AdminWebEntry | None = None
+) -> Router:
+    controller = ProfileController(service, web_entry)
     router = Router(name="profiles")
     router.message.filter(F.chat.type == "private")
     router.message.register(controller.open, F.text == PROFILE_LABEL)
