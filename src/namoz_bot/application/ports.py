@@ -132,3 +132,7 @@ class MessageSender(Protocol):
     """Send plain Telegram messages without exposing aiogram."""
 
     async def send(self, chat_id: int, text: str) -> None: ...
+
+
+class DeliveryAccess(Protocol):
+    async def allowed(self, user_id: int, role_id: str, capability_id: str) -> bool: ...

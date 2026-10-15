@@ -62,14 +62,14 @@
 - Capability.prepare(request: AgentRequest) -> AgentResult; Capability.execute(request: AgentRequest, transaction: AgentTransaction) -> AgentResult. Existing request data stays behind the bridge until Task 6.
 - CapabilityDispatcher.prepare/execute satisfy the existing AgentActionExecutor port and dispatch by a single legacy domain/action/view -> capability mapping.
 
-- [ ] RED: registry tests reject duplicate IDs, unknown capability references and a model-selected action outside its role. Shared preferences.region_view/preferences.offsets_view resolve to the same executor for prayer and settings.
-- [ ] RED: adapter tests prove existing expense, reminder, prayer and nasihat calls preserve parameters, owner and receipt/source keys.
-- [ ] Run ./.venv/bin/pytest -q tests/unit/workforce/test_registry.py tests/integration/test_capability_adapters.py; confirm failures target missing contracts/adapters.
-- [ ] Implement the seven role files as metadata plus instructions. Extract common instruction text once. Keep new example roles/providers out of the catalog.
-- [ ] Implement one executor per capability using existing services, with a single compatibility mapping. Register new IDs finance.correct and reminder.update only when Task 7 supplies their working implementations; the frozen legacy migration list excludes them.
-- [ ] Separate background capability IDs settings.deliver_daily, nasihat.deliver and reminder.deliver from conversation invocation. Register them in owner roles but exclude them from the model's callable schema.
-- [ ] GREEN: run the new tests plus tests/unit/application/test_menu_agents.py, tests/integration/test_voice_agent_actions.py and tests/acceptance/test_menu_agent_journey.py.
-- [ ] Commit feat: define reusable role and capability registries.
+- [x] RED: registry tests reject duplicate IDs, unknown capability references and a model-selected action outside its role. Shared preferences.region_view/preferences.offsets_view resolve to the same executor for prayer and settings.
+- [x] RED: adapter tests prove existing expense, reminder, prayer and nasihat calls preserve parameters, owner and receipt/source keys.
+- [x] Run ./.venv/bin/pytest -q tests/unit/workforce/test_registry.py tests/integration/test_capability_adapters.py; confirm failures target missing contracts/adapters.
+- [x] Implement the seven role files as metadata plus instructions. Extract common instruction text once. Keep new example roles/providers out of the catalog.
+- [x] Implement one executor per capability using existing services, with a single compatibility mapping. Register new IDs finance.correct and reminder.update only when Task 7 supplies their working implementations; the frozen legacy migration list excludes them.
+- [x] Separate background capability IDs settings.deliver_daily, nasihat.deliver and reminder.deliver from conversation invocation. Register them in owner roles but exclude them from the model's callable schema.
+- [x] GREEN: run the new tests plus tests/unit/application/test_menu_agents.py, tests/integration/test_voice_agent_actions.py and tests/acceptance/test_menu_agent_journey.py.
+- [x] Commit feat: define reusable role and capability registries.
 
 ## Task 2: Shared Gemini transport and common result presentation
 
@@ -84,12 +84,12 @@
 - render_result(result: AgentResult) -> str and render_interpretation(transcript: str, selection: CapabilitySelection, registry: CapabilityRegistry) -> str. Telegram keyboards remain separate from business formatting.
 - Each old client keeps its public extract/generate signature and strict domain validation, delegating HTTP/parsing to GeminiClient.
 
-- [ ] RED: parameterized transport tests cover HTTP/timeout errors, malformed/truncated/multiple text parts, thought exclusion, oversize response and secrets absent from errors. Assert request body/schema/temperature/timeouts match existing contracts.
-- [ ] RED: existing finance/reminder/prayer result examples render the same facts in both legacy and conversation paths; nasihat original quotation/source remains unchanged.
-- [ ] Run ./.venv/bin/pytest -q tests/unit/infrastructure/test_gemini_transport.py tests/unit/presentation/test_result_messages.py and inspect expected failures.
-- [ ] Implement shared transport and formatter; remove copied HTTP/JSON/error bodies from callers. Preserve per-client response validation and cooldown behavior.
-- [ ] GREEN: run tests/unit/infrastructure/ plus tests/acceptance/test_voice_conversation.py and tests/acceptance/test_voice_approval.py.
-- [ ] Commit refactor: share Gemini transport and result rendering.
+- [x] RED: parameterized transport tests cover HTTP/timeout errors, malformed/truncated/multiple text parts, thought exclusion, oversize response and secrets absent from errors. Assert request body/schema/temperature/timeouts match existing contracts.
+- [x] RED: existing finance/reminder/prayer result examples render the same facts in both legacy and conversation paths; nasihat original quotation/source remains unchanged.
+- [x] Run ./.venv/bin/pytest -q tests/unit/infrastructure/test_gemini_transport.py tests/unit/presentation/test_result_messages.py and inspect expected failures.
+- [x] Implement shared transport and formatter; remove copied HTTP/JSON/error bodies from callers. Preserve per-client response validation and cooldown behavior.
+- [x] GREEN: run tests/unit/infrastructure/ plus tests/acceptance/test_voice_conversation.py and tests/acceptance/test_voice_approval.py.
+- [x] Commit refactor: share Gemini transport and result rendering.
 
 ## Task 3: SQL profiles, grants and one access policy across every entry point
 

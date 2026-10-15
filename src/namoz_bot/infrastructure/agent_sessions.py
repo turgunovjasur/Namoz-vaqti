@@ -22,6 +22,7 @@ from namoz_bot.domain.agent_protocol import (
     AgentSessionState,
     AgentViewState,
 )
+from namoz_bot.domain.workforce.profiles import PermissionSnapshot
 from namoz_bot.infrastructure.accounting import SqlAlchemyLedgerRepository, _entry
 from namoz_bot.infrastructure.daily_schedule import SqlAlchemyDailyScheduleRepository
 from namoz_bot.infrastructure.orm import AgentReceiptRecord, AgentSessionRecord, FinanceEntryRecord
@@ -68,6 +69,15 @@ class SqlAlchemyAgentTransaction:
             default_hours=default_interval_hours,
             clock=lambda: now,
         )
+
+    async def current_grant(
+        self, user_id: int, role_id: str, capability_id: str
+    ) -> PermissionSnapshot | None:
+        from namoz_bot.infrastructure.workforce.profiles import current_grant
+
+        if user_id != self._row.user_id:
+            return None
+        return await current_grant(self._session, user_id, role_id, capability_id)
 
     async def save_session(self, state: AgentSessionState | None) -> None:
         if self._updated:
@@ -231,6 +241,9 @@ class SqlAlchemyAgentStore:
         now: datetime,
     ) -> AsyncIterator[AgentTransaction]:
         async with self._factory.begin() as session:
+            from namoz_bot.infrastructure.workforce.profiles import lock_owner
+
+            await lock_owner(session, user_id)
             insert = pg_insert if session.get_bind().dialect.name == "postgresql" else sqlite_insert
             await session.execute(
                 insert(AgentSessionRecord)

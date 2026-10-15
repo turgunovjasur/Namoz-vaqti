@@ -203,3 +203,48 @@ class AgentReceiptRecord(Base):
     request_id: Mapped[str] = mapped_column(String(100))
     result: Mapped[dict[str, JsonValue]] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+
+class ProfileRecord(Base):
+    __tablename__ = "profiles"
+    __table_args__ = (CheckConstraint("profile_type IN ('admin','user')", name="ck_profile_type"),)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    profile_type: Mapped[str] = mapped_column(String(10), default="user", server_default="user")
+
+
+class RoleAssignmentRecord(Base):
+    __tablename__ = "user_role_assignments"
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    role_id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    revision: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+
+
+class RoleCapabilityRecord(Base):
+    __tablename__ = "user_role_capabilities"
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    role_id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    capability_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+
+
+class RoleModelRecord(Base):
+    __tablename__ = "role_model_settings"
+    role_id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    model_id: Mapped[str] = mapped_column(String(128))
+    version: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+
+
+class AdminAuditRecord(Base):
+    __tablename__ = "admin_audit"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    actor_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    target_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    action: Mapped[str] = mapped_column(String(32))
+    detail: Mapped[dict[str, JsonValue]] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

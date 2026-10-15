@@ -20,6 +20,10 @@ from namoz_bot.application.religious_reminders import (
 from namoz_bot.application.reminders import ReminderService
 from namoz_bot.application.schedules import ScheduleService
 from namoz_bot.application.subscriptions import SubscriptionService
+from namoz_bot.application.workforce.access import AccessService
+from namoz_bot.application.workforce.authorization import access_context, require_operation
+from namoz_bot.domain.models import UserSubscription
+from namoz_bot.domain.workforce.profiles import AccessDenied
 from namoz_bot.infrastructure.reminders import SqlAlchemyReminderRepository
 from namoz_bot.infrastructure.repositories import SqlAlchemySubscriptionRepository
 from namoz_bot.presentation.handlers import RELIGIOUS_COOLDOWN_ID, HandlerServices
@@ -50,6 +54,13 @@ class ErrorHandlingMiddleware(BaseMiddleware):
     ) -> Any:
         try:
             return await handler(event, data)
+        except AccessDenied as exc:
+            target = event.message if isinstance(event, CallbackQuery) else event
+            if isinstance(target, Message):
+                await target.answer(str(exc), parse_mode=None)
+            if isinstance(event, CallbackQuery):
+                await event.answer()
+            return None
         except Exception as exc:
             # Provider/database exception strings can contain private request parameters.
             logger.error("telegram_update_failed error=%s", type(exc).__name__)
@@ -79,6 +90,7 @@ class ServicesMiddleware(BaseMiddleware):
         religious_intervals: ReligiousIntervalService | None = None,
         daily_settings: DailyScheduleSettingsService | None = None,
         main_agent: MainAgent | None = None,
+        access: AccessService | None = None,
     ) -> None:
         self._session_factory = session_factory
         self._schedule_service = schedule_service
@@ -87,8 +99,43 @@ class ServicesMiddleware(BaseMiddleware):
         self._religious_intervals = religious_intervals
         self._daily_settings = daily_settings
         self._main_agent = main_agent
+        self._access = access
 
     async def __call__(
+        self,
+        handler: Callable[[TelegramObject, dict[str, Any]], Awaitable[Any]],
+        event: TelegramObject,
+        data: dict[str, Any],
+    ) -> Any:
+        if self._access is not None:
+            target = event.message if isinstance(event, CallbackQuery) else event
+            sender = getattr(event, "from_user", None)
+            if (
+                not isinstance(target, Message)
+                or target.chat.type != "private"
+                or sender is None
+                or target.chat.id != sender.id
+            ):
+                if isinstance(target, Message) and target.chat.type != "private":
+                    await target.answer("Botdan shaxsiy chat orqali foydalaning.", parse_mode=None)
+                if isinstance(event, CallbackQuery):
+                    await event.answer("Bu amal sizga tegishli emas.", show_alert=True)
+                return None
+            user, _ = await SqlAlchemySubscriptionRepository(self._session_factory).upsert_start(
+                UserSubscription(sender.id, target.chat.id, "Toshkent", True)
+            )
+            assert user.id is not None
+            with access_context(self._access, user_id=user.id, telegram_user_id=sender.id):
+                capability = manual_capability(event)
+                if capability:
+                    await require_operation(capability)
+                result = await self._handle(handler, event, data)
+                if capability:
+                    await require_operation(capability)
+                return result
+        return await self._handle(handler, event, data)
+
+    async def _handle(
         self,
         handler: Callable[[TelegramObject, dict[str, Any]], Awaitable[Any]],
         event: TelegramObject,
@@ -191,3 +238,32 @@ class ServicesMiddleware(BaseMiddleware):
             # Manual handlers clear their drafts independently of the explicit UI choice.
             if preserve_menu_mode and isinstance(state, FSMContext):
                 await state.update_data({MENU_MODE_KEY: True})
+
+
+def manual_capability(event: TelegramObject) -> str | None:
+    if isinstance(event, Message):
+        return {
+            TODAY_LABEL: "prayer.schedule",
+            "/today": "prayer.schedule",
+            REGION_LABEL: "preferences.region_view",
+            "/settings": "preferences.region_view",
+            OFFSETS_LABEL: "preferences.offsets_view",
+            "/offsets": "preferences.offsets_view",
+            RELIGIOUS_REMINDER_LABEL: "nasihat.excerpt",
+            RELIGIOUS_INTERVAL_LABEL: "nasihat.settings_view",
+            DAILY_SCHEDULE_LABEL: "settings.open",
+        }.get(event.text or "")
+    if isinstance(event, CallbackQuery):
+        prefix = (event.data or "").split(":")[0]
+        return {
+            "region": "prayer.set_region",
+            "region-group": "preferences.region_view",
+            "region-groups": "preferences.region_view",
+            "offset": "preferences.offsets_view",
+            "offsets": "preferences.offsets_view",
+            "offset-change": "prayer.set_offset",
+            "offset-schedule": "prayer.schedule",
+            "nasihat": "nasihat.set_interval",
+            "daily": "settings.set_daily",
+        }.get(prefix)
+    return None

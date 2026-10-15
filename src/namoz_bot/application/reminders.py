@@ -5,7 +5,8 @@ from collections.abc import Callable
 from datetime import UTC, date, datetime
 from typing import Protocol
 
-from namoz_bot.application.ports import MessageSender
+from namoz_bot.application.ports import DeliveryAccess, MessageSender
+from namoz_bot.application.workforce.authorization import authorized
 from namoz_bot.domain.errors import RecipientBlockedError
 from namoz_bot.domain.reminders import Reminder, ReminderDelivery, ReminderSpec
 
@@ -33,14 +34,21 @@ class ReminderRepository(Protocol):
 
 class ReminderService:
     def __init__(
-        self, repository: ReminderRepository, now: Callable[[], datetime] | None = None
+        self,
+        repository: ReminderRepository,
+        now: Callable[[], datetime] | None = None,
+        *,
+        access: DeliveryAccess | None = None,
     ) -> None:
+        self.access = access
         self.repository = repository
         self.now = now or (lambda: datetime.now(UTC))
 
+    @authorized("reminder.create")
     async def create(self, user_id: int, chat_id: int, spec: ReminderSpec, token: str) -> Reminder:
         return await self.repository.create(user_id, chat_id, spec, token, self.now())
 
+    @authorized("reminder.list")
     async def page(
         self, user_id: int, page: int, *, on_date: date | None = None
     ) -> tuple[list[Reminder], bool]:
@@ -52,9 +60,11 @@ class ReminderService:
             )
         return rows[:3], len(rows) > 3
 
+    @authorized("reminder.delete")
     async def get(self, user_id: int, reminder_id: int) -> Reminder | None:
         return await self.repository.get_for_user(user_id, reminder_id)
 
+    @authorized("reminder.delete")
     async def delete(self, user_id: int, reminder_id: int) -> bool:
         return await self.repository.delete_for_user(user_id, reminder_id)
 
@@ -66,6 +76,11 @@ class ReminderService:
                 try:
                     # Deletion may happen after claiming a batch but before sending.
                     if not await self.repository.can_send(delivery):
+                        continue
+                    if self.access and not await self.access.allowed(
+                        delivery.user_id, "reminder", "reminder.deliver"
+                    ):
+                        await self.repository.finish(delivery, "skipped", "permission_disabled")
                         continue
                     if delivery.user_id in paused:
                         await self.repository.finish(delivery, "failed", "recipient_blocked")

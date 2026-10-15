@@ -83,6 +83,7 @@ class Journey:
         self.app.bot.session = self.session
         self.sequence = 0
         self.callback_ids = {}
+        self.seed_legacy_access = True
 
     @property
     def last(self):
@@ -104,6 +105,10 @@ class Journey:
         return result
 
     async def text(self, text, user=7, group=False):
+        if self.seed_legacy_access and not group:
+            from tests.helpers.workforce import seed_legacy_user
+
+            await seed_legacy_user(self.app.db_engine, user)
         self.sequence += 1
         payload = {
             "message_id": self.sequence,

@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 
 from namoz_bot.application.ports import SubscriptionRepository
+from namoz_bot.application.workforce.authorization import authorized
 from namoz_bot.domain.errors import SubscriptionNotFoundError
 from namoz_bot.domain.models import OffsetAction, PrayerKey, UserSubscription
 from namoz_bot.domain.regions import DEFAULT_REGION_CODE, get_region
@@ -39,10 +40,12 @@ class SubscriptionService:
             raise SubscriptionNotFoundError("Foydalanuvchi avval /start buyrug‘ini yuborishi kerak")
         return subscription
 
+    @authorized("prayer.set_region", identity="telegram_user_id")
     async def change_region(self, telegram_user_id: int, region_code: str) -> UserSubscription:
         get_region(region_code)
         return await self._repository.change_region(telegram_user_id, region_code)
 
+    @authorized("prayer.set_offset", identity="telegram_user_id")
     async def change_offset(
         self,
         telegram_user_id: int,
@@ -56,6 +59,7 @@ class SubscriptionService:
     async def set_active(self, telegram_user_id: int, active: bool) -> UserSubscription:
         return await self._repository.set_active(telegram_user_id, active)
 
+    @authorized("prayer.set_offset", identity="telegram_user_id")
     async def set_offset(
         self, telegram_user_id: int, prayer: PrayerKey, minutes: int, *, relative: bool = False
     ) -> UserSubscription:
@@ -63,5 +67,6 @@ class SubscriptionService:
             telegram_user_id, prayer, minutes, relative=relative
         )
 
+    @authorized("prayer.reset_offsets", identity="telegram_user_id")
     async def reset_offsets(self, telegram_user_id: int) -> UserSubscription:
         return await self._repository.reset_offsets(telegram_user_id)

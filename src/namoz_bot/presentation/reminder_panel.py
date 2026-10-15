@@ -99,8 +99,10 @@ async def render_panel(
             )
         except TelegramAPIError:
             pass
-    if panel_id is not None and not preserve_result and not (
-        append_result and data.get(APPEND_RESULTS)
+    if (
+        panel_id is not None
+        and not preserve_result
+        and not (append_result and data.get(APPEND_RESULTS))
     ):
         try:
             await message.bot.edit_message_text(

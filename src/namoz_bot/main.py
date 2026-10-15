@@ -14,6 +14,10 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from namoz_bot.application.accounting import LedgerService
 from namoz_bot.application.agent_adapters import AgentAdapters
+from namoz_bot.application.capabilities.registry import (
+    CapabilityDispatcher,
+    build_capability_registry,
+)
 from namoz_bot.application.conversation_actions import ConversationAdapters
 from namoz_bot.application.daily_schedule import (
     DailyScheduleSettingsService,
@@ -36,8 +40,10 @@ from namoz_bot.application.religious_reminders import (
     ReligiousReminderService,
 )
 from namoz_bot.application.reminders import ReminderService
+from namoz_bot.application.roles.registry import build_role_registry
 from namoz_bot.application.schedules import ScheduleService
 from namoz_bot.application.voice_reminders import VoiceReminderService
+from namoz_bot.application.workforce.access import AccessService
 from namoz_bot.config import Settings
 from namoz_bot.domain.agent_protocol import Domain
 from namoz_bot.infrastructure.accounting import SqlAlchemyLedgerRepository
@@ -58,6 +64,7 @@ from namoz_bot.infrastructure.repositories import (
     SqlAlchemySubscriptionRepository,
 )
 from namoz_bot.infrastructure.telegram import TelegramMessageSender, TelegramRateLimiter
+from namoz_bot.infrastructure.workforce.profiles import SqlAlchemyProfileRepository
 from namoz_bot.logging import configure_logging
 from namoz_bot.presentation.accounting import build_accounting_router
 from namoz_bot.presentation.handlers import build_prayer_router
@@ -147,6 +154,14 @@ def create_application(settings: Settings) -> ApplicationResources:
         religious_intervals = ReligiousIntervalService(
             interval_repository, default_hours=settings.gemini_reminder_interval_hours
         )
+    metadata = build_capability_registry()
+    role_registry = build_role_registry(metadata)
+    profiles = SqlAlchemyProfileRepository(
+        session_factory, role_registry, admin_telegram_ids=settings.admin_telegram_ids
+    )
+    access = AccessService(profiles, role_registry)
+    dispatcher["access_service"] = access
+    dispatcher["profile_repository"] = profiles
     main_agent = None
     menu_agents: dict[Domain, MenuAgent] = {}
     if (
@@ -203,6 +218,8 @@ def create_application(settings: Settings) -> ApplicationResources:
                 model=base_model,
             )
             executor = service_adapters
+        capabilities = build_capability_registry(service_adapters)
+        executor = CapabilityDispatcher(build_role_registry(capabilities), capabilities, access)
         main_agent = MainAgent(
             extractor,
             SqlAlchemyAgentStore(
@@ -233,6 +250,7 @@ def create_application(settings: Settings) -> ApplicationResources:
         religious_intervals=religious_intervals,
         daily_settings=daily_settings,
         main_agent=main_agent,
+        access=access,
     )
     dispatcher.message.outer_middleware(ErrorHandlingMiddleware())
     dispatcher.message.outer_middleware(middleware)
@@ -261,6 +279,7 @@ def create_application(settings: Settings) -> ApplicationResources:
         default_time=settings.daily_send_time,
         batch_size=settings.broadcast_batch_size,
         max_concurrency=settings.telegram_max_concurrency,
+        access=access,
     )
     scheduler.add_job(
         daily_broadcast.send,
@@ -280,6 +299,7 @@ def create_application(settings: Settings) -> ApplicationResources:
             sender,
             batch_size=settings.broadcast_batch_size,
             max_concurrency=settings.telegram_max_concurrency,
+            access=access,
             default_hours=settings.gemini_reminder_interval_hours,
         )
         scheduler.add_job(
@@ -299,7 +319,7 @@ def create_application(settings: Settings) -> ApplicationResources:
             settings.gemini_reminder_interval_hours,
             settings.gemini_button_cooldown_seconds,
         )
-    reminders = ReminderService(SqlAlchemyReminderRepository(session_factory))
+    reminders = ReminderService(SqlAlchemyReminderRepository(session_factory), access=access)
 
     async def send_reminders() -> None:
         await reminders.send_due(sender)

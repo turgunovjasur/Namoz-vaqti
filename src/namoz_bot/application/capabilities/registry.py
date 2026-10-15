@@ -1,7 +1,7 @@
 """A single capability catalog and a narrow bridge for existing requests."""
 
 from collections.abc import Iterable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from namoz_bot.application.agent_adapters import AgentAdapters
 from namoz_bot.application.agent_sessions import AgentTransaction
@@ -14,6 +14,9 @@ from namoz_bot.application.capabilities import (
     settings,
 )
 from namoz_bot.application.capabilities.base import BusinessAdapters, Capability
+from namoz_bot.application.profiles.ports import PermissionTransaction
+from namoz_bot.application.workforce.access import AccessService
+from namoz_bot.application.workforce.authorization import access_context
 from namoz_bot.domain.agent_protocol import AgentDecision, AgentRequest, AgentResult
 
 if TYPE_CHECKING:
@@ -62,7 +65,13 @@ def build_capability_registry(adapters: BusinessAdapters | None = None) -> Capab
 
 
 class CapabilityDispatcher:
-    def __init__(self, roles: "RoleRegistry", capabilities: CapabilityRegistry) -> None:
+    def __init__(
+        self,
+        roles: "RoleRegistry",
+        capabilities: CapabilityRegistry,
+        access: AccessService | None = None,
+    ) -> None:
+        self.access = access
         self.roles = roles
         self.capabilities = capabilities
         self._assistant = AgentAdapters()
@@ -80,12 +89,50 @@ class CapabilityDispatcher:
             raise ValueError("Request is outside role capabilities")
         return capability
 
+    def _role(self, request: AgentRequest) -> str:
+        return (
+            "nasihat"
+            if (request.domain, request.action) == ("prayer", "religious_excerpt")
+            else request.domain
+        )
+
     async def prepare(self, request: AgentRequest) -> AgentResult:
         if request.domain == "assistant":
             return await self._assistant.prepare(request)
-        return await self._resolve(request).prepare(request)
+        capability = self._resolve(request)
+        if self.access is None:
+            return await capability.prepare(request)
+        role = self._role(request)
+        await self.access.require(request.context.user_id, role, capability.spec.id)
+        with access_context(
+            self.access,
+            user_id=request.context.user_id,
+            telegram_user_id=request.context.telegram_user_id,
+            role_id=role,
+            capability_id=capability.spec.id,
+        ):
+            output = await capability.prepare(request)
+        await self.access.require(request.context.user_id, role, capability.spec.id)
+        return output
 
     async def execute(self, request: AgentRequest, transaction: AgentTransaction) -> AgentResult:
         if request.domain == "assistant":
             return await self._assistant.execute(request, transaction)
-        return await self._resolve(request).execute(request, transaction)
+        capability = self._resolve(request)
+        if self.access is None:
+            return await capability.execute(request, transaction)
+        role = self._role(request)
+        await self.access.require_in(
+            cast(PermissionTransaction, transaction),
+            request.context.user_id,
+            role,
+            capability.spec.id,
+        )
+        with access_context(
+            self.access,
+            user_id=request.context.user_id,
+            telegram_user_id=request.context.telegram_user_id,
+            role_id=role,
+            capability_id=capability.spec.id,
+        ):
+            return await capability.execute(request, transaction)

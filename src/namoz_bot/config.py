@@ -3,7 +3,7 @@
 from datetime import time
 from pathlib import Path
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -33,6 +33,10 @@ class Settings(BaseSettings):
         validation_alias="GEMINI_VOICE_MODEL",
         pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$",
     )
+    admin_telegram_ids: frozenset[int] = Field(
+        default=frozenset(), validation_alias="ADMIN_TELEGRAM_IDS"
+    )
+
     main_agent_enabled: bool = Field(default=True, validation_alias="MAIN_AGENT_ENABLED")
     main_agent_version: int = Field(default=2, ge=1, le=2, validation_alias="MAIN_AGENT_VERSION")
     gemini_main_agent_model: str | None = Field(
@@ -103,3 +107,10 @@ class Settings(BaseSettings):
         le=30,
         validation_alias="TELEGRAM_MESSAGES_PER_SECOND",
     )
+
+    @field_validator("admin_telegram_ids")
+    @classmethod
+    def validate_admin_ids(cls, value: frozenset[int]) -> frozenset[int]:
+        if any(isinstance(v, bool) or v <= 0 for v in value):
+            raise ValueError("Administrator IDs must be positive Telegram IDs")
+        return value

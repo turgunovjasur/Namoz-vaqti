@@ -10,11 +10,13 @@ from typing import Literal
 
 from namoz_bot.application.broadcasting import BroadcastReport
 from namoz_bot.application.ports import (
+    DeliveryAccess,
     MessageSender,
     ReligiousIntervalRepository,
     ReligiousReminderProvider,
     SubscriptionRepository,
 )
+from namoz_bot.application.workforce.authorization import authorized
 from namoz_bot.domain.errors import RecipientBlockedError, ReligiousReminderCooldownError
 from namoz_bot.domain.models import UserSubscription
 from namoz_bot.domain.religious_intervals import ReligiousInterval, validate_interval
@@ -49,6 +51,7 @@ class ReligiousReminderService:
         if telegram_user_id in self._in_flight or remaining > 0:
             raise ReligiousReminderCooldownError(max(1, remaining))
 
+    @authorized("nasihat.excerpt", identity="telegram_user_id")
     async def generate(self, telegram_user_id: int) -> str:
         self.check_cooldown(telegram_user_id)
         now = self._clock()
@@ -156,10 +159,12 @@ class ReligiousIntervalService:
     async def initialize(self) -> None:
         await self._repository.ensure_defaults(self._default_hours, self._clock())
 
+    @authorized("nasihat.settings_view", identity="telegram_user_id")
     async def get(self, telegram_user_id: int) -> ReligiousInterval:
         await self.initialize()
         return await self._repository.get(telegram_user_id)
 
+    @authorized("nasihat.set_interval", identity="telegram_user_id")
     async def set_interval(self, telegram_user_id: int, hours: float) -> ReligiousInterval:
         return await self._repository.set_interval(telegram_user_id, hours, self._clock())
 
@@ -177,11 +182,13 @@ class PersonalReligiousBroadcastService(ReligiousBroadcastService):
         default_hours: float = 24,
         batch_size: int = 500,
         max_concurrency: int = 10,
+        access: DeliveryAccess | None = None,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
         super().__init__(
             subscriptions, provider, sender, batch_size=batch_size, max_concurrency=max_concurrency
         )
+        self._access = access
         self._intervals = intervals
         self._default_hours = default_hours
         self._clock = clock
@@ -192,10 +199,21 @@ class PersonalReligiousBroadcastService(ReligiousBroadcastService):
         text: str | None = None
         sent = deactivated = failed = skipped = 0
         while items := await self._intervals.list_due(now, limit=self._batch_size):
+            allowed = []
+            for item in items:
+                if self._access and not await self._access.allowed(
+                    item.user_id, "nasihat", "nasihat.deliver"
+                ):
+                    await self._intervals.claim(item, now)
+                    skipped += 1
+                else:
+                    allowed.append(item)
+            if not allowed:
+                continue
             if text is None:
                 text = format_religious_reminder(await self._provider.generate())
 
-            outcomes = await asyncio.gather(*(self._send_due(item, now, text) for item in items))
+            outcomes = await asyncio.gather(*(self._send_due(item, now, text) for item in allowed))
             sent += outcomes.count("sent")
             deactivated += outcomes.count("deactivated")
             failed += outcomes.count("failed")
@@ -214,5 +232,9 @@ class PersonalReligiousBroadcastService(ReligiousBroadcastService):
     async def _send_due(self, item: ReligiousInterval, now: datetime, text: str) -> str:
         # Recheck stored settings after Gemini and reserve before sending.
         if not await self._intervals.claim(item, now):
+            return "skipped"
+        if self._access and not await self._access.allowed(
+            item.user_id, "nasihat", "nasihat.deliver"
+        ):
             return "skipped"
         return await self._send_one(item, text)

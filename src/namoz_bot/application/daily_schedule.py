@@ -7,11 +7,13 @@ from datetime import UTC, datetime, time, timedelta
 from namoz_bot.application.broadcasting import BroadcastReport, BroadcastService
 from namoz_bot.application.ports import (
     DailyScheduleRepository,
+    DeliveryAccess,
     DeliveryRepository,
     MessageSender,
     SubscriptionRepository,
 )
 from namoz_bot.application.schedules import ScheduleService
+from namoz_bot.application.workforce.authorization import authorized
 from namoz_bot.domain.daily_schedule import DailySchedulePreference
 from namoz_bot.domain.reminders import TASHKENT
 
@@ -33,10 +35,12 @@ class DailyScheduleSettingsService:
     async def initialize(self) -> None:
         await self._repository.ensure_defaults(self._default_time, self._clock())
 
+    @authorized("settings.open", identity="telegram_user_id")
     async def get(self, telegram_user_id: int) -> DailySchedulePreference:
         await self.initialize()
         return await self._repository.get(telegram_user_id)
 
+    @authorized("settings.set_daily", identity="telegram_user_id")
     async def set_time(self, telegram_user_id: int, at: time) -> DailySchedulePreference:
         return await self._repository.set_time(telegram_user_id, at, self._clock())
 
@@ -53,8 +57,10 @@ class PersonalDailyBroadcastService:
         default_time: time = time(21),
         batch_size: int = 500,
         max_concurrency: int = 10,
+        access: DeliveryAccess | None = None,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
+        self._access = access
         self._preferences = preferences
         self._default_time = default_time
         self._clock = clock
@@ -78,7 +84,12 @@ class PersonalDailyBroadcastService:
             recipients = []
             for item in page:
                 if await self._preferences.claim(item, now):
-                    recipients.append(item.subscription)
+                    if self._access is None or await self._access.allowed(
+                        item.subscription.id or 0, "settings", "settings.deliver_daily"
+                    ):
+                        recipients.append(item.subscription)
+                    else:
+                        skipped += 1
                 else:
                     skipped += 1
             report = await self._broadcast.send_next_day(target, recipients=recipients)
