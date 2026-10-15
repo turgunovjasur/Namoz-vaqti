@@ -7,15 +7,17 @@ menyulari, ovozli tasdiqlashi va matnli javoblari boshlang‘ich asos bo‘ladi.
 ## 1. Kelishilgan talab va asosiy qarorlar
 
 - Ikki profil turi bor: admin va user.
-- Tayyor AI rollar katalogi bo‘ladi. Admin userga butun rolni yoqadi yoki o‘chiradi.
-- Userga rol ichidagi imkoniyatni alohida yoqish/o‘chirish, read-only profil,
-  shaxsiy capability cheklovi yoki shaxsiy rol nusxasi bo‘lmaydi.
+- Tayyor AI rollar katalogi bo‘ladi. Admin userga rolni yoqadi yoki o‘chiradi,
+  shu rol ichidan bitta yoki bir nechta imkoniyatni alohida tanlab yoqadi.
+- Imkoniyat tanlovi user + rol kesimida saqlanadi. Bir userdagi o‘zgarish boshqa
+  userga yoki ayni imkoniyatning boshqa roldagi biriktirilishiga ta’sir qilmaydi.
 - Rol va imkoniyat kodda alohida tushuncha va modullar bo‘ladi. Rol nomi,
   tavsifi, Gemini ko‘rsatmasi va imkoniyatlar ID ro‘yxatini belgilaydi.
 - Imkoniyatning sxemasi, tekshiruvi, bajarilishi va natijasi bir marta yoziladi.
   Bir nechta rol bir imkoniyatdan foydalanishi mumkin.
 - Admin tayyor rollar haqida ma’lumot va ularning barcha imkoniyatlarini ko‘radi.
-  Rolning Gemini modelini almashtiradi; rol–imkoniyat xaritasini UI orqali tahrirlamaydi.
+  Rolning Gemini modelini almashtiradi. Koddagi rol–imkoniyat xaritasi maksimal
+  ruxsat etilgan to‘plam; admin userga shu to‘plamdan imkoniyatlarni tanlaydi.
 - User o‘z profilida biriktirilgan faol rollari, ularning vazifalari va nimalar
   qila olishini ko‘radi.
 - Yordamchi va Ish boshqaruvchi tizim rollari. Ular barcha userlar uchun mavjud.
@@ -26,8 +28,10 @@ menyulari, ovozli tasdiqlashi va matnli javoblari boshlang‘ich asos bo‘ladi.
   yangi versiyada tuzatiladi.
 - Admin/user profil turi AI mutaxassis roli bilan aralashtirilmaydi.
 
-Oldingi qoralamadagi imkoniyat darajasidagi user ruxsat profillari va adminning
-erkin prompt bilan yangi rol nashr qilishi ushbu dizayndan chiqarildi.
+2026-10-15 kungi so‘nggi aniqlashtirish oldingi “faqat butun rolni yoqish”
+cheklovini almashtiradi: endi admin rol va uning userga ochiladigan imkoniyatlarini
+boshqaradi. Bu tayyor rolning userga xos ruxsatlari; prompt yoki xizmat kodining
+alohida nusxasi emas. Erkin prompt bilan yangi rol nashr qilish bu ishga kirmaydi.
 
 ## 2. Rol va imkoniyatning farqi
 
@@ -71,10 +75,12 @@ Har imkoniyatda ID, nom, tavsif, parametr sxemasi, natija sxemasi, effect turi
 (read/write/generate), validatsiya, executor va natijani ko‘rsatish qoidasi bo‘ladi.
 Tasdiq talabi effect va kirish turidan aniqlanadi; userga xos ruxsat parametri emas.
 
-Capabilitiy executor ishonchli user konteksti, tekshirilgan parametrlar va operation
-ID oladi. User/role identifikatorini modeldan olib ishonmaydi. Rol vakolati =
-foydalanuvchiga shu rol yoqilganligi + imkoniyatning shu rol definitionida mavjudligi.
-Bu ijro nazorati; admin UI ichida imkoniyatlar uchun alohida switch yo‘q.
+Capability executor ishonchli user konteksti, tekshirilgan parametrlar va operation
+ID oladi. User/role identifikatorini modeldan olib ishonmaydi. Ijro uchun uchala
+shart bajariladi: userga rol yoqilgan; imkoniyat shu rol definitionida bor;
+admin aynan shu user va shu rol uchun imkoniyatni yoqqan.
+Admin rolning ruxsat etilgan to‘plamidan tashqari imkoniyatni qo‘sha olmaydi.
+Yangi imkoniyat kodda rolga qo‘shilganda mavjud userlarga avtomatik ochilmaydi.
 
 Tashqi provider klienti va cache umumiy bo‘ladi. Moliyaviy summa, namoz vaqti
 va kitob manbasi xizmatlardan olinadi. Model matni xizmatdan olingan raqam/manbani
@@ -86,16 +92,25 @@ capability sifatida bir marta yoziladi, lekin bu ishda yangi provider qo‘shilm
 ### Admin profili
 
 Admin Telegramdagi “Profil” orqali quyidagilarni ko‘radi:
+
 - foydalanuvchilar ro‘yxati va qidirish;
 - tanlangan userning hozirgi rollari;
 - har tayyor rol uchun bitta “Yoqilgan/O‘chirilgan” tugmasi;
+- tanlangan user roli ichidagi imkoniyatlar uchun alohida yoqish/o‘chirish;
 - rollar katalogi: nom, vazifa, imkoniyatlar ro‘yxati, joriy Gemini modeli;
 - rol uchun “Modelni almashtirish”;
 - o‘z profilidagi soha rollari va o‘zgarishlar tarixi.
 
 Adminning namunaviy user kartasi:
 Ali → Hisobchi [Yoqilgan], Taqvimchi [O‘chirilgan], Rejalashtiruvchi [Yoqilgan].
-Hisobchi ichida qo‘shimcha yoqish/o‘chirish oynasi bo‘lmaydi.
+Ali → Hisobchi → Kirim [Yoqilgan], Xarajat [Yoqilgan], Balans [Yoqilgan],
+Hisobot [O‘chirilgan]. Vali uchun shu rolning boshqa imkoniyatlari tanlanishi mumkin.
+
+Rol ilk biriktirilganda imkoniyatlar avtomatik ochilmaydi; admin keraklilarini
+tanlab saqlaydi. Rol va imkoniyat tanlovi atomar saqlanadi. Rol yoqilgan, lekin
+birorta imkoniyat tanlanmagan bo‘lsa, profil buni aniq ko‘rsatadi va router undan
+biznes amal uchun foydalanmaydi. Rolni o‘chirish saqlangan imkoniyat tanlovini
+o‘chirmaydi; qayta yoqishda oldingi tanlov UI orqali ko‘rsatiladi.
 
 Boshlang‘ich admin ishonchli server sozlamasida Telegram ID bilan belgilanadi.
 AI javobi yoki user xabari profil turini o‘zgartira olmaydi. Adminlik boshqa
@@ -106,13 +121,14 @@ biznes amallarni user sifatida ishga tushirishga ruxsat bermaydi.
 ### User profili
 
 User o‘z Telegram IDsi, profil turi, unga biriktirilgan faol rollar ro‘yxati va
-har rolning tavsifi/imkoniyatlarini ko‘radi. Boshqa user profili va admin
-boshqaruv tugmalari ko‘rsatilmaydi. Rolni o‘zi yoqa olmaydi.
+har rolning tavsifi va o‘ziga yoqilgan imkoniyatlarini ko‘radi. Boshqa user profili
+va admin boshqaruv tugmalari ko‘rsatilmaydi. Rol yoki imkoniyatni o‘zi yoqa olmaydi.
 Menyuda biriktirilgan rollar va doimiy Profil/Yordam kirishlari bo‘ladi.
 
 Yangi userda tizimning Yordamchi/Ish boshqaruvchi xizmatlari mavjud bo‘ladi;
 soha rollarini admin yoqadi. Mavjud userlar migratsiyada avvalgi beshta bo‘lim
-uchun boshlang‘ich biriktirish oladi, shunda hozirgi kirishlari yo‘qolmaydi.
+va o‘sha paytdagi imkoniyatlar uchun aniq boshlang‘ich biriktirish oladi, shunda
+hozirgi kirishlari yo‘qolmaydi. Keyinroq yaratilgan imkoniyat alohida admin tanlovini talab qiladi.
 
 ## 6. Rol uchun Gemini modelini almashtirish
 
@@ -132,8 +148,9 @@ eski Ha tugmasining mazmunini yashirincha yangilamaydi.
 ## 7. Yordamchi → Ish boshqaruvchi → mutaxassis oqimi
 
 1. Yordamchi ovozni bir marta matnga aylantiradi; matnli input o‘z holicha saqlanadi.
-2. Ish boshqaruvchi faqat shu userga yoqilgan rollar katalogini oladi.
-3. Tanlangan mutaxassis ruxsat etilgan imkoniyat va parametrlar rejasini qaytaradi.
+2. Ish boshqaruvchi faqat shu userga yoqilgan rollar va ularning yoqilgan
+   imkoniyatlari katalogini oladi; mutaxassisga ham shu toraytirilgan sxema beriladi.
+3. Tanlangan mutaxassis userga ochiq imkoniyat va parametrlar rejasini qaytaradi.
    Hali biznes xizmatini o‘qish/yozish chaqiruvi yo‘q.
 4. Yetishmayotgan qiymat bo‘lsa Yordamchi aniqlashtiradi.
 5. Ovozli buyruq uchun bitta karta:
@@ -147,9 +164,10 @@ eski Ha tugmasining mazmunini yashirincha yangilamaydi.
 
 Oddiy matnli o‘qish amallari tasdiqsiz ishlashi mumkin; yozish/o‘chirish/tuzatish
 tasdiqlanadi. Qo‘lda menyularda mavjud tasdiqlar saqlanadi. Barcha kirish yo‘llari
-bir xil rol darajasidagi tekshiruvdan o‘tadi.
+bir xil user + rol + imkoniyat tekshiruvidan o‘tadi.
 
-Bir imkoniyat ikki faol rolda bo‘lsa, aniq nomlangan rol ishlatiladi. Nomlanmagan
+Bir imkoniyat shu user uchun ikki faol rolda ham yoqilgan bo‘lsa, aniq nomlangan
+rol ishlatiladi. Nomlanmagan
 so‘rovda rol ta’rifi va suhbat konteksti bilan tanlanadi; teng noaniqlik bo‘lsa
 foydalanuvchidan so‘raladi. Imkoniyat executorining o‘zi baribir bitta.
 
@@ -175,12 +193,16 @@ Eski natijalar tahrirlanmaydi. Yangi aloqasiz buyruq alohida task bo‘ladi.
 
 ## 9. Rol o‘chirilishi, navbat va avtomatik xabarlar
 
-Rol userdan olib tashlansa yangi so‘rov, eski tugma va hali bajarilmagan task
-shu rol orqali ishlamaydi. Boshqa yoqilgan rolga yashirincha ko‘chirib bajarilmaydi.
-Rol va capability mosligi user input, menyu, callback, worker va biznes commit
+Rol yoki uning ichidagi imkoniyat userdan olib tashlansa yangi so‘rov, eski tugma
+va hali bajarilmagan task shu user + rol + imkoniyat orqali ishlamaydi. Boshqa
+yoqilgan rolga yashirincha ko‘chirib bajarilmaydi. Bir roldagi imkoniyatning
+o‘chirilishi boshqa roldagi alohida yoqilgan nusxasiga global taqiq qo‘ymaydi;
+yangi so‘rov o‘sha boshqa ruxsat etilgan rol orqali bajarilishi mumkin.
+Rol, imkoniyat a’zoligi va user tanlovi user input, menyu, callback, worker va biznes commit
 chegarasida bir xil AccessService bilan tekshiriladi.
 
-Shu rolga tegishli avtomatik eslatma/jadval/nasihat yuborish ham pauza qilinadi.
+Shu rol yoki tegishli imkoniyatga oid avtomatik eslatma/jadval/nasihat yuborish
+ham pauza qilinadi; boshqa yoqilgan imkoniyatlar mustaqil ishlashda davom etadi.
 Ma’lumotlar o‘chirilmaydi. Qayta yoqilganda kelajakdagi yuborish davom etadi,
 pauzada o‘tib ketgan xabarlar ketma-ket yuborilmaydi.
 Avtomatik yuborish egasi: kunlik namoz jadvali — Sozlovchi, shaxsiy eslatmalar —
@@ -204,7 +226,7 @@ src/namoz_bot/
   domain/workforce/
     roles.py                 # RoleDefinition va model sozlama turlari
     capabilities.py          # CapabilitySpec, parametr/natija/effect turlari
-    profiles.py              # admin/user va butun rol biriktirishi
+    profiles.py              # admin/user, rol va rol ichidagi user ruxsatlari
     tasks.py                 # Task, Revision, Receipt, Review va Feedback
   application/
     roles/
@@ -227,7 +249,7 @@ src/namoz_bot/
       settings.py
       preferences.py         # Taqvimchi/Sozlovchi uchun umumiy imkoniyatlar
     workforce/
-      access.py              # user-role tekshiruvi, capability a’zoligi
+      access.py              # user-role-capability tekshiruvi
       manager.py             # boshqaruv algoritmi, role-specific if/else yo‘q
       planning.py
       execution.py
@@ -235,7 +257,7 @@ src/namoz_bot/
       feedback.py
       worker.py
     profiles/
-      service.py             # profil, rol kartasi, butun rol toggle, model
+      service.py             # profil, rol/imkoniyat tanlovi, rol modeli
       ports.py
   infrastructure/
     ai/
@@ -244,7 +266,7 @@ src/namoz_bot/
       role_interpreter.py
       result_reviewer.py
     workforce/
-      profiles.py            # SQL profil/assignment/model/audit
+      profiles.py            # SQL profil/rol/imkoniyat/model/audit
       tasks.py
       queue.py
       outbox.py
@@ -271,15 +293,20 @@ klientini import qilmaydi. Rol fayli capability executorini nusxalamaydi.
 
 - Profiles: user_id, profile_type=admin|user.
 - UserRoleAssignments: user_id, role_id, enabled, revision, changed_by, changed_at.
+- UserRoleCapabilities: user_id, role_id, capability_id, enabled, revision,
+  changed_by, changed_at. Unikal kalit user_id + role_id + capability_id;
+  yozuv yo‘qligi ruxsat yo‘qligini bildiradi.
 - RoleModelSettings: role_id, model_id, version, updated_by, updated_at.
-- AdminAudit: kim qaysi userning rolini yoki qaysi rol modelini o‘zgartirgani.
+- AdminAudit: kim qaysi userning roli/imkoniyatini yoki qaysi rol modelini o‘zgartirgani.
 - Tasks/TaskRevisions: original input/transcript, user/bot, role ID va versiya,
   model snapshot, capability ID/versiya, approved args, status, dalil va javob.
 - Receipts/Queue/Outbox: idempotency, bajarish tiklanishi va natija yetkazish.
 
-UserCapabilityPermissions, read-only user profillari yoki userga xos capability
-switch jadvallari bo‘lmaydi. Rolning imkoniyat IDlari koddagi definitiondan keladi.
-Bitta imkoniyatga oid parametr va natija sxemasi ham bir joyda turadi.
+Rolning mumkin bo‘lgan imkoniyat IDlari koddagi definitiondan keladi, userga
+ochilgan qismi esa UserRoleCapabilitiesdan olinadi. Buning uchun yangi AI rol,
+alohida capability klassi yoki maxsus read-only profil turi yaratilmaydi.
+Bitta imkoniyatga oid parametr va natija sxemasi bir joyda turadi. Ruxsat
+o‘zgarganda tegishli assignment revision yangilanadi va cache eskirtiriladi.
 
 Hozirgi AgentRequest/AgentResult protokoli V1 moslik adapteri orqali qoladi;
 yangi orchestration protokoli alohida versiyalanadi. Model erkin SQL, kod, URL
@@ -291,8 +318,9 @@ yoki yangi tool ta’rifini ijro huquqi sifatida qaytara olmaydi.
    mavjud biznes xizmatlariga adapterlar va eski V1/V2 regressionlar.
 2. **Rollar katalogi:** alohida definition/prompt fayllari, umumiy interpreter,
    rol → capability xaritasi va bir imkoniyatni ikki rolda ishlatish testi.
-3. **Profil va admin:** migration, butun rol toggle, umumiy AccessService,
-   admin/user Telegram ekranlari va scheduler uchun rol nazorati.
+3. **Profil va admin:** migration, rol va uning imkoniyatlari tanlovi, umumiy
+   AccessService, admin/user Telegram ekranlari, scheduler nazorati va
+   ruxsat o‘zgarganda cache/revision yangilanishi.
 4. **Model boshqaruvi:** admin rol kartasida model o‘zgartirish, tekshirish,
    SQLda versiya va audit, restartdan saqlanish.
 5. **Orchestration:** Yordamchi, Ish boshqaruvchi, mutaxassis; exact-plan tasdiq,
@@ -304,13 +332,19 @@ yoki yangi tool ta’rifini ijro huquqi sifatida qaytara olmaydi.
 
 ## 13. Qabul mezonlari
 
-- Admin userga faqat butun rolni yoqadi/o‘chiradi; imkoniyat uchun alohida toggle yo‘q.
-- Admin va user rol kartasi bitta katalogdan tavsif/imkoniyatlarni ko‘rsatadi.
+- Admin userga rolni va shu rol ichidan bir yoki bir nechta imkoniyatni yoqadi/o‘chiradi.
+- Bir xil rol ikki userda turli imkoniyatlarga ega bo‘lishi test bilan ko‘rsatiladi.
+- Admin to‘liq katalogni, user esa o‘ziga yoqilgan rol va imkoniyatlarni ko‘radi.
 - Oddiy user boshqa userning profili yoki admin amallariga kira olmaydi.
 - Bir capabilityni ikki rol chaqiradi; HTTP/parser/business kodi takrorlanmaydi.
 - Adminning model o‘zgarishi saqlanadi; noto‘g‘ri model eski sozlamani buzmaydi.
-- User biriktirilmagan rolni matn, ovoz, menyu yoki eski callback bilan ishlata olmaydi.
-- Rol o‘chirilishi worker va avtomatik yuborish uchun ham kuchga kiradi.
+- User biriktirilmagan rol yoki imkoniyatni matn, ovoz, menyu, eski callback yoki
+  model boshqa capability ID qaytarishi orqali ishlata olmaydi.
+- Rol/imkoniyat o‘chirilishi worker va avtomatik yuborish uchun ham kuchga kiradi.
+- Bir rolda imkoniyat o‘chirilishi boshqa rolda shu userga yoqilgan ayni imkoniyatni
+  buzmaydi; eski task boshqa rolga yashirincha o‘tkazilmaydi.
+- Yangi capability mavjud userlarga avtomatik ochilmaydi; migratsiya esa avvalgi
+  imkoniyatlarni aniq biriktirishlar bilan saqlaydi.
 - Ovozli tasdiqdan oldin biznes effect yo‘q; Ha aynan saqlangan parametrlarni bajaradi.
 - Yo‘q bekor qiladi; eskirgan/takroriy/foreign tugma yangi biznes amal bajarmaydi.
 - Natijadagi Yo‘q izoh so‘raydi; izoh shu taskni yangi revisionda qayta ishlaydi.
@@ -324,7 +358,9 @@ yoki yangi tool ta’rifini ijro huquqi sifatida qaytara olmaydi.
 
 Foydalanuvchi scope savoliga javob berdi: yangi rollar va tashqi imkoniyatlar
 faqat misol, ushbu ish mavjud besh bo‘lim ustida bajariladi. Yozma dizayn shu
-chegara bilan yangilandi va eski capability darajasidagi user ruxsatlari chiqarildi.
+chegara bilan yangilandi. Keyingi aniqlashtirishga ko‘ra admin endi userga
+rolning o‘zini ham, ichidagi imkoniyatlarni ham tanlab yoqadi; yozma dizaynning
+UI, saqlash, routing, ijro va qabul mezonlari shu talabga moslandi.
 Keyingi hujjat fayllar, interfeyslar, migrationlar va aniq RED/GREEN test qadamlarini
 belgilaydigan implementatsiya rejasi bo‘ladi. Tasdiqlanganidan keyin native usulda
 shu suhbatda bajariladi.
