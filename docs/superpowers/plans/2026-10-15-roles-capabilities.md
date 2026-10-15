@@ -233,15 +233,15 @@
 - Modify README.md, config.py and the spec/plan completion evidence.
 - Test existing full tests/ plus all new workforce suites.
 
-- [ ] Run ./.venv/bin/ruff check src tests alembic, ./.venv/bin/mypy src/namoz_bot and git diff --check. Fix source/type issues before claiming success.
-- [ ] Run the full suite with NAMOZ_TEST_DATABASE_URL pointing to an isolated test database; all SQL integration fixtures must create/drop their own random schemas, not operate on the running bot's data. Record actual counts and expected skips.
-- [ ] Commit the complete source. Request one independent read-only immutable review of d4917a2..HEAD, covering role/capability ACLs, reused capability execution, provider facts, restart/rollback and manual/V1 compatibility. No implementation subagents or repeated review loops.
-- [ ] Reproduce each accepted finding RED, fix it GREEN, then run affected tests and one final full suite/static check. Record declined-scope rulings explicitly.
-- [ ] Set default MAIN_AGENT_VERSION=3 only with the completed runtime. Update examples for ADMIN_TELEGRAM_IDS/model allowlist without inserting real keys or IDs into tracked files.
-- [ ] Verify the real administrator ID is already supplied by trusted local settings; if it is missing, finish code/tests and ask for that single value before activating admin access. Never guess a production/local user identity from unrelated records.
-- [ ] Gracefully stop the verified old local bot, apply approved local migrations and start the new test bot. Confirm one process, version 3, enabled role/capability checks and expected test bot identity without printing private chat content.
-- [ ] Use synthetic provider/Telegram journeys for behavior verification. A live extraction-only smoke can use synthetic input; do not send real user messages or create real financial records as a test.
-- [ ] Commit documentation with actual test and activation evidence. Report the new branch, final commit, tests and any required input; no push/merge/server deploy.
+- [x] Run ./.venv/bin/ruff check src tests alembic, ./.venv/bin/mypy src/namoz_bot and git diff --check. Fix source/type issues before claiming success.
+- [x] Run the full suite with NAMOZ_TEST_DATABASE_URL pointing to an isolated test database; all SQL integration fixtures must create/drop their own random schemas, not operate on the running bot's data. Record actual counts and expected skips.
+- [x] Commit the complete source. Request one independent read-only immutable review of d4917a2..HEAD, covering role/capability ACLs, reused capability execution, provider facts, restart/rollback and manual/V1 compatibility. No implementation subagents or repeated review loops.
+- [x] Reproduce each accepted finding RED, fix it GREEN, then run affected tests and one final full suite/static check. Record declined-scope rulings explicitly.
+- [x] Set default MAIN_AGENT_VERSION=3 only with the completed runtime. Update examples for ADMIN_TELEGRAM_IDS/model allowlist without inserting real keys or IDs into tracked files.
+- [x] Verify the real administrator ID is already supplied by trusted local settings; if it is missing, finish code/tests and ask for that single value before activating admin access. Never guess a production/local user identity from unrelated records.
+- [x] Gracefully stop the verified old local bot, apply approved local migrations and start the new test bot. Confirm one process, version 3, enabled role/capability checks and expected test bot identity without printing private chat content.
+- [x] Use synthetic provider/Telegram journeys for behavior verification. A live extraction-only smoke can use synthetic input; do not send real user messages or create real financial records as a test.
+- [x] Commit documentation with actual test and activation evidence. Report the new branch, final commit, tests and any required input; no push/merge/server deploy.
 
 ## Self-review and handoff
 
@@ -250,3 +250,7 @@
 - All five review-focus failure classes have RED/GREEN coverage in their owning tasks.
 - No user-specific role implementation or capability executor is duplicated. Test fixtures grant synthetic users explicitly; defaults do not weaken production authorization.
 - Design accepted by the request to preserve current code and do the new logic on a separate branch. This implementation plan is the next reviewable artifact; do not begin product code until its review is received.
+
+## Completion evidence
+
+[Final verification and local activation](../verification/2026-10-15-roles-capabilities.md).
