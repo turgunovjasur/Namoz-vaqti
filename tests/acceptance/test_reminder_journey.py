@@ -553,6 +553,8 @@ async def test_menu_and_daily_creation_list_with_duplicate_save(journey):
         "🔔 Eslatmalar",
         "💰 Kirim-chiqim",
         "⚙️ Sozlamalar",
+        "👤 Profil",
+        "ℹ️ Yordam",
     ]
     await journey.text("🕌 Namoz vaqti")
     labels = [b.text for row in journey.last.reply_markup.keyboard for b in row]
@@ -812,6 +814,8 @@ async def test_list_back_menu_add_save_back_and_home(journey):
         "🔔 Eslatmalar",
         "💰 Kirim-chiqim",
         "⚙️ Sozlamalar",
+        "👤 Profil",
+        "ℹ️ Yordam",
     ]
 
 

@@ -215,6 +215,8 @@ async def test_voice_keeps_main_menu_during_preview_edit_and_finish(
         "🔔 Eslatmalar",
         "💰 Kirim-chiqim",
         "⚙️ Sozlamalar",
+        "👤 Profil",
+        "ℹ️ Yordam",
     ]
 
 
