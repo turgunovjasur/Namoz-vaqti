@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Literal, cast
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -18,6 +18,8 @@ from namoz_bot.domain.workforce.profiles import (
     ProfileConflict,
     ProfileView,
     RoleAssignment,
+    RoleModelSetting,
+    UserPage,
 )
 from namoz_bot.infrastructure.agent_sessions import SqlAlchemyAgentTransaction
 from namoz_bot.infrastructure.orm import (
@@ -26,6 +28,7 @@ from namoz_bot.infrastructure.orm import (
     ProfileRecord,
     RoleAssignmentRecord,
     RoleCapabilityRecord,
+    RoleModelRecord,
     UserRecord,
 )
 
@@ -191,3 +194,65 @@ class SqlAlchemyProfileRepository:
             row = await session.get(AgentSessionRecord, user_id)
             assert row is not None
             yield SqlPermissionTransaction(self.factory, session, row, now)
+
+    async def list_users(self, actor_id: int, *, after_id: int, limit: int) -> UserPage:
+        async with self.factory.begin() as session:
+            await self.require_admin(session, actor_id)
+            ids = list(
+                await session.scalars(
+                    select(UserRecord.id)
+                    .where(UserRecord.id > after_id)
+                    .order_by(UserRecord.id)
+                    .limit(limit + 1)
+                )
+            )
+            return UserPage(
+                users=tuple([await self._profile(session, uid) for uid in ids[:limit]]),
+                more=len(ids) > limit,
+            )
+
+    async def get_model(self, role_id: str, default: str) -> RoleModelSetting:
+        async with self.factory() as session:
+            row = await session.get(RoleModelRecord, role_id)
+            return RoleModelSetting(
+                role_id=role_id,
+                model_id=row.model_id if row else default,
+                version=row.version if row else 0,
+            )
+
+    async def set_model(
+        self, *, actor_id: int, role_id: str, model_id: str, expected_version: int
+    ) -> RoleModelSetting:
+        async with self.factory.begin() as session:
+            await self.require_admin(session, actor_id)
+            if expected_version == 0:
+                insert = (
+                    pg_insert if session.get_bind().dialect.name == "postgresql" else sqlite_insert
+                )
+                won = await session.scalar(
+                    insert(RoleModelRecord)
+                    .values(role_id=role_id, model_id=model_id, version=1)
+                    .on_conflict_do_nothing(index_elements=["role_id"])
+                    .returning(RoleModelRecord.version)
+                )
+            else:
+                won = await session.scalar(
+                    update(RoleModelRecord)
+                    .where(
+                        RoleModelRecord.role_id == role_id,
+                        RoleModelRecord.version == expected_version,
+                    )
+                    .values(model_id=model_id, version=expected_version + 1)
+                    .returning(RoleModelRecord.version)
+                )
+            if won is None:
+                raise ProfileConflict("Model setting changed")
+            session.add(
+                AdminAuditRecord(
+                    actor_id=actor_id,
+                    target_id=None,
+                    action="set_model",
+                    detail={"role_id": role_id, "model_id": model_id, "version": won},
+                )
+            )
+            return RoleModelSetting(role_id=role_id, model_id=model_id, version=won)

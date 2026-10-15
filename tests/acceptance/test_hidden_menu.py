@@ -22,6 +22,8 @@ async def test_menu_command_opens_working_sections_without_advertising_entry(con
         "🔔 Eslatmalar",
         "💰 Kirim-chiqim",
         "⚙️ Sozlamalar",
+        "👤 Profil",
+        "ℹ️ Yordam",
     ]
     assert "/menu" not in conversation.last.text
     await conversation.text("/menu")
@@ -31,6 +33,8 @@ async def test_menu_command_opens_working_sections_without_advertising_entry(con
         "🔔 Eslatmalar",
         "💰 Kirim-chiqim",
         "⚙️ Sozlamalar",
+        "👤 Profil",
+        "ℹ️ Yordam",
     ]
     await conversation.text("🕌 Namoz vaqti")
     assert "📅 Bugungi jadval" in keyboard_labels(conversation)
@@ -89,6 +93,8 @@ async def test_start_and_help_close_hidden_menu_and_retire_settings_callback(
         "🔔 Eslatmalar",
         "💰 Kirim-chiqim",
         "⚙️ Sozlamalar",
+        "👤 Profil",
+        "ℹ️ Yordam",
     ]
     assert "/menu" not in conversation.last.text
     await conversation.click(data=old)
@@ -100,6 +106,8 @@ async def test_start_and_help_close_hidden_menu_and_retire_settings_callback(
         "🔔 Eslatmalar",
         "💰 Kirim-chiqim",
         "⚙️ Sozlamalar",
+        "👤 Profil",
+        "ℹ️ Yordam",
     ]
 
 
@@ -116,6 +124,8 @@ async def test_voice_exits_hidden_menu_wizard_and_uses_main_agent(conversation, 
         "🔔 Eslatmalar",
         "💰 Kirim-chiqim",
         "⚙️ Sozlamalar",
+        "👤 Profil",
+        "ℹ️ Yordam",
     ]
     await conversation.click(data=old)
     repo = SqlAlchemyDailyScheduleRepository(async_sessionmaker(conversation.app.db_engine))
@@ -133,6 +143,8 @@ async def test_hidden_menu_is_scoped_to_user_and_not_opened_in_groups(conversati
         "🔔 Eslatmalar",
         "💰 Kirim-chiqim",
         "⚙️ Sozlamalar",
+        "👤 Profil",
+        "ℹ️ Yordam",
     ]
     await conversation.click(data="daily:set:18:00")
     repo = SqlAlchemyDailyScheduleRepository(async_sessionmaker(conversation.app.db_engine))
@@ -154,6 +166,8 @@ async def test_menu_cannot_interrupt_active_main_agent_draft(conversation, route
         "🔔 Eslatmalar",
         "💰 Kirim-chiqim",
         "⚙️ Sozlamalar",
+        "👤 Profil",
+        "ℹ️ Yordam",
     ]
     assert "To‘g‘ri tushundimmi" in conversation.last.text
     await conversation.click("✅ Ha")
@@ -171,6 +185,8 @@ async def test_plain_text_after_menu_returns_to_main_conversation(conversation, 
         "🔔 Eslatmalar",
         "💰 Kirim-chiqim",
         "⚙️ Sozlamalar",
+        "👤 Profil",
+        "ℹ️ Yordam",
     ]
 
 
@@ -198,6 +214,8 @@ async def test_free_text_in_accounting_menu_returns_to_main_for_another_domain(
         "🔔 Eslatmalar",
         "💰 Kirim-chiqim",
         "⚙️ Sozlamalar",
+        "👤 Profil",
+        "ℹ️ Yordam",
     ]
 
 

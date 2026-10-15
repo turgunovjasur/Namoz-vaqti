@@ -33,6 +33,10 @@ class Settings(BaseSettings):
         validation_alias="GEMINI_VOICE_MODEL",
         pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$",
     )
+    gemini_allowed_models: tuple[str, ...] = Field(
+        default=(), validation_alias="GEMINI_ALLOWED_MODELS"
+    )
+
     admin_telegram_ids: frozenset[int] = Field(
         default=frozenset(), validation_alias="ADMIN_TELEGRAM_IDS"
     )

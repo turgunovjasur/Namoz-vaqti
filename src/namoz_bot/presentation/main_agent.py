@@ -34,6 +34,7 @@ from namoz_bot.presentation.keyboards import (
     NASIHAT_LABEL,
     OFFSETS_LABEL,
     PRAYER_MENU_LABEL,
+    PROFILE_LABEL,
     REGION_LABEL,
     RELIGIOUS_INTERVAL_LABEL,
     RELIGIOUS_REMINDER_LABEL,
@@ -49,6 +50,7 @@ from namoz_bot.presentation.result_messages import render_result
 from namoz_bot.presentation.settings import show_daily, show_settings
 
 NAVIGATION = {
+    PROFILE_LABEL,
     ACCOUNTING_LABEL,
     ADD_LABEL,
     DAILY_SCHEDULE_LABEL,
@@ -58,6 +60,7 @@ NAVIGATION = {
     NASIHAT_LABEL,
     OFFSETS_LABEL,
     PRAYER_MENU_LABEL,
+    PROFILE_LABEL,
     REGION_LABEL,
     RELIGIOUS_INTERVAL_LABEL,
     RELIGIOUS_REMINDER_LABEL,

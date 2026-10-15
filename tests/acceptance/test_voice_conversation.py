@@ -30,6 +30,8 @@ def assert_voice_ui(journey):
         "🔔 Eslatmalar",
         "💰 Kirim-chiqim",
         "⚙️ Sozlamalar",
+        "👤 Profil",
+        "ℹ️ Yordam",
     ]
 
 

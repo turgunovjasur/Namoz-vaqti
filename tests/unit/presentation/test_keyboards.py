@@ -106,4 +106,6 @@ def test_root_menu_selects_four_sections_and_service_settings():
         "🔔 Eslatmalar",
         "💰 Kirim-chiqim",
         "⚙️ Sozlamalar",
+        "👤 Profil",
+        "ℹ️ Yordam",
     ]

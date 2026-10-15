@@ -1,5 +1,9 @@
 """Reusable Telegram keyboards."""
 
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
+
 from aiogram.types import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
@@ -9,6 +13,19 @@ from aiogram.types import (
 
 from namoz_bot.domain.models import PrayerKey
 from namoz_bot.domain.regions import list_region_groups, list_regions
+
+PROFILE_LABEL = "👤 Profil"
+_visible_roles: ContextVar[frozenset[str] | None] = ContextVar("visible_menu_roles", default=None)
+
+
+@contextmanager
+def menu_visibility(roles: frozenset[str]) -> Iterator[None]:
+    token = _visible_roles.set(roles)
+    try:
+        yield
+    finally:
+        _visible_roles.reset(token)
+
 
 TODAY_LABEL = "📅 Bugungi jadval"
 REGION_LABEL = "📍 Hududni o‘zgartirish"
@@ -148,15 +165,22 @@ ACCOUNTING_LABEL = "💰 Kirim-chiqim"
 
 
 def build_main_menu() -> ReplyKeyboardMarkup:
+    visible = _visible_roles.get()
+    sections = [
+        ("prayer", PRAYER_MENU_LABEL),
+        ("nasihat", NASIHAT_LABEL),
+        ("reminder", REMINDERS_LABEL),
+        ("accounting", ACCOUNTING_LABEL),
+        ("settings", SETTINGS_LABEL),
+    ]
+    labels = [label for role, label in sections if visible is None or role in visible]
+    rows = [
+        [KeyboardButton(text=label) for label in labels[i : i + 2]]
+        for i in range(0, len(labels), 2)
+    ]
+    rows.append([KeyboardButton(text=PROFILE_LABEL), KeyboardButton(text=HELP_LABEL)])
     return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text=PRAYER_MENU_LABEL), KeyboardButton(text=NASIHAT_LABEL)],
-            [KeyboardButton(text=REMINDERS_LABEL), KeyboardButton(text=ACCOUNTING_LABEL)],
-            [KeyboardButton(text=SETTINGS_LABEL)],
-        ],
-        resize_keyboard=True,
-        is_persistent=True,
-        one_time_keyboard=False,
+        keyboard=rows, resize_keyboard=True, is_persistent=True, one_time_keyboard=False
     )
 
 

@@ -34,6 +34,7 @@ from namoz_bot.application.menu_agents import (
     RoutedAgentExtractor,
     SettingsAgent,
 )
+from namoz_bot.application.profiles.service import ProfileService
 from namoz_bot.application.religious_reminders import (
     PersonalReligiousBroadcastService,
     ReligiousIntervalService,
@@ -48,6 +49,8 @@ from namoz_bot.config import Settings
 from namoz_bot.domain.agent_protocol import Domain
 from namoz_bot.infrastructure.accounting import SqlAlchemyLedgerRepository
 from namoz_bot.infrastructure.agent_sessions import SqlAlchemyAgentStore
+from namoz_bot.infrastructure.ai.gemini_client import GeminiClient
+from namoz_bot.infrastructure.ai.model_catalog import ModelCatalog
 from namoz_bot.infrastructure.daily_schedule import SqlAlchemyDailyScheduleRepository
 from namoz_bot.infrastructure.db import create_database
 from namoz_bot.infrastructure.gemini import GeminiReminderClient
@@ -71,6 +74,7 @@ from namoz_bot.presentation.handlers import build_prayer_router
 from namoz_bot.presentation.main_agent import build_main_agent_router
 from namoz_bot.presentation.middleware import ErrorHandlingMiddleware, ServicesMiddleware
 from namoz_bot.presentation.nasihat import build_nasihat_router
+from namoz_bot.presentation.profiles.router import build_profile_router
 from namoz_bot.presentation.religious_settings import build_religious_settings_router
 from namoz_bot.presentation.reminders import build_reminder_router, build_voice_reminder_router
 from namoz_bot.presentation.settings import build_settings_router
@@ -162,6 +166,31 @@ def create_application(settings: Settings) -> ApplicationResources:
     access = AccessService(profiles, role_registry)
     dispatcher["access_service"] = access
     dispatcher["profile_repository"] = profiles
+    base_role_model = settings.gemini_main_agent_model or settings.gemini_voice_model
+    defaults = {r.id: base_role_model for r in role_registry.all()}
+    defaults.update(
+        {
+            r: m
+            for r, m in {
+                "prayer": settings.gemini_prayer_agent_model,
+                "nasihat": settings.gemini_nasihat_agent_model,
+                "reminder": settings.gemini_reminder_agent_model,
+                "accounting": settings.gemini_accounting_agent_model,
+                "settings": settings.gemini_settings_agent_model,
+            }.items()
+            if m
+        }
+    )
+    transport = (
+        GeminiClient(http_client, api_key=settings.gemini_api_key)
+        if settings.gemini_api_key
+        else None
+    )
+    catalog = ModelCatalog(
+        transport, tuple(dict.fromkeys((*settings.gemini_allowed_models, *defaults.values())))
+    )
+    profile_service = ProfileService(profiles, role_registry, catalog, default_models=defaults)
+    dispatcher["profile_service"] = profile_service
     main_agent = None
     menu_agents: dict[Domain, MenuAgent] = {}
     if (
@@ -256,6 +285,7 @@ def create_application(settings: Settings) -> ApplicationResources:
     dispatcher.message.outer_middleware(middleware)
     dispatcher.callback_query.outer_middleware(ErrorHandlingMiddleware())
     dispatcher.callback_query.outer_middleware(middleware)
+    dispatcher.include_router(build_profile_router(profile_service))
     dispatcher.include_router(build_main_agent_router(main_agent))
     dispatcher.include_router(build_accounting_router())
     dispatcher.include_router(build_voice_reminder_router())

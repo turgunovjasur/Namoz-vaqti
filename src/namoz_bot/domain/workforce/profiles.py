@@ -1,5 +1,6 @@
 """Account profiles are independent of AI roles and deny absent grants."""
 
+from dataclasses import dataclass
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
@@ -42,3 +43,15 @@ class RoleModelSetting(BaseModel):
     role_id: str
     model_id: str
     version: int = 0
+
+
+class UserPage(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    users: tuple[ProfileView, ...]
+    more: bool
+
+
+@dataclass(frozen=True)
+class ModelOption:
+    id: str
+    name: str

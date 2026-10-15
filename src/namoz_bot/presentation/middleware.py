@@ -31,11 +31,13 @@ from namoz_bot.presentation.keyboards import (
     DAILY_SCHEDULE_LABEL,
     HELP_LABEL,
     OFFSETS_LABEL,
+    PROFILE_LABEL,
     REGION_LABEL,
     RELIGIOUS_INTERVAL_LABEL,
     RELIGIOUS_REMINDER_LABEL,
     SETTINGS_LABEL,
     TODAY_LABEL,
+    menu_visibility,
 )
 from namoz_bot.presentation.main_agent import MENU_MODE_KEY, NAVIGATION, legacy_menu_input
 from namoz_bot.presentation.reminder_panel import APPEND_RESULTS, KEEP_MAIN_MENU, discard_panel
@@ -133,7 +135,9 @@ class ServicesMiddleware(BaseMiddleware):
                 capability = manual_capability(event)
                 if capability:
                     await require_operation(capability)
-                result = await self._handle(handler, event, data)
+                roles = await self._access.available_roles(user.id)
+                with menu_visibility(frozenset(r.id for r in roles)):
+                    result = await self._handle(handler, event, data)
                 if capability:
                     await require_operation(capability)
                 return result
@@ -157,11 +161,11 @@ class ServicesMiddleware(BaseMiddleware):
             or (isinstance(event, Message) and legacy_menu_input(event, data.get("raw_state")))
         )
         if self._main_agent is not None and not self._main_agent.voice_first:
-            navigation = isinstance(event, Message) and event.text in NAVIGATION
+            navigation = isinstance(event, Message) and event.text in NAVIGATION - {PROFILE_LABEL}
             callback_navigation = (
                 isinstance(event, CallbackQuery)
                 and event.data is not None
-                and not event.data.startswith("ag:")
+                and not event.data.startswith(("ag:", "pf:"))
                 and ":undo:" not in event.data
             )
             target = event.message if isinstance(event, CallbackQuery) else event
@@ -199,6 +203,8 @@ class ServicesMiddleware(BaseMiddleware):
                 or event.text
                 in {
                     TODAY_LABEL,
+                    PROFILE_LABEL,
+                    menu_visibility,
                     REGION_LABEL,
                     OFFSETS_LABEL,
                     HELP_LABEL,
