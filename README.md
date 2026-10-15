@@ -5,58 +5,73 @@ Telegram foydalanuvchilariga yuboradigan asinxron bot.
 
 ## Ishlash tartibi
 
-### Asosiy agent — V2
+### Rollar — V3
 
-Standart oqim: **user → main/router agent → menu agent → xizmat → main agent**.
-To‘rtta asosiy bo‘lim — **Namoz, Nasihat, Eslatma va Kirim-chiqim** — o‘z ko‘rsatma
-hamda vakolatiga ega yordamchi agent orqali ishlaydi. Umumiy sozlamalarni settings
-agenti boshqaradi. Ovozli buyruqlarni asosiy agent qabul qiladi. V2 da bo‘lim menyulari
-ham doim mavjud: foydalanuvchi menyu, matn yoki ovozdan foydalanishi mumkin.
-Har bir ovozli xabardan so‘ng bot nima tushunganini ko‘rsatadi va **✅ Ha / ❌ Yo‘q**
-tugmalarini chiqaradi. **Ha** bosilgach ish bajariladi, **Yo‘q** uni bekor qiladi.
-Javoblar matnda, bajarilgan amal natijasi chat oxirida yangi xabar bo‘lib keladi.
-Router faqat yo‘nalish va transkriptni aniqlaydi; tafsilotlarni tanlangan agent
-ajratadi. Boshqa yordamchi agentlar chaqirilmaydi. Yangi matn/ovozli so‘rov odatda
-router va bitta yordamchi uchun **ikki AI chaqiruvi** qiladi; kitobdan nasihat
-tanlash mavjud alohida xizmat chaqiruvidir. Audio faqat routerga yuboriladi,
-yordamchi agent matnni qabul qiladi. V1 dagi saqlangan qoralamalar V2 da davom etadi.
+Standart oqim: **foydalanuvchi → Yordamchi → Ish boshqaruvchi → mutaxassis →
+Ish boshqaruvchi → Yordamchi → foydalanuvchi**. Ovoz bir marta matnga o‘giriladi;
+boshqaruvchi ruxsat etilgan rollardan bittasini tanlaydi va faqat shu mutaxassis
+parametrlarni ajratadi. Javoblar matnda keladi. Menyu doim mavjud, ovoz esa qo‘lda
+ma’lumot kiritilayotgan holatda ham ishlaydi.
 
-Botga bo‘limni oldindan tanlamasdan matn yoki ovoz yuboring:
-«Bugun shom nechida?», «Ertaga ertalab 9 da uchrashuvni eslat»,
-«120 mingga kiyim oldim», «Shu oy qancha sarfladim?», «Nasihat ber».
-Asosiy agent so‘rovni namoz, nasihat, eslatma yoki kirim-chiqim xizmatiga yo‘naltiradi.
-Namoz vaqti provider jadvalidan, balans va hisobot
-bazadan olinadi; AI bu raqamlarni hisoblamaydi.
+| Rol | Vazifa |
+| --- | --- |
+| Yordamchi | Ovoz/matnni qabul qilish, talqinni tasdiqlatish, natija va savollarni yetkazish |
+| Ish boshqaruvchi | Ruxsat etilgan rolga yo‘naltirish, xizmat dalillari asosida natijani tekshirish |
+| Taqvimchi | Namoz jadvali, hudud va masjidga moslash farqlari |
+| Nasihatgo‘y | Kitobdan nasihat va uning avtomatik yuborish oralig‘i |
+| Rejalashtiruvchi | Eslatma yaratish, ro‘yxat, o‘chirish va tasdiqlangan tuzatish |
+| Hisobchi | Kirim/xarajat, balans, hisobot, tarix va tasdiqlangan tuzatish |
+| Sozlovchi | Umumiy sozlamalar va kunlik jadval yuborish vaqti |
 
-Yetishmayotgan ma’lumot ovozli javob bilan to‘ldiriladi va uning talqini ham tugma bilan
-tasdiqlanadi. To‘liq bo‘lmagan buyruq tasdiqlansa, bot kerakli ma’lumotni so‘raydi.
-Ovozdan ajratilgan kirim/chiqim ham tasdiqdan keyin yoziladi. Matnli aniq kirim/chiqim
-avvalgi tartibda saqlanadi. **«Oxirgi yozuvni bekor qil»** yoki
-aniq ID/nomi orqali bekor qilish so‘raladi. Bir nechta mos yozuv bo‘lsa ID aniqlashtiriladi.
-Ro‘yxat/tarix uchun **«Keyingi sahifa»**, yozuv tanlash uchun **«Ikkinchisini o‘chir»**
-deyish mumkin; tanlov oxirgi 30 daqiqadagi ko‘rsatilgan, o‘zingizga tegishli ro‘yxatga bog‘lanadi.
+«120 mingga kiyim oldim», «Shu oy qancha sarfladim?», «Kunlik jadval ertalab 7 da
+kelsin» kabi matn yoki ovoz yuboring. Bot **Eshitdim / Tushundim** kartasi va
+**✅ Ha / ❌ Yo‘q** tugmalarini ko‘rsatadi. Ha bosilmaguncha biznes ma’lumotlari
+o‘qilmaydi va o‘zgarmaydi. Ha aynan saqlangan rejani navbatga qo‘yadi; Yo‘q bekor
+qiladi. Talqin 15 daqiqa amal qiladi. Yangi xabar eski tasdiqni bekor qiladi;
+`/resume` saqlangan kartani qayta ko‘rsatadi, `/cancel` qoralamani bekor qiladi.
 
-Sozlamalar ham ovozli talqinni tasdiqlagandan keyin saqlanadi:
-**«Kunlik jadval ertalab 7 da kelsin»**, **«Nasihat har 6 soatda kelsin»**,
-**«Avtomatik nasihatni o‘chir»**, **«Hududni Samarqand shahriga o‘zgartir»**,
-**«Shom vaqtini 4 daqiqa keyinga sur»**, **«Barcha farqlarni nolga qaytar»**.
-Noaniq vaqt/hudud taxmin qilinmaydi, bot savol beradi. Hudud o‘zgarganda eski
-masjid farqlari nolga qaytadi. Sozlamalar va receipt bitta transactionda saqlanadi.
-Bitta xabarda bir nechta mustaqil vazifa bo‘lsa, avval bittasini alohida ayting.
-Tugallanmagan vazifada boshqa bo‘limga o‘tishdan oldin «Bekor qil» deb yozing.
-Ovozli tasdiq 15 daqiqa amal qiladi va faqat o‘sha foydalanuvchiga tegishli.
-Yangi ovoz oldingi tasdiqni almashtiradi. Tasdiq bot restartida saqlanadi; tugmani
-takror bosish amalni qaytarmaydi. «Davom et» va `/start` qoralamani qayta ochadi; qoralama oxirgi
-yangilanishdan 24 soat o‘tgach eskiradi. Restart qoralamani yo‘qotmaydi.
+Natija chat oxirida yangi xabar bo‘lib keladi va **«Siz kutgan natijami?»** deb
+so‘raydi. Ha vazifani yopadi. Yo‘q faqat xatoni so‘raydi; avvalgi amalni takrorlamaydi.
+Xatoni matn/ovoz bilan aytsangiz, yangi talqin va tasdiq chiqadi. Xarajatni tuzatish
+asl yozuvni bekor qilib, unga bog‘langan yangisini va audit tarixini bitta
+transactionda saqlaydi. Eslatma tuzatishi o‘sha IDni yangilaydi, eski navbatdagi
+yuborishni yaroqsiz qiladi va yuborilgan tarixni saqlaydi. Hisobot filtri faqat
+kategoriya jamlarini cheklaydi; ko‘rsatilgan hisob balansi butun hisobning balansidir.
+Tuzatish imkoniyati alohida yoqilgan bo‘lishi kerak.
 
-Sozlamalar:
+Namoz vaqtlari provider jadvalidan, moliyaviy raqamlar bazadan, iqtibos kitobdan
+olinadi. Tekshiruvchi ularni qayta to‘qimaydi. Tekshiruvda bir martagacha xavfsiz
+qayta o‘qish/render qilish mumkin; yozilgan biznes amali takrorlanmaydi. Tekshiruvchi
+ishlamasa, saqlangan natija va tekshiruv tugamaganligi haqidagi xabar yuboriladi.
+
+### Admin va user profillari
+
+**👤 Profil** menyusi yoki `/profile` orqali profil ochiladi. Profil turi faqat
+`admin` yoki `user`; bu AI rolidan alohida. Foydalanuvchi o‘ziga biriktirilgan
+rollar va imkoniyatlarni ko‘radi. Admin foydalanuvchini tanlab, rolni hamda uning
+ichidagi alohida imkoniyatlarni yoqadi/o‘chiradi va **Saqlash**ni bosadi. Rolni
+o‘chirish tanlangan imkoniyatlarni o‘chirmaydi, vaqtincha to‘xtatadi. Rollar
+katalogida har bir rolning vazifasi va imkoniyat tavsifi ko‘rsatiladi.
+
+Yangi userda mutaxassis huquqlari yo‘q. Migratsiya mavjud userlarga faqat oldindan
+belgilangan eski imkoniyatlarni beradi. Keyin qo‘shilgan `finance.correct` va
+`reminder.update` kabi imkoniyatlar admin tomonidan alohida yoqiladi. Birgalikda
+ishlatiladigan imkoniyatning har bir roldagi huquqi mustaqil. Barcha yo‘llar —
+menyu, V1/V2/V3, ovoz, worker va avtomatik yuborish — shu tekshiruvdan o‘tadi.
+
+Admin **Rollar va modellar** orqali rol uchun umumiy Gemini modelini tanlaydi.
+Model serverdagi ro‘yxatda bo‘lishi va JSON sinovidan o‘tishi kerak; Yordamchi uchun
+audio ham tekshiriladi. Xato tanlov eski sozlamani saqlaydi. Tasdiq kutayotgan
+vazifa oldingi model/instruction nusxasini, yangi vazifa yangi sozlamani ishlatadi.
 
 ```dotenv
 MAIN_AGENT_ENABLED=true
-MAIN_AGENT_VERSION=2
-# Berilmasa GEMINI_VOICE_MODEL ishlatiladi:
-# GEMINI_MAIN_AGENT_MODEL=audio_va_structured_output_qollaydigan_model
-# Yordamchi agent modellari berilmasa yuqoridagi model ishlatiladi:
+MAIN_AGENT_VERSION=3
+# Ishonchli raqamli Telegram IDlar; username yoki telefon raqami emas:
+ADMIN_TELEGRAM_IDS=[]
+# JSON ro‘yxat; mavjud konfiguratsiyadagi modellar ham katalogga qo‘shiladi:
+GEMINI_ALLOWED_MODELS=[]
+# GEMINI_MAIN_AGENT_MODEL=...
 # GEMINI_PRAYER_AGENT_MODEL=...
 # GEMINI_NASIHAT_AGENT_MODEL=...
 # GEMINI_REMINDER_AGENT_MODEL=...
@@ -64,25 +79,35 @@ MAIN_AGENT_VERSION=2
 # GEMINI_SETTINGS_AGENT_MODEL=...
 ```
 
-Mavjud `GEMINI_API_KEY` ishlatiladi. Kalit yo‘q yoki `MAIN_AGENT_ENABLED=false`
-bo‘lsa, oldingi menyu/ovozli yo‘llar ishlaydi. Agent yoqilgan paytda xizmat xatosi
-xabarni avtomatik eslatma yoki xarajatga aylantirmaydi. Audio chegarasi 2 daqiqa
-va 5 MiB; matn 2000 belgigacha. Audio diskka, transcript va summalar logga yozilmaydi.
-AI API ga faqat joriy input va vazifaga kerakli qoralama konteksti yuboriladi.
-Agent sessiyalari va javob receiptlari bazada saqlanadi; tugallangan receiptlar
-7 kundan keyin tozalanadi. Biznes jadvallaridagi unique keys takror yozishni to‘sadi.
+Kalitlar uchun [.env.example](.env.example) namunasi bor. `ADMIN_TELEGRAM_IDS=[]`
+bo‘lsa admin yo‘q. ID egasini tekshirib, faqat lokal `.env`ga yozing. Kalit yo‘q
+yoki `MAIN_AGENT_ENABLED=false` bo‘lsa, eski menyu/ovoz yo‘llari huquq tekshiruvi
+bilan ishlaydi. Audio chegarasi 2 daqiqa/5 MiB, matn 2000 belgi. Audio diskka,
+transkript va summalar logga yozilmaydi. AIga joriy xabar va kerakli vazifa
+konteksti yuboriladi; reja, transkript va natija vazifani davom ettirish uchun SQLda saqlanadi.
 
-Yangilangan botni ishga tushirishdan **oldin** `alembic upgrade head` bajaring.
-`bash run_local_bot.sh` test bazasi uchun migratsiyani avtomatik bajaradi.
-V2 mavjud xizmat va transactionlarni yordamchi agentlar orqali ishlatadi.
-`MAIN_AGENT_VERSION=1` bir chaqiruvli V1 oqimini qaytaradi. V2 uchun qo‘shimcha
-migratsiya kerak emas; V1 migratsiyasi bazada bo‘lishi kerak.
-[Ovozli suhbat dizayni](docs/superpowers/specs/2026-10-13-voice-conversation-design.md),
-[V2 dizayni](docs/superpowers/specs/2026-10-13-menu-agents-v2-design.md),
-[request/result protokoli](docs/superpowers/specs/2026-10-13-main-agent-v1-design.md).
+Yangilashdan oldin `alembic upgrade head` bajaring. Migratsiyalar mavjud ma’lumotni
+saqlab profillar, ruxsatlar, durable vazifalar va tuzatish tarixini qo‘shadi.
+`bash run_local_bot.sh` faqat `TEST_TELEGRAM_BOT_TOKEN` / `TEST_DATABASE_URL` bilan
+migratsiya va test botni ishga tushiradi. `MAIN_AGENT_VERSION=1` yoki `2` eski parserni
+tanlaydi; oldingi qoralamalar yangi oqimda yashirin qayta talqin qilinmaydi.
 
-Quyidagi vizual boshqaruvlar V1 yoki agent o‘chirilgan legacy rejimga tegishli.
-V2 da `/start` ovozli foydalanish yordamchisi va bo‘lim menyularini ko‘rsatadi.
+Vazifa navbati, lease, receipt va natija outboxi restartdan tiklanadi. Biznes
+amali va receipt birga commit qilinadi. Telegram xabarni olgan, lekin tarmoq javobi
+yo‘qolgan holatda xabar qayta yetkazilishi mumkin; bu biznes amalini qayta bajarmaydi.
+
+Yangi rol uchun `application/roles/` ichiga ta’rif/ko‘rsatma yozib registryga
+qo‘shing. Imkoniyatlar `application/capabilities/`da alohida ta’riflanadi va mavjud
+xizmatni chaqiradi; bir capability IDni bir nechta rolga qo‘shish uning kodini
+ko‘paytirmaydi. Yangi imkoniyatlar modelga faqat aniq admin ruxsatidan keyin taklif
+qilinadi. Tashqi servis, yangi biznes amal yoki migratsiya kerak bo‘lsa, u alohida
+implementatsiya qilinadi; admin paneli ixtiyoriy Python kod yaratmaydi.
+
+[Dizayn](docs/superpowers/specs/2026-10-15-role-workforce-draft.md),
+[implementatsiya rejasi](docs/superpowers/plans/2026-10-15-roles-capabilities.md).
+
+Quyidagi bo‘limlar qo‘lda ishlatiladigan mavjud funksiyalarni tasvirlaydi; menyular
+berilgan rol va imkoniyatlarga qarab ko‘rsatiladi.
 
 - Legacy `/start` foydalanuvchini **Toshkent** bilan ro‘yxatdan o‘tkazadi va bo‘lim menyularini ochadi.
 - Foydalanuvchi sozlamalarda avval 14 ta geografik guruhdan birini, so‘ng shahar

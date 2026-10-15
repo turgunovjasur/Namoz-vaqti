@@ -17,7 +17,7 @@ def test_menu_agents_version_and_models_are_configurable():
         GEMINI_ACCOUNTING_AGENT_MODEL="finance-model",
         GEMINI_SETTINGS_AGENT_MODEL="settings-model",
     )
-    assert settings.main_agent_version == 2
+    assert settings.main_agent_version == 3
     assert settings.gemini_prayer_agent_model == "prayer-model"
     assert settings.gemini_nasihat_agent_model == "nasihat-model"
     assert settings.gemini_accounting_agent_model == "finance-model"

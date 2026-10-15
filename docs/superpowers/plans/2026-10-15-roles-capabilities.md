@@ -110,16 +110,16 @@
 - ADMIN_TELEGRAM_IDS is a validated set of Telegram integer IDs from trusted server settings; missing configuration promotes nobody. Sync the stored profile type from this source; a stale database flag cannot retain admin access after its trusted configuration is removed. Ordinary users cannot edit profile_type.
 - Tables: profiles, user_role_assignments, user_role_capabilities, role_model_settings and admin_audit. Unique grant key is user_id/role_id/capability_id; absent grant denies.
 
-- [ ] RED: SQLite/PostgreSQL tests assign different capabilities to two users under one role. Assert unassigned capability, wrong owner, non-admin change and unknown capability all deny; role toggle preserves but suspends its selected capabilities.
-- [ ] RED: commit/revoke race test serializes on the same user lock; a revocation completed before execution prevents the effect. Disabling a shared capability under prayer leaves an independently enabled settings grant working.
-- [ ] RED: upgrade a populated pre-profile database; existing five roles/current capabilities are explicitly granted, later capabilities and fresh users have no implicit grants. Downgrade removes only workforce tables.
-- [ ] RED: manual menus, group messages, legacy callbacks and V1/disabled-AI paths cannot bypass access. Only test fixtures may seed synthetic assigned users; production /start never grants specialist access automatically.
-- [ ] RED: daily/nasihat/reminder delivery pauses when its owner role/capability is disabled, keeps underlying data and resumes future schedules without a backlog flood.
-- [ ] Run the three new suites; verify failures are caused by absent grants/persistence/gates.
-- [ ] Implement SQL migration with a frozen legacy grant list; do not import a mutable runtime registry from migrations. Add one AccessService policy and thin boundary calls, not copied authorization conditions in each handler.
-- [ ] Use the existing session binding mechanism for transaction-scoped business repositories. Do not hold SQL locks across Gemini or Telegram requests. Invalidate grant caches by assignment revision on every admin change.
-- [ ] GREEN: run new suites, tests/integration/test_postgres_claims.py, test_agent_migrations.py and affected scheduler/manual acceptance journeys.
-- [ ] Commit feat: persist profiles and enforce role capability grants.
+- [x] RED: SQLite/PostgreSQL tests assign different capabilities to two users under one role. Assert unassigned capability, wrong owner, non-admin change and unknown capability all deny; role toggle preserves but suspends its selected capabilities.
+- [x] RED: commit/revoke race test serializes on the same user lock; a revocation completed before execution prevents the effect. Disabling a shared capability under prayer leaves an independently enabled settings grant working.
+- [x] RED: upgrade a populated pre-profile database; existing five roles/current capabilities are explicitly granted, later capabilities and fresh users have no implicit grants. Downgrade removes only workforce tables.
+- [x] RED: manual menus, group messages, legacy callbacks and V1/disabled-AI paths cannot bypass access. Only test fixtures may seed synthetic assigned users; production /start never grants specialist access automatically.
+- [x] RED: daily/nasihat/reminder delivery pauses when its owner role/capability is disabled, keeps underlying data and resumes future schedules without a backlog flood.
+- [x] Run the three new suites; verify failures are caused by absent grants/persistence/gates.
+- [x] Implement SQL migration with a frozen legacy grant list; do not import a mutable runtime registry from migrations. Add one AccessService policy and thin boundary calls, not copied authorization conditions in each handler.
+- [x] Use the existing session binding mechanism for transaction-scoped business repositories. Do not hold SQL locks across Gemini or Telegram requests. Invalidate grant caches by assignment revision on every admin change.
+- [x] GREEN: run new suites, tests/integration/test_postgres_claims.py, test_agent_migrations.py and affected scheduler/manual acceptance journeys.
+- [x] Commit feat: persist profiles and enforce role capability grants.
 
 ## Task 4: Admin/user profile screens and per-role model settings
 
@@ -135,14 +135,14 @@
 - ModelCatalog.list_for_role(role_id: str) -> tuple[ModelOption, ...]; validate(model_id: str, role: RoleDefinition) -> None. Use configured model allowlist plus provider capability/structured-output probe; no business service is invoked.
 - Profile views render names/descriptions/capabilities from the same registries. No copied role information in Telegram callbacks or UI strings.
 
-- [ ] RED: admin selects a user, enables a role and a capability subset, saves and sees it after restart; user sees only its own enabled roles/capabilities. A user with zero selected capabilities sees that state and receives no business route.
-- [ ] RED: forged admin callbacks, another user's profile ID and stale save revision cannot change grants; changing grants never reveals user financial records to the administrator.
-- [ ] RED: callback data remains at most 64 bytes, including long user/model/capability IDs. Use an opaque compact token with trusted owner-bound UI state for nested selection, never embed an entire grant payload in callback data.
-- [ ] RED: model changes apply globally to future tasks for the selected role only; invalid/unsupported models or a failed provider probe leave the last valid setting. No API key appears in profile views or logs.
-- [ ] Run ./.venv/bin/pytest -q tests/acceptance/test_profile_journey.py tests/integration/test_role_model_settings.py; inspect RED failures.
-- [ ] Implement persistent Profil/Yordam entry points, admin user/role/capability navigation and role catalog/model card. Hide admin controls for ordinary users and verify every mutation in the service, not only the keyboard.
-- [ ] GREEN: run new suites and tests/unit/presentation/test_keyboards.py plus tests/acceptance/test_hidden_menu.py and tests/acceptance/test_voice_approval.py.
-- [ ] Commit feat: add admin and user role management profiles.
+- [x] RED: admin selects a user, enables a role and a capability subset, saves and sees it after restart; user sees only its own enabled roles/capabilities. A user with zero selected capabilities sees that state and receives no business route.
+- [x] RED: forged admin callbacks, another user's profile ID and stale save revision cannot change grants; changing grants never reveals user financial records to the administrator.
+- [x] RED: callback data remains at most 64 bytes, including long user/model/capability IDs. Use an opaque compact token with trusted owner-bound UI state for nested selection, never embed an entire grant payload in callback data.
+- [x] RED: model changes apply globally to future tasks for the selected role only; invalid/unsupported models or a failed provider probe leave the last valid setting. No API key appears in profile views or logs.
+- [x] Run ./.venv/bin/pytest -q tests/acceptance/test_profile_journey.py tests/integration/test_role_model_settings.py; inspect RED failures.
+- [x] Implement persistent Profil/Yordam entry points, admin user/role/capability navigation and role catalog/model card. Hide admin controls for ordinary users and verify every mutation in the service, not only the keyboard.
+- [x] GREEN: run new suites and tests/unit/presentation/test_keyboards.py plus tests/acceptance/test_hidden_menu.py and tests/acceptance/test_voice_approval.py.
+- [x] Commit feat: add admin and user role management profiles.
 
 ## Task 5: Durable tasks, atomic execution, leases and result outbox
 
@@ -161,15 +161,15 @@
 - Queue.claim(*, now: datetime, limit: int, lease_seconds: int) -> list[ClaimedTask]; heartbeat(task_id: str, token: str, now: datetime) -> bool. Outbox.send_due(sender: MessageSender) -> None never runs a business capability.
 - Worker.run_once(now: datetime) -> None. Claim at most 3 tasks; lease 180 seconds, heartbeat every 30 seconds; existing APScheduler polls every second with max_instances=1. Shutdown cancels workers and closes sessions cleanly.
 
-- [ ] RED: approval atomically queues the exact saved plan and one acceptance notification; rejection leaves zero business rows. Foreign user/bot, old revision, expired 15-minute review and duplicate update never queue another effect.
-- [ ] RED: two PostgreSQL workers cannot commit the same expense; revoke capability between approval and claim prevents writing. Revoke/commit uses Task 3's same owner lock.
-- [ ] RED: simulate crashes before commit, after commit/before review and after Telegram send/before delivery acknowledgement. Business receipt remains exactly once; restart resumes review/delivery from stored state.
-- [ ] RED: model changes after approval do not mutate the pending task. A lost lease cannot commit effects or overwrite another worker's result.
-- [ ] Run the new integration suites against SQLite and configured PostgreSQL; confirm RED failures address missing durable transitions/locks.
-- [ ] Implement tables for task revisions, business receipts, claims and outbox. Keep provider/Telegram awaits outside effect transactions. Store one effect key per task/revision and a unique outbox key per notification type/revision.
-- [ ] Preserve safe external-delivery semantics: Telegram can receive a retry after an ambiguous network acknowledgement; never claim exactly-once remote delivery and never retry the business effect for that reason.
-- [ ] GREEN: run new suites plus tests/integration/test_agent_sessions.py, test_main_agent_operations.py and test_postgres_claims.py.
-- [ ] Commit feat: execute approved tasks durably with receipts and outbox.
+- [x] RED: approval atomically queues the exact saved plan and one acceptance notification; rejection leaves zero business rows. Foreign user/bot, old revision, expired 15-minute review and duplicate update never queue another effect.
+- [x] RED: two PostgreSQL workers cannot commit the same expense; revoke capability between approval and claim prevents writing. Revoke/commit uses Task 3's same owner lock.
+- [x] RED: simulate crashes before commit, after commit/before review and after Telegram send/before delivery acknowledgement. Business receipt remains exactly once; restart resumes review/delivery from stored state.
+- [x] RED: model changes after approval do not mutate the pending task. A lost lease cannot commit effects or overwrite another worker's result.
+- [x] Run the new integration suites against SQLite and configured PostgreSQL; confirm RED failures address missing durable transitions/locks.
+- [x] Implement tables for task revisions, business receipts, claims and outbox. Keep provider/Telegram awaits outside effect transactions. Store one effect key per task/revision and a unique outbox key per notification type/revision.
+- [x] Preserve safe external-delivery semantics: Telegram can receive a retry after an ambiguous network acknowledgement; never claim exactly-once remote delivery and never retry the business effect for that reason.
+- [x] GREEN: run new suites plus tests/integration/test_agent_sessions.py, test_main_agent_operations.py and test_postgres_claims.py.
+- [x] Commit feat: execute approved tasks durably with receipts and outbox.
 
 ## Task 6: Assistant, manager and specialists over the shared runtime
 
@@ -186,17 +186,17 @@
 - AssistantService.receive(context: AgentContext, request_id: str, *, text: str|None, audio: bytes|None, mime_type: str) -> ConversationReply. Reply contains text, persistent menu and typed approval/feedback callback descriptors; Telegram-specific classes stay in presentation.
 - MAIN_AGENT_VERSION accepts 1/2/3; retain default 2 until Task 8 activation. Version 3 uses this runtime; versions 1/2 retain their parsers behind the common access policy.
 
-- [ ] RED: voice -> one transcription -> manager -> only selected specialist -> stored Eshitdim/Tushundim card. Before Ha, no business read/write. After Ha, queue acknowledgement and result arrive as new messages.
-- [ ] RED: a user granted only finance.report cannot trigger finance.expense through a misleading prompt, another role name or forged model output. Shared preferences capability uses the explicitly named permitted role; ambiguity asks a question.
-- [ ] RED: user speaks from a manual FSM; menus stay visible, current result history survives and only the new voice approval may execute. Failed download/oversize/new provider error retires the previous approval.
-- [ ] RED: reviewer rejects wrong month/currency/category; only safe re-read/render occurs. A provider failure after expense commit produces a truthful saved receipt plus incomplete-review notice, not a second expense or a false failure-to-save claim.
-- [ ] RED: current V1/V2 drafts resume through adapters after upgrade; no cached approval is silently converted into a different operation or model decision.
-- [ ] Run the three new suites, inspect relevant missing-runtime failures and preserve existing manual/voice assertions.
-- [ ] Implement transcription separately from routing. Generate role descriptions and output schemas from the narrowed registries; do not maintain new parallel role lists or ACTION_LABELS tables.
-- [ ] Render data facts with Task 2's formatter. Reviewer can identify issues and request safe work; it cannot invent totals, prayer times, quotation text or source references.
-- [ ] Wire version 3 into create_application with existing event isolation. Route task-bound approvals by owner/bot/revision; keep legacy vr/ag callbacks through their compatibility handlers.
-- [ ] GREEN: run new suites plus tests/acceptance/test_voice_approval.py, test_voice_conversation.py, test_menu_agent_journey.py and test_hidden_menu.py.
-- [ ] Commit feat: separate assistant manager and specialist execution.
+- [x] RED: voice -> one transcription -> manager -> only selected specialist -> stored Eshitdim/Tushundim card. Before Ha, no business read/write. After Ha, queue acknowledgement and result arrive as new messages.
+- [x] RED: a user granted only finance.report cannot trigger finance.expense through a misleading prompt, another role name or forged model output. Shared preferences capability uses the explicitly named permitted role; ambiguity asks a question.
+- [x] RED: user speaks from a manual FSM; menus stay visible, current result history survives and only the new voice approval may execute. Failed download/oversize/new provider error retires the previous approval.
+- [x] RED: reviewer rejects wrong month/currency/category; only safe re-read/render occurs. A provider failure after expense commit produces a truthful saved receipt plus incomplete-review notice, not a second expense or a false failure-to-save claim.
+- [x] RED: current V1/V2 drafts resume through adapters after upgrade; no cached approval is silently converted into a different operation or model decision.
+- [x] Run the three new suites, inspect relevant missing-runtime failures and preserve existing manual/voice assertions.
+- [x] Implement transcription separately from routing. Generate role descriptions and output schemas from the narrowed registries; do not maintain new parallel role lists or ACTION_LABELS tables.
+- [x] Render data facts with Task 2's formatter. Reviewer can identify issues and request safe work; it cannot invent totals, prayer times, quotation text or source references.
+- [x] Wire version 3 into create_application with existing event isolation. Route task-bound approvals by owner/bot/revision; keep legacy vr/ag callbacks through their compatibility handlers.
+- [x] GREEN: run new suites plus tests/acceptance/test_voice_approval.py, test_voice_conversation.py, test_menu_agent_journey.py and test_hidden_menu.py.
+- [x] Commit feat: separate assistant manager and specialist execution.
 
 ## Task 7: Result feedback and corrections linked to original records
 
@@ -215,17 +215,17 @@
 - LedgerService.summary(user_id: int, month: date, *, category: Category|None = None) -> LedgerSummary; preserve existing calls when category is omitted. Filter the requested category totals and label them explicitly; account opening/closing balance remains the actual whole-ledger balance. Never present a category subtotal as the account balance.
 - New capability IDs finance.correct and reminder.update require explicit grants; migration does not automatically grant newly added capabilities. Settings corrections reuse their existing update capability after a new approval.
 
-- [ ] RED: result Ha ends the task; result Yo‘q only asks for the error and changes no business data. Correction text uses original task/parameters/evidence and creates a new revision; unrelated request creates a different task.
-- [ ] RED: voice correction shows Eshitdim/Tushundim before rerunning; result and feedback buttons are new messages. Old revision/foreign callbacks cannot rate or alter the latest result.
-- [ ] RED: “only food expenses” changes the report filter and returns only that category. No existing ledger entries are inserted/changed by report correction.
-- [ ] RED: correct an expense amount: cancel/supersede original + linked replacement + audit + receipt commit together; failure rolls back all parts, retry returns the same result, concurrent target change requests fresh confirmation.
-- [ ] RED: edit an existing reminder time without creating a duplicate reminder; recompute pending delivery safely. Delivered messages remain historical, expired old claim cannot send a superseded occurrence.
-- [ ] RED: revoked capability, another user's record, cancelled target or unsupported correction cannot execute; a saved original expense is never recreated merely because result feedback is negative.
-- [ ] Run new suites against SQLite/PostgreSQL and inspect the expected missing correction/feedback failures.
-- [ ] Implement correction revision/audit fields and atomic methods using the existing transaction. Preserve old source/receipt identity and ledger history; use one new effect key for the correction revision.
-- [ ] Implement feedback prefixes separate from execution approval. Payloads contain compact task ID/revision/action, remain within Telegram's 64-byte limit and carry no model-supplied owner identity.
-- [ ] GREEN: run new suites plus tests/integration/test_accounting.py, test_reminder_repository.py and prior voice-approval acceptance tests.
-- [ ] Commit feat: review task results and apply confirmed corrections safely.
+- [x] RED: result Ha ends the task; result Yo‘q only asks for the error and changes no business data. Correction text uses original task/parameters/evidence and creates a new revision; unrelated request creates a different task.
+- [x] RED: voice correction shows Eshitdim/Tushundim before rerunning; result and feedback buttons are new messages. Old revision/foreign callbacks cannot rate or alter the latest result.
+- [x] RED: “only food expenses” changes the report filter and returns only that category. No existing ledger entries are inserted/changed by report correction.
+- [x] RED: correct an expense amount: cancel/supersede original + linked replacement + audit + receipt commit together; failure rolls back all parts, retry returns the same result, concurrent target change requests fresh confirmation.
+- [x] RED: edit an existing reminder time without creating a duplicate reminder; recompute pending delivery safely. Delivered messages remain historical, expired old claim cannot send a superseded occurrence.
+- [x] RED: revoked capability, another user's record, cancelled target or unsupported correction cannot execute; a saved original expense is never recreated merely because result feedback is negative.
+- [x] Run new suites against SQLite/PostgreSQL and inspect the expected missing correction/feedback failures.
+- [x] Implement correction revision/audit fields and atomic methods using the existing transaction. Preserve old source/receipt identity and ledger history; use one new effect key for the correction revision.
+- [x] Implement feedback prefixes separate from execution approval. Payloads contain compact task ID/revision/action, remain within Telegram's 64-byte limit and carry no model-supplied owner identity.
+- [x] GREEN: run new suites plus tests/integration/test_accounting.py, test_reminder_repository.py and prior voice-approval acceptance tests.
+- [x] Commit feat: review task results and apply confirmed corrections safely.
 
 ## Task 8: Whole-branch verification, one review and local activation
 
