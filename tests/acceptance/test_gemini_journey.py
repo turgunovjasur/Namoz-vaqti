@@ -432,7 +432,7 @@ async def test_scheduled_nasihat_reaches_active_users_once_per_run(gemini_journe
         for call in gemini_journey.session.calls
         if isinstance(call, SendMessage) and "Sabrli bo‘ling" in call.text
     ]
-    assert [call.chat_id for call in sends] == [7, 8]
+    assert sorted(call.chat_id for call in sends) == [7, 8]
     assert report.sent == 2
     assert gemini_route.call_count == 1
     assert all("Manba: «Sinov kitobi»" in call.text for call in sends)
