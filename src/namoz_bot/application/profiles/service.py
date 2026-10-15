@@ -5,6 +5,7 @@ from namoz_bot.application.roles.registry import RoleRegistry
 from namoz_bot.domain.workforce.profiles import (
     AccessDenied,
     AuditPage,
+    GrantChange,
     ProfileView,
     RoleModelSetting,
     UserPage,
@@ -71,6 +72,14 @@ class ProfileService:
             enabled=enabled,
             capability_ids=capability_ids,
             expected_revision=expected_revision,
+        )
+
+    async def set_assignments(
+        self, *, actor_id: int, user_id: int, changes: tuple[GrantChange, ...]
+    ) -> ProfileView:
+        await self._admin(actor_id)
+        return await self.repository.set_assignments(
+            actor_id=actor_id, user_id=user_id, changes=changes
         )
 
     def model_options(self, role_id: str) -> tuple[str, ...]:

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, JsonValue
+from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
 
 class AccessDenied(Exception):
@@ -21,6 +21,14 @@ class RoleAssignment(BaseModel):
     enabled: bool
     capability_ids: frozenset[str]
     revision: int
+
+
+class GrantChange(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    role_id: str = Field(min_length=1, max_length=32)
+    enabled: bool
+    capability_ids: frozenset[str]
+    expected_revision: int = Field(ge=0)
 
 
 class ProfileView(BaseModel):

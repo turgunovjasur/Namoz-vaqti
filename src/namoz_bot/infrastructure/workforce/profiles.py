@@ -16,6 +16,7 @@ from namoz_bot.domain.workforce.profiles import (
     AccessDenied,
     AdminChange,
     AuditPage,
+    GrantChange,
     PermissionSnapshot,
     ProfileConflict,
     ProfileView,
@@ -143,42 +144,63 @@ class SqlAlchemyProfileRepository:
         capability_ids: frozenset[str],
         expected_revision: int,
     ) -> ProfileView:
-        role = self.roles.get(role_id)
-        if role.system_role or not capability_ids.issubset(role.capability_ids):
-            raise ValueError("Invalid role capabilities")
+        return await self.set_assignments(
+            actor_id=actor_id,
+            user_id=user_id,
+            changes=(
+                GrantChange(
+                    role_id=role_id,
+                    enabled=enabled,
+                    capability_ids=capability_ids,
+                    expected_revision=expected_revision,
+                ),
+            ),
+        )
+
+    async def set_assignments(
+        self, *, actor_id: int, user_id: int, changes: tuple[GrantChange, ...]
+    ) -> ProfileView:
+        if not changes or len({c.role_id for c in changes}) != len(changes):
+            raise ValueError("Har bir rolni faqat bir marta yuboring.")
+        for change in changes:
+            role = self.roles.get(change.role_id)
+            if role.system_role or not change.capability_ids.issubset(role.capability_ids):
+                raise ValueError("Invalid role capabilities")
         async with self.factory.begin() as session:
             await self.require_admin(session, actor_id)
             await lock_owner(session, user_id)
-            row = await session.get(RoleAssignmentRecord, (user_id, role_id))
-            if (row.revision if row else 0) != expected_revision:
-                raise ProfileConflict("Assignment changed")
-            if row is None:
-                row = RoleAssignmentRecord(user_id=user_id, role_id=role_id, revision=0)
-                session.add(row)
-            row.enabled, row.revision = enabled, row.revision + 1
-            await session.execute(
-                delete(RoleCapabilityRecord).where(
-                    RoleCapabilityRecord.user_id == user_id, RoleCapabilityRecord.role_id == role_id
+            for change in changes:
+                row = await session.get(RoleAssignmentRecord, (user_id, change.role_id))
+                if (row.revision if row else 0) != change.expected_revision:
+                    raise ProfileConflict("Assignment changed")
+                if row is None:
+                    row = RoleAssignmentRecord(user_id=user_id, role_id=change.role_id, revision=0)
+                    session.add(row)
+                row.enabled, row.revision = change.enabled, row.revision + 1
+                await session.execute(
+                    delete(RoleCapabilityRecord).where(
+                        RoleCapabilityRecord.user_id == user_id,
+                        RoleCapabilityRecord.role_id == change.role_id,
+                    )
                 )
-            )
-            session.add_all(
-                RoleCapabilityRecord(user_id=user_id, role_id=role_id, capability_id=c)
-                for c in sorted(capability_ids)
-            )
-            session.add(
-                AdminAuditRecord(
-                    actor_id=actor_id,
-                    target_id=user_id,
-                    action="set_grants",
-                    detail={
-                        "role_id": role_id,
-                        "enabled": enabled,
-                        "capability_ids": sorted(capability_ids),
-                        "revision": row.revision,
-                    },
+                session.add_all(
+                    RoleCapabilityRecord(user_id=user_id, role_id=change.role_id, capability_id=c)
+                    for c in sorted(change.capability_ids)
                 )
-            )
-            await session.flush()
+                session.add(
+                    AdminAuditRecord(
+                        actor_id=actor_id,
+                        target_id=user_id,
+                        action="set_grants",
+                        detail={
+                            "role_id": change.role_id,
+                            "enabled": change.enabled,
+                            "capability_ids": sorted(change.capability_ids),
+                            "revision": row.revision,
+                        },
+                    )
+                )
+                await session.flush()
             return await self._profile(session, user_id)
 
     @asynccontextmanager

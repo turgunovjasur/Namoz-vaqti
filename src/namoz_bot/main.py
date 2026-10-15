@@ -36,7 +36,6 @@ from namoz_bot.application.menu_agents import (
     RoutedAgentExtractor,
     SettingsAgent,
 )
-from namoz_bot.application.profiles.service import ProfileService
 from namoz_bot.application.religious_reminders import (
     PersonalReligiousBroadcastService,
     ReligiousIntervalService,
@@ -58,7 +57,6 @@ from namoz_bot.domain.agent_protocol import Domain
 from namoz_bot.infrastructure.accounting import SqlAlchemyLedgerRepository
 from namoz_bot.infrastructure.agent_sessions import SqlAlchemyAgentStore
 from namoz_bot.infrastructure.ai.gemini_client import GeminiClient
-from namoz_bot.infrastructure.ai.model_catalog import ModelCatalog
 from namoz_bot.infrastructure.ai.result_reviewer import GeminiResultReviewer
 from namoz_bot.infrastructure.ai.role_interpreter import GeminiRoleInterpreter
 from namoz_bot.infrastructure.ai.transcription import GeminiTranscriber
@@ -78,6 +76,7 @@ from namoz_bot.infrastructure.repositories import (
     SqlAlchemySubscriptionRepository,
 )
 from namoz_bot.infrastructure.telegram import TelegramMessageSender, TelegramRateLimiter
+from namoz_bot.infrastructure.workforce.bootstrap import build_profile_service
 from namoz_bot.infrastructure.workforce.outbox import SqlAlchemyTaskOutbox
 from namoz_bot.infrastructure.workforce.profiles import SqlAlchemyProfileRepository
 from namoz_bot.infrastructure.workforce.queue import SqlAlchemyTaskQueue
@@ -185,30 +184,7 @@ def create_application(settings: Settings) -> ApplicationResources:
     access = AccessService(profiles, role_registry)
     dispatcher["access_service"] = access
     dispatcher["profile_repository"] = profiles
-    base_role_model = settings.gemini_main_agent_model or settings.gemini_voice_model
-    defaults = {r.id: base_role_model for r in role_registry.all()}
-    defaults.update(
-        {
-            r: m
-            for r, m in {
-                "prayer": settings.gemini_prayer_agent_model,
-                "nasihat": settings.gemini_nasihat_agent_model,
-                "reminder": settings.gemini_reminder_agent_model,
-                "accounting": settings.gemini_accounting_agent_model,
-                "settings": settings.gemini_settings_agent_model,
-            }.items()
-            if m
-        }
-    )
-    transport = (
-        GeminiClient(http_client, api_key=settings.gemini_api_key)
-        if settings.gemini_api_key
-        else None
-    )
-    catalog = ModelCatalog(
-        transport, tuple(dict.fromkeys((*settings.gemini_allowed_models, *defaults.values())))
-    )
-    profile_service = ProfileService(profiles, role_registry, catalog, default_models=defaults)
+    profile_service = build_profile_service(settings, profiles, http_client)
     dispatcher["profile_service"] = profile_service
     main_agent = None
     menu_agents: dict[Domain, MenuAgent] = {}
