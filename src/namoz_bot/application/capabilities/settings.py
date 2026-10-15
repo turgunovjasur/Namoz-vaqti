@@ -25,6 +25,7 @@ def definitions() -> tuple[CapabilitySpec, ...]:
             "settings",
             "set_daily",
             "write",
+            correction_id="settings.set_daily",
         ),
         background(
             "settings.deliver_daily",

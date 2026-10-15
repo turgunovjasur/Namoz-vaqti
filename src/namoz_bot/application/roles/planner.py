@@ -27,6 +27,7 @@ ROLE = define_role(
     "Shaxsiy eslatmalarni yaratish va boshqarish.",
     INSTRUCTION,
     (
+        "reminder.update",
         "reminder.create",
         "reminder.list",
         "reminder.delete",

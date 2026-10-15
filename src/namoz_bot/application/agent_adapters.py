@@ -10,10 +10,11 @@ from pydantic import JsonValue
 from namoz_bot.application.agent_sessions import AgentTransaction
 from namoz_bot.application.religious_reminders import ReligiousReminderService
 from namoz_bot.application.schedules import ScheduleService, apply_offsets, format_schedule
-from namoz_bot.domain.accounting import AccountingRequest
+from namoz_bot.domain.accounting import AccountingRequest, Category
 from namoz_bot.domain.agent_protocol import AgentRequest, AgentResult
 from namoz_bot.domain.models import PrayerKey
 from namoz_bot.domain.reminders import TASHKENT, ReminderSpec, parse_time
+from namoz_bot.domain.workforce.corrections import FinanceCorrection, ReminderCorrection
 
 HELP_TEXT = (
     "Xabaringizni yozing yoki ovozli yuboring:\n"
@@ -59,7 +60,7 @@ def accounting_request(request: AgentRequest) -> AccountingRequest:
     return AccountingRequest.model_validate(
         {
             "transcript": request.transcript,
-            "intent": request.action,
+            "intent": p.get("intent") if request.action == "correct" else request.action,
             "amount": p.get("amount"),
             "currency": p.get("currency") or "UZS",
             "category": p.get("category"),
@@ -83,6 +84,27 @@ class AgentAdapters:
 
     async def prepare(self, request: AgentRequest) -> AgentResult:
         p = request.parameters
+        if request.action in {"correct", "update"}:
+            missing = [f for f in ("target_id", "expected_record_revision") if p.get(f) is None]
+            if missing:
+                return result(
+                    request,
+                    "needs_input",
+                    missing_fields=missing,
+                    question="Tuzatish uchun avvalgi natijadagi «Yo‘q»ni bosing.",
+                )
+            base_action = str(p.get("intent")) if request.action == "correct" else "create"
+            clean = {
+                k: v
+                for k, v in p.items()
+                if k not in {"target_id", "expected_record_revision", "intent"}
+            }
+            draft = await self.prepare(
+                request.model_copy(update={"action": base_action, "parameters": clean})
+            )
+            if draft.status in {"needs_input", "unsupported", "error"}:
+                return draft.model_copy(update={"action": request.action})
+            return result(request)
         if request.domain == "reminder" and request.action == "create":
             missing = [field for field in ("text", "time", "kind") if not p.get(field)]
             if p.get("kind") == "once" and not p.get("date"):
@@ -177,6 +199,49 @@ class AgentAdapters:
     async def execute(self, request: AgentRequest, transaction: AgentTransaction) -> AgentResult:
         user = request.context.user_id
         p = request.parameters
+        if request.action == "correct" and request.domain == "accounting":
+            entry = await transaction.ledger.correct(
+                user,
+                FinanceCorrection(
+                    int(str(p["target_id"])),
+                    int(str(p["expected_record_revision"])),
+                    accounting_request(request),
+                ),
+                f"agent:{request.operation_id}",
+                request.context.message_time,
+            )
+            return result(
+                request,
+                effect="committed",
+                data=json_data(
+                    {
+                        **asdict(entry),
+                        "entry_id": entry.id,
+                        "balance": await transaction.ledger.balance(user),
+                    }
+                ),
+            )
+        if request.action == "update" and request.domain == "reminder":
+            reminder = await transaction.reminders.update(
+                user,
+                ReminderCorrection(
+                    int(str(p["target_id"])),
+                    int(str(p["expected_record_revision"])),
+                    reminder_spec(request),
+                ),
+                f"agent:{request.operation_id}",
+            )
+            return result(
+                request,
+                effect="committed",
+                data={
+                    "reminder_id": reminder.id,
+                    "text": reminder.spec.text,
+                    "time": reminder.spec.at.strftime("%H:%M"),
+                    "schedule": reminder.spec.schedule_label(),
+                    "record_revision": reminder.record_revision,
+                },
+            )
         if request.domain == "accounting":
             ledger = transaction.ledger
             if request.action in {"income", "expense"}:
@@ -201,7 +266,9 @@ class AgentAdapters:
                 return result(request, data={"balance": await ledger.balance(user)})
             if request.action == "report":
                 period = accounting_request(request).period(request.context.message_time)
-                summary = await ledger.summary(user, period)
+                summary = await ledger.summary(
+                    user, period, category=cast(Category | None, p.get("category"))
+                )
                 return result(
                     request,
                     data=json_data(
@@ -238,6 +305,7 @@ class AgentAdapters:
                     effect="committed",
                     data={
                         "reminder_id": reminder.id,
+                        "record_revision": reminder.record_revision,
                         "text": reminder.spec.text,
                         "time": reminder.spec.at.strftime("%H:%M"),
                         "schedule": reminder.spec.schedule_label(),

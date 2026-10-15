@@ -31,6 +31,8 @@ class CapabilitySpec(BaseModel):
     effect: Literal["read", "write", "generate"]
     entrypoints: tuple[Literal["conversation", "background"], ...] = ("conversation",)
     routes: tuple[LegacyRoute, ...] = ()
+    requires_result: bool = False
+    correction_id: str | None = None
 
     def validate_parameters(self, parameters: dict[str, JsonValue]) -> dict[str, JsonValue]:
         checked = self.parameters_model.model_validate(parameters).model_dump(
@@ -49,5 +51,6 @@ class CapabilitySelection(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid", strict=True)
     role_id: str = Field(pattern=r"^[a-z][a-z0-9_]*$", max_length=32)
     capability_id: str = Field(max_length=64)
+    continuation: bool = False
     question: str | None = Field(default=None, max_length=500)
     parameters: dict[str, JsonValue] = Field(default_factory=dict)

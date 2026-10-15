@@ -5,16 +5,28 @@ from datetime import date, datetime
 from typing import Protocol
 
 from namoz_bot.application.workforce.authorization import authorized
-from namoz_bot.domain.accounting import AccountingRequest, LedgerEntry, LedgerSpec, LedgerSummary
+from namoz_bot.domain.accounting import (
+    AccountingRequest,
+    Category,
+    LedgerEntry,
+    LedgerSpec,
+    LedgerSummary,
+)
 from namoz_bot.domain.errors import ExternalServiceError
+from namoz_bot.domain.workforce.corrections import FinanceCorrection
 
 
 class LedgerRepository(Protocol):
+    async def correct(
+        self, user_id: int, correction: FinanceCorrection, source_key: str, now: datetime
+    ) -> LedgerEntry: ...
     async def find_for_user(self, user_id: int, text: str | None) -> list[LedgerEntry]: ...
     async def get_for_user(self, user_id: int, entry_id: int) -> LedgerEntry | None: ...
     async def create(self, user_id: int, spec: LedgerSpec, source_key: str) -> LedgerEntry: ...
     async def balance(self, user_id: int) -> int: ...
-    async def summary(self, user_id: int, month: date) -> LedgerSummary: ...
+    async def summary(
+        self, user_id: int, month: date, *, category: Category | None = None
+    ) -> LedgerSummary: ...
     async def history(self, user_id: int, *, offset: int, limit: int) -> list[LedgerEntry]: ...
     async def cancel(self, user_id: int, entry_id: int) -> bool: ...
 
@@ -56,8 +68,12 @@ class LedgerService:
         return await self._repository.balance(user_id)
 
     @authorized("finance.report")
-    async def summary(self, user_id: int, month: date) -> LedgerSummary:
-        return await self._repository.summary(user_id, month.replace(day=1))
+    async def summary(
+        self, user_id: int, month: date, *, category: Category | None = None
+    ) -> LedgerSummary:
+        return await self._repository.summary(
+            user_id, month.replace(day=1), **({"category": category} if category else {})
+        )
 
     @authorized("finance.history")
     async def history(self, user_id: int, page: int) -> tuple[list[LedgerEntry], bool]:
@@ -77,3 +93,9 @@ class LedgerService:
     @authorized("finance.undo")
     async def find(self, user_id: int, text: str | None) -> list[LedgerEntry]:
         return await self._repository.find_for_user(user_id, text)
+
+    @authorized("finance.correct")
+    async def correct(
+        self, user_id: int, correction: FinanceCorrection, source_key: str, now: datetime
+    ) -> LedgerEntry:
+        return await self._repository.correct(user_id, correction, source_key, now)

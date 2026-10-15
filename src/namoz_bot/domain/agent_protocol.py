@@ -49,7 +49,14 @@ class FinanceParameters(StrictModel):
     _date = field_validator("date")(_valid_date)
 
 
+class FinanceCorrectionParameters(FinanceParameters):
+    target_id: int | None = Field(default=None, gt=0)
+    expected_record_revision: int | None = Field(default=None, ge=0)
+    intent: Literal["income", "expense"] | None = None
+
+
 class ReportParameters(StrictModel):
+    category: Category | None = None
     month: str | None = None
     report_type: Literal["summary", "income", "expense", "salary"] = "summary"
 
@@ -91,6 +98,11 @@ class ReminderParameters(StrictModel):
         if self.weekdays and self.kind not in {None, "weekly"}:
             raise ValueError("Weekdays conflict with recurrence")
         return self
+
+
+class ReminderUpdateParameters(ReminderParameters):
+    target_id: int | None = Field(default=None, gt=0)
+    expected_record_revision: int | None = Field(default=None, ge=0)
 
 
 class ScheduleParameters(StrictModel):
@@ -157,6 +169,8 @@ ACTION_MODELS: dict[tuple[str, str], type[StrictModel]] = {
     ("reminder", "list"): ListParameters,
     ("reminder", "open_delete"): EmptyParameters,
     ("reminder", "delete"): TargetParameters,
+    ("accounting", "correct"): FinanceCorrectionParameters,
+    ("reminder", "update"): ReminderUpdateParameters,
     ("accounting", "income"): FinanceParameters,
     ("accounting", "expense"): FinanceParameters,
     ("accounting", "balance"): EmptyParameters,
@@ -180,6 +194,8 @@ def menu_actions(domain: Domain) -> tuple[str, ...]:
         if owner == domain
         and (owner, action)
         not in {
+            ("accounting", "correct"),
+            ("reminder", "update"),
             ("prayer", "religious_excerpt"),
             ("reminder", "open_delete"),
         }

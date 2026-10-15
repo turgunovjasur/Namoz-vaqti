@@ -9,11 +9,15 @@ from namoz_bot.application.ports import DeliveryAccess, MessageSender
 from namoz_bot.application.workforce.authorization import authorized
 from namoz_bot.domain.errors import RecipientBlockedError
 from namoz_bot.domain.reminders import Reminder, ReminderDelivery, ReminderSpec
+from namoz_bot.domain.workforce.corrections import ReminderCorrection
 
 logger = logging.getLogger(__name__)
 
 
 class ReminderRepository(Protocol):
+    async def update(
+        self, user_id: int, correction: ReminderCorrection, source_key: str, now: datetime
+    ) -> Reminder: ...
     async def find_for_user(self, user_id: int, text: str) -> list[Reminder]: ...
     async def create(
         self, user_id: int, chat_id: int, spec: ReminderSpec, token: str, now: datetime
@@ -102,3 +106,9 @@ class ReminderService:
                         await self.repository.finish(delivery, "sent")
                 except Exception:
                     logger.exception("reminder_persistence_failed id=%s", delivery.id)
+
+    @authorized("reminder.update")
+    async def update(
+        self, user_id: int, correction: ReminderCorrection, source_key: str
+    ) -> Reminder:
+        return await self.repository.update(user_id, correction, source_key, self.now())

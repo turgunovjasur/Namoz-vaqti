@@ -30,6 +30,8 @@ class TaskExecutionService:
         selection = self.access.roles.validate_selection(plan.selection)
         await self.access.require(plan.context.user_id, selection.role_id, selection.capability_id)
         capability = self.capabilities.get(selection.capability_id)
+        if capability.spec.requires_result and plan.parent_revision is None:
+            raise ValueError("Correction is not bound to a result")
         view = selection.parameters.get("view")
         route = next(
             (r for r in capability.spec.routes if r.view == view), capability.spec.routes[0]

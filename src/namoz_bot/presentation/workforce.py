@@ -14,7 +14,7 @@ from namoz_bot.application.main_agent import MainAgent
 from namoz_bot.application.voice_approval import VoiceApproval
 from namoz_bot.application.voice_reminders import MAX_VOICE_BYTES, MAX_VOICE_SECONDS
 from namoz_bot.application.workforce.assistant import AssistantService
-from namoz_bot.domain.workforce.tasks import TaskMessage
+from namoz_bot.domain.workforce.tasks import TaskConflict, TaskMessage
 from namoz_bot.infrastructure.telegram import task_markup
 from namoz_bot.presentation.handlers import HandlerServices, handle_start
 from namoz_bot.presentation.keyboards import HELP_LABEL, build_main_menu
@@ -174,13 +174,25 @@ class WorkforceController:
             update={"from_user": callback.from_user, "date": datetime.now(UTC)}
         )
         context = await agent_context(source, handler_services)
-        reply = await self.assistant.approve(
-            context,
-            f"wf:{context.bot_id}:c:{callback.id}",
-            parts[1],
-            int(parts[2]),
-            parts[3] == "y",
-        )
+        if parts[0] == "wff":
+            try:
+                reply = await self.assistant.feedback.rate(
+                    context=context,
+                    request_id=f"wff:{context.bot_id}:{callback.id}",
+                    task_id=parts[1],
+                    revision=int(parts[2]),
+                    accepted=parts[3] == "y",
+                )
+            except TaskConflict:
+                reply = TaskMessage(text="Bu natija kartasi eskirgan yoki sizga tegishli emas.")
+        else:
+            reply = await self.assistant.approve(
+                context,
+                f"wf:{context.bot_id}:c:{callback.id}",
+                parts[1],
+                int(parts[2]),
+                parts[3] == "y",
+            )
         await callback.answer()
         await self._send(callback.message, state, reply)
 
@@ -195,5 +207,7 @@ def build_workforce_router(assistant: AssistantService, legacy: MainAgent) -> Ro
     router.message.register(
         controller.receive, private, F.voice | F.text, ConversationInputFilter()
     )
-    router.callback_query.register(controller.callback, F.data.startswith("wf:"))
+    router.callback_query.register(
+        controller.callback, F.data.startswith("wf:") | F.data.startswith("wff:")
+    )
     return router

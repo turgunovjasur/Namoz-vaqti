@@ -50,6 +50,8 @@ def operation(
     effect: str,
     *,
     routes: tuple[LegacyRoute, ...] | None = None,
+    requires_result: bool = False,
+    correction_id: str | None = None,
 ) -> CapabilitySpec:
     return CapabilitySpec.model_validate(
         {
@@ -58,6 +60,8 @@ def operation(
             "description": description,
             "parameters_model": ACTION_MODELS[(domain, action)],
             "effect": effect,
+            "requires_result": requires_result,
+            "correction_id": correction_id,
             "routes": routes or (LegacyRoute(domain=domain, action=action),),
         }
     )

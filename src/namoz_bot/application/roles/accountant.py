@@ -30,6 +30,7 @@ ROLE = define_role(
     "Shaxsiy kirim, xarajat, balans va hisobotlar.",
     INSTRUCTION,
     (
+        "finance.correct",
         "finance.income",
         "finance.expense",
         "finance.balance",

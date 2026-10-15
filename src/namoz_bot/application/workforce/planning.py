@@ -40,6 +40,7 @@ class Manager:
         text: str,
         pending: TaskRevision | None,
         assistant_model: RoleModelSetting | None = None,
+        persist: bool = True,
     ) -> TaskPlan:
         if not 1 <= len(text.strip()) <= 2000:
             raise ValueError("Xabar 1–2000 belgidan iborat bo‘lsin.")
@@ -51,6 +52,10 @@ class Manager:
                         c
                         for c in r.capability_ids
                         if "conversation" in self.access.roles.capabilities.get(c).spec.entrypoints
+                        and (
+                            not self.access.roles.capabilities.get(c).spec.requires_result
+                            or bool(pending and pending.status == "awaiting_correction")
+                        )
                     )
                 }
             )
@@ -143,6 +148,8 @@ class Manager:
             review_instruction=REVIEW_INSTRUCTION,
             parent_revision=pending.plan.revision if followup and pending else None,
         )
+        if not persist:
+            return plan
         saved = await self.tasks.save_plan(
             plan, expected_revision=pending.plan.revision if followup and pending else None
         )

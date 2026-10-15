@@ -78,6 +78,8 @@ class CapabilityDispatcher:
 
     def _resolve(self, request: AgentRequest) -> Capability:
         capability = self.capabilities.for_request(request)
+        if capability.spec.requires_result:
+            raise ValueError("Correction requires a result-bound task")
         # V1 prayer religious excerpts retain their original request envelope.
         owner = (
             "nasihat"

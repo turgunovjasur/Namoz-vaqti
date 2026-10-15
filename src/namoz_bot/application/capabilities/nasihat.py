@@ -37,6 +37,7 @@ def definitions() -> tuple[CapabilitySpec, ...]:
             "nasihat",
             "set_interval",
             "write",
+            correction_id="nasihat.set_interval",
         ),
         background(
             "nasihat.deliver", "Avtomatik nasihat", "Sozlangan vaqtda kitobdan nasihat yuborish."

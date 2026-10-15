@@ -127,6 +127,8 @@ class LedgerEntry:
     period: calendar_date
     occurred_on: calendar_date | None
     cancelled: bool
+    record_revision: int = 0
+    supersedes_id: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -136,10 +138,16 @@ class LedgerSummary:
     expense: int
     salary: int
     opening_balance: int
+    category: str | None = None
+    account_closing_balance: int | None = None
 
     @property
     def closing_balance(self) -> int:
-        return self.opening_balance + self.income - self.expense
+        return (
+            self.account_closing_balance
+            if self.account_closing_balance is not None
+            else self.opening_balance + self.income - self.expense
+        )
 
 
 def format_money(amount: int) -> str:

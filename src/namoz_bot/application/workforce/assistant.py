@@ -3,6 +3,7 @@
 from collections.abc import Callable
 
 from namoz_bot.application.profiles.service import ProfileService
+from namoz_bot.application.workforce.feedback import FeedbackService
 from namoz_bot.application.workforce.planning import Manager
 from namoz_bot.application.workforce.ports import TaskStore, Transcriber
 from namoz_bot.domain.agent_protocol import AgentContext
@@ -33,6 +34,7 @@ class AssistantService:
             profiles,
             render_plan,
         )
+        self.feedback = FeedbackService(tasks, manager)
 
     def _reply(self, task: TaskRevision) -> TaskMessage:
         if task.status == "awaiting_approval":
@@ -80,13 +82,22 @@ class AssistantService:
                 )
             assert text is not None
             pending = await self.tasks.pending(context)
-            plan = await self.manager.plan(
-                context=context,
-                request_id=request_id,
-                text=text,
-                pending=pending,
-                assistant_model=assistant_model,
-            )
+            if pending and pending.status == "awaiting_correction":
+                plan = await self.feedback.correct(
+                    context=context,
+                    task_id=pending.plan.task_id,
+                    revision=pending.plan.revision,
+                    text=text,
+                    request_id=request_id,
+                )
+            else:
+                plan = await self.manager.plan(
+                    context=context,
+                    request_id=request_id,
+                    text=text,
+                    pending=pending,
+                    assistant_model=assistant_model,
+                )
             return self._reply(await self.tasks.get_owned(plan.task_id, context))
         except (ClarificationRequired, AccessDenied) as exc:
             return TaskMessage(text=str(exc))

@@ -80,6 +80,7 @@ class Reminder:
     spec: ReminderSpec
     next_due: datetime | None
     status: str
+    record_revision: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,3 +90,4 @@ class ReminderDelivery:
     user_id: int
     chat_id: int
     text: str
+    record_revision: int = 0

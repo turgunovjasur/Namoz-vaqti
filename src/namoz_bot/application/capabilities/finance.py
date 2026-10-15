@@ -6,8 +6,23 @@ from namoz_bot.domain.workforce.capabilities import CapabilitySpec
 
 def definitions() -> tuple[CapabilitySpec, ...]:
     return tuple(
-        operation(f"finance.{action}", name, description, "accounting", action, effect)
+        operation(
+            f"finance.{action}",
+            name,
+            description,
+            "accounting",
+            action,
+            effect,
+            correction_id="finance.correct" if action in {"income", "expense", "correct"} else None,
+            requires_result=action == "correct",
+        )
         for action, name, description, effect in (
+            (
+                "correct",
+                "Yozuvni tuzatish",
+                "Asl yozuvga bog‘lab tasdiqlangan moliyaviy tuzatish.",
+                "write",
+            ),
             ("income", "Kirim yozish", "Amalga oshgan kirimni hisobga yozish.", "write"),
             ("expense", "Xarajat yozish", "Amalga oshgan xarajatni hisobga yozish.", "write"),
             ("balance", "Balans", "Shaxsiy hisobning joriy balansini ko‘rish.", "read"),

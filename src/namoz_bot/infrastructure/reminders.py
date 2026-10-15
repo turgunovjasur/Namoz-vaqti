@@ -1,5 +1,6 @@
 """Durable reminder storage and atomic occurrence reservations."""
 
+from dataclasses import asdict
 from datetime import UTC, date, datetime
 
 from sqlalchemy import and_, case, delete, or_, select, update
@@ -8,8 +9,10 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from namoz_bot.domain.reminders import Reminder, ReminderDelivery, ReminderSpec, parse_time
+from namoz_bot.domain.workforce.corrections import CorrectionConflict, ReminderCorrection
 from namoz_bot.infrastructure.orm import ReminderDeliveryRecord, ReminderRecord
 from namoz_bot.infrastructure.session_scope import session_scope
+from namoz_bot.infrastructure.workforce.corrections import audit_correction, existing_correction
 
 
 def _spec(row: ReminderRecord) -> ReminderSpec:
@@ -21,7 +24,7 @@ def _entity(row: ReminderRecord) -> Reminder:
     due = row.next_due
     if due is not None and due.tzinfo is None:
         due = due.replace(tzinfo=UTC)
-    return Reminder(row.id, row.user_id, _spec(row), due, row.status)
+    return Reminder(row.id, row.user_id, _spec(row), due, row.status, row.record_revision)
 
 
 class SqlAlchemyReminderRepository:
@@ -145,11 +148,15 @@ class SqlAlchemyReminderRepository:
                 )
                 if won is None:
                     continue
-                delivery = ReminderDeliveryRecord(reminder_id=row.id, scheduled_at=due)
+                delivery = ReminderDeliveryRecord(
+                    reminder_id=row.id, scheduled_at=due, record_revision=row.record_revision
+                )
                 session.add(delivery)
                 await session.flush()
                 claimed.append(
-                    ReminderDelivery(delivery.id, row.id, row.user_id, row.chat_id, row.text)
+                    ReminderDelivery(
+                        delivery.id, row.id, row.user_id, row.chat_id, row.text, row.record_revision
+                    )
                 )
         return claimed
 
@@ -195,6 +202,8 @@ class SqlAlchemyReminderRepository:
                         ReminderRecord.id == delivery.reminder_id,
                         ReminderRecord.user_id == delivery.user_id,
                         ReminderDeliveryRecord.status == "pending",
+                        ReminderRecord.record_revision == delivery.record_revision,
+                        ReminderDeliveryRecord.record_revision == delivery.record_revision,
                     )
                 )
                 is not None
@@ -204,20 +213,45 @@ class SqlAlchemyReminderRepository:
         self, delivery: ReminderDelivery, status: str, error: str | None = None
     ) -> None:
         async with session_scope(self._factory, self._session, write=True) as session:
-            # Use the same parent-before-ledger lock order as delete_for_user.
-            await session.execute(
-                update(ReminderRecord)
-                .where(
-                    ReminderRecord.id == delivery.reminder_id,
-                    ReminderRecord.status == "processing",
-                )
-                .values(status="completed" if status == "sent" else "failed")
+            parent = await session.scalar(
+                select(ReminderRecord)
+                .where(ReminderRecord.id == delivery.reminder_id)
+                .with_for_update()
             )
-            await session.execute(
+            occurrence = await session.get(ReminderDeliveryRecord, delivery.id)
+            if (
+                parent is None
+                or occurrence is None
+                or occurrence.status != "pending"
+                or parent.record_revision != delivery.record_revision
+                or occurrence.record_revision != delivery.record_revision
+            ):
+                return
+            # Conditional updates also tolerate SQLite deleting the row after
+            # the reads above (its SELECT FOR UPDATE does not acquire a lock).
+            won = await session.scalar(
                 update(ReminderDeliveryRecord)
-                .where(ReminderDeliveryRecord.id == delivery.id)
+                .where(
+                    ReminderDeliveryRecord.id == delivery.id,
+                    ReminderDeliveryRecord.reminder_id == delivery.reminder_id,
+                    ReminderDeliveryRecord.status == "pending",
+                    ReminderDeliveryRecord.record_revision == delivery.record_revision,
+                )
                 .values(status=status, error_code=error[:100] if error else None)
+                .returning(ReminderDeliveryRecord.id)
+                .execution_options(synchronize_session=False)
             )
+            if won is not None:
+                await session.execute(
+                    update(ReminderRecord)
+                    .where(
+                        ReminderRecord.id == delivery.reminder_id,
+                        ReminderRecord.record_revision == delivery.record_revision,
+                        ReminderRecord.status == "processing",
+                    )
+                    .values(status="completed" if status == "sent" else "failed")
+                    .execution_options(synchronize_session=False)
+                )
 
     async def pause_user(self, user_id: int) -> None:
         async with session_scope(self._factory, self._session, write=True) as session:
@@ -229,3 +263,61 @@ class SqlAlchemyReminderRepository:
                 )
                 .values(status="paused")
             )
+
+    async def update(
+        self, user_id: int, correction: ReminderCorrection, source_key: str, now: datetime
+    ) -> Reminder:
+        spec = correction.replacement
+        due = spec.next_after(now)
+        async with session_scope(self._factory, self._session, write=True) as session:
+            from namoz_bot.infrastructure.workforce.profiles import lock_owner
+
+            await lock_owner(session, user_id)
+            receipt = await existing_correction(
+                session, user_id, source_key, "reminder", correction.original_reminder_id
+            )
+            row = await session.scalar(
+                select(ReminderRecord)
+                .where(
+                    ReminderRecord.id == correction.original_reminder_id,
+                    ReminderRecord.user_id == user_id,
+                )
+                .with_for_update()
+            )
+            if row is None:
+                raise CorrectionConflict("Original reminder missing")
+            if receipt:
+                return _entity(row)
+            if row.record_revision != correction.expected_record_revision:
+                raise CorrectionConflict("Reminder changed; confirm again")
+            before = asdict(_entity(row))
+            row.text, row.at, row.kind, row.on_date = (
+                spec.text,
+                spec.at.strftime("%H:%M"),
+                spec.kind,
+                spec.on_date,
+            )
+            row.weekdays_mask = sum(1 << day for day in spec.weekdays) or None
+            row.next_due, row.status = due, "active"
+            row.record_revision += 1
+            await session.execute(
+                update(ReminderDeliveryRecord)
+                .where(
+                    ReminderDeliveryRecord.reminder_id == row.id,
+                    ReminderDeliveryRecord.status == "pending",
+                )
+                .values(status="superseded")
+            )
+            await session.flush()
+            value = _entity(row)
+            audit_correction(
+                session,
+                user_id=user_id,
+                source_key=source_key,
+                kind="reminder",
+                original_id=row.id,
+                replacement_id=row.id,
+                before=before,
+                after=asdict(value),
+            )
+            return value

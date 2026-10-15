@@ -22,6 +22,7 @@ class RouteResponse(BaseModel):
 
 
 class SpecialistResponse(BaseModel):
+    continuation: bool = False
     model_config = ConfigDict(extra="forbid", strict=True)
     capability_id: str | None
     parameters: dict[str, JsonValue] = Field(default_factory=dict)
@@ -74,6 +75,10 @@ def safe_context(context: AgentContext, pending: TaskRevision | None) -> dict[st
         "language": context.language,
         "pending": {
             "selection": pending.plan.selection.model_dump(mode="json"),
+            "status": pending.status,
+            "evidence": pending.service_result.model_dump(mode="json")
+            if pending.service_result
+            else None,
             "question": pending.plan.question,
             "feedback": pending.feedback,
         }
@@ -169,6 +174,9 @@ class GeminiRoleInterpreter:
         payload = await self.transport.generate_json(
             model=model,
             instruction=role.instruction
+            + "\nPending.status=awaiting_correction bo‘lsa oldingi natijadagi xatoni "
+            "tuzatish continuation=true; "
+            "mustaqil yangi so‘rov continuation=false. Noaniq bo‘lsa question ber. "
             + "\nPROTOCOL 2: faqat capability_id, parameters, question JSON. "
             "Faqat berilgan imkoniyatni tanla, qolganini rad et. Avvalgi "
             "domain/action envelope qaytarma. "
@@ -178,6 +186,7 @@ class GeminiRoleInterpreter:
             schema={
                 "type": "OBJECT",
                 "properties": {
+                    "continuation": {"type": "BOOLEAN"},
                     "capability_id": {
                         "type": "STRING",
                         "enum": [c.id for c in capabilities],
@@ -186,7 +195,16 @@ class GeminiRoleInterpreter:
                     **({"parameters": {"type": "OBJECT", "properties": fields}} if fields else {}),
                     "question": {"type": "STRING", "nullable": True},
                 },
-                "required": ["capability_id", "question", *(["parameters"] if fields else [])],
+                "required": [
+                    "capability_id",
+                    "question",
+                    *(["parameters"] if fields else []),
+                    *(
+                        ["continuation"]
+                        if pending and pending.status == "awaiting_correction"
+                        else []
+                    ),
+                ],
             },
             parts=[
                 {
@@ -204,6 +222,8 @@ class GeminiRoleInterpreter:
                 }
             ],
         )
+        if pending and pending.status == "awaiting_correction" and "continuation" not in payload:
+            raise ValueError("Correction relation must be explicit")
         output = SpecialistResponse.model_validate(payload)
         if output.capability_id is None:
             raise ClarificationRequired(output.question or "Bu rolga mos buyruqni aniqlashtiring.")
@@ -212,5 +232,9 @@ class GeminiRoleInterpreter:
             raise AccessDenied("Capability is not granted")
         params = chosen.validate_parameters(output.parameters)
         return CapabilitySelection(
-            role_id=role.id, capability_id=chosen.id, parameters=params, question=output.question
+            role_id=role.id,
+            capability_id=chosen.id,
+            parameters=params,
+            question=output.question,
+            continuation=output.continuation,
         )

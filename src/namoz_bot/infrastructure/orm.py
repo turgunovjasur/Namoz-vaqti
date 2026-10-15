@@ -131,6 +131,7 @@ class ReminderRecord(Base):
         {"sqlite_autoincrement": True},
     )
 
+    record_revision: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     chat_id: Mapped[int] = mapped_column(BigInteger)
@@ -152,6 +153,7 @@ class ReminderDeliveryRecord(Base):
         {"sqlite_autoincrement": True},
     )
 
+    record_revision: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     reminder_id: Mapped[int] = mapped_column(ForeignKey("reminders.id", ondelete="CASCADE"))
     scheduled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
@@ -170,6 +172,10 @@ class FinanceEntryRecord(Base):
         {"sqlite_autoincrement": True},
     )
 
+    record_revision: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    supersedes_id: Mapped[int | None] = mapped_column(
+        ForeignKey("finance_entries.id"), nullable=True
+    )
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     kind: Mapped[str] = mapped_column(String(10))
@@ -310,3 +316,17 @@ class WorkforceUpdateRecord(Base):
     task_id: Mapped[str] = mapped_column(String(20))
     revision: Mapped[int] = mapped_column(Integer)
     action: Mapped[str] = mapped_column(String(16))
+
+
+class CorrectionAuditRecord(Base):
+    __tablename__ = "workforce_correction_audit"
+    __table_args__ = (UniqueConstraint("user_id", "source_key", name="uq_correction_source"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    source_key: Mapped[str] = mapped_column(String(64))
+    kind: Mapped[str] = mapped_column(String(16))
+    original_id: Mapped[int] = mapped_column(Integer)
+    replacement_id: Mapped[int] = mapped_column(Integer)
+    before: Mapped[dict[str, JsonValue]] = mapped_column(JSON)
+    after: Mapped[dict[str, JsonValue]] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

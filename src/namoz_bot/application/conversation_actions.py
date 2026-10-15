@@ -284,7 +284,9 @@ class ConversationAdapters(AgentAdapters):
                 effect="committed",
                 data={
                     "text": f"✅ {prayer.capitalize()} farqi "
-                    f"{offset_user.offsets.value_for(prayer):+d} daqiqa."
+                    f"{offset_user.offsets.value_for(prayer):+d} daqiqa.",
+                    "minutes": offset_user.offsets.value_for(prayer),
+                    "prayer": prayer,
                 },
             )
         if action == "reset_offsets":

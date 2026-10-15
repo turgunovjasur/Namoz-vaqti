@@ -7,12 +7,23 @@ from namoz_bot.domain.workforce.capabilities import CapabilitySpec, LegacyRoute
 def definitions() -> tuple[CapabilitySpec, ...]:
     return (
         operation(
+            "reminder.update",
+            "Eslatmani tahrirlash",
+            "Asl eslatma matni yoki vaqtini tasdiqlab yangilash.",
+            "reminder",
+            "update",
+            "write",
+            requires_result=True,
+            correction_id="reminder.update",
+        ),
+        operation(
             "reminder.create",
             "Eslatma yaratish",
             "Shaxsiy eslatma yaratish.",
             "reminder",
             "create",
             "write",
+            correction_id="reminder.update",
         ),
         operation(
             "reminder.list",

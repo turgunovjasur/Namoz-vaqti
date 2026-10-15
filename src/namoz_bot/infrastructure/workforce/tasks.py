@@ -439,3 +439,50 @@ class SqlAlchemyTaskStore:
                 return False
             row.review_attempts += 1
             return True
+
+    async def rate(
+        self, context: AgentContext, task_id: str, revision: int, accepted: bool, request_id: str
+    ) -> None:
+        async with self.factory.begin() as session:
+            await lock_owner(session, context.user_id)
+            task = await self._owned(session, task_id, context, lock=True)
+            if task.revision != revision:
+                raise TaskConflict("Old feedback revision")
+            previous = await session.get(
+                WorkforceUpdateRecord, (context.user_id, context.bot_id, request_id)
+            )
+            action = "feedback_yes" if accepted else "feedback_no"
+            if previous:
+                if (previous.task_id, previous.revision, previous.action) != (
+                    task_id,
+                    revision,
+                    action,
+                ):
+                    raise TaskConflict("Update used")
+                return
+            if task.status != "awaiting_feedback":
+                raise TaskConflict("Feedback already processed")
+            row = await session.get(WorkforceRevisionRecord, (task_id, revision))
+            assert row is not None
+            row.status = task.status = "done" if accepted else "awaiting_correction"
+            row.feedback = "accepted" if accepted else "correction_requested"
+            session.add(
+                WorkforceUpdateRecord(
+                    user_id=context.user_id,
+                    bot_id=context.bot_id,
+                    request_id=request_id,
+                    task_id=task_id,
+                    revision=revision,
+                    action=action,
+                )
+            )
+
+    async def abandon_correction(self, context: AgentContext, task_id: str, revision: int) -> None:
+        async with self.factory.begin() as session:
+            await lock_owner(session, context.user_id)
+            task = await self._owned(session, task_id, context, lock=True)
+            if task.revision == revision and task.status == "awaiting_correction":
+                row = await session.get(WorkforceRevisionRecord, (task_id, revision))
+                assert row is not None
+                row.status = task.status = "done"
+                row.feedback = "correction_abandoned_for_new_request"

@@ -166,16 +166,26 @@ def render_result(output: AgentResult, *, legacy: bool = False) -> str:
         )
     if output.status == "cancelled":
         return str(data.get("text") or "Vazifa yakunlangan yoki bekor qilingan.")
-    if output.domain == "prayer" and data.get("prayer"):
+    if output.domain == "prayer" and data.get("prayer") and data.get("time"):
         return (
             f"🕌 {PRAYER_LABELS[cast(PrayerKey, data['prayer'])]}: {data['time']}\n"
             f"📍 {data['region']} · {data['date']}\nManba: namoz-vaqti.uz"
         )
-    if output.domain == "reminder" and output.action == "create" and output.status == "done":
+    if (
+        output.domain == "reminder"
+        and output.action in {"create", "update"}
+        and output.status == "done"
+    ):
         return f"✅ Eslatma saqlandi.\n📝 {data['text']}\n🕒 {data['time']}\n📅 {data['schedule']}"
     if data.get("text"):
         return str(data["text"])
     if output.domain == "accounting":
+        if output.action == "correct":
+            return (
+                f"✅ Yozuv tuzatildi: #{data['entry_id']}\n{data['description']} — "
+                f"{format_money(int(str(data['amount'])))}\n"
+                f"Balans: {format_money(int(str(data['balance'])))}"
+            )
         if output.action in {"income", "expense"}:
             label = "Kirim" if output.action == "income" else ("Chiqim" if legacy else "Xarajat")
             if data.get("cancelled"):
@@ -196,11 +206,19 @@ def render_result(output: AgentResult, *, legacy: bool = False) -> str:
             kind = data.get("report_type", "summary")
             parts = {"income": "Kirim", "expense": "Xarajat", "salary": "Oylik"}
             report_lines = [f"📊 Hisobot: {str(data['month'])[:7]}"]
+            if data.get("category"):
+                report_lines.append(
+                    f"Kategoriya: {CATEGORY_LABELS[str(data['category'])]} "
+                    "(faqat shu kategoriya jamlari)"
+                )
             for field, label in parts.items():
                 if kind == "summary" or kind == field:
                     report_lines.append(f"{label}: {format_money(int(str(data[field])))}")
             closing_balance = format_money(int(str(data["closing_balance"])))
-            report_lines.append(f"Oy oxiridagi balans: {closing_balance}")
+            balance_label = (
+                "Hisobning haqiqiy balansi" if data.get("category") else "Oy oxiridagi balans"
+            )
+            report_lines.append(f"{balance_label}: {closing_balance}")
             return "\n".join(report_lines)
     if output.action in {"list", "history"}:
         rows = cast(list[dict[str, JsonValue]], data.get("entries", []))
