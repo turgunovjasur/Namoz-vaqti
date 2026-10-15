@@ -23,7 +23,7 @@ def test_menu_agents_version_and_models_are_configurable():
     assert settings.gemini_accounting_agent_model == "finance-model"
 
 
-@pytest.mark.parametrize("value", [0, 3, -1, "other"])
+@pytest.mark.parametrize("value", [0, 4, -1, "other"])
 def test_menu_agent_version_rejects_unknown_values(value):
     with pytest.raises(ValidationError):
         Settings(
