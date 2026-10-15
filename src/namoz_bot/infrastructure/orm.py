@@ -40,6 +40,8 @@ class UserRecord(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     telegram_user_id: Mapped[int] = mapped_column(BigInteger, unique=True, index=True)
+    display_name: Mapped[str | None] = mapped_column(String(256))
+    username: Mapped[str | None] = mapped_column(String(64))
     chat_id: Mapped[int] = mapped_column(BigInteger)
     region_code: Mapped[str] = mapped_column(String(100), default="Toshkent")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
@@ -330,3 +332,17 @@ class CorrectionAuditRecord(Base):
     before: Mapped[dict[str, JsonValue]] = mapped_column(JSON)
     after: Mapped[dict[str, JsonValue]] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class AdminLoginTicketRecord(Base):
+    __tablename__ = "admin_login_tickets"
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+
+class AdminWebSessionRecord(Base):
+    __tablename__ = "admin_web_sessions"
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)

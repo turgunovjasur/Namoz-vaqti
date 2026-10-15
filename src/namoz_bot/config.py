@@ -2,6 +2,7 @@
 
 from datetime import time
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -40,6 +41,28 @@ class Settings(BaseSettings):
     admin_telegram_ids: frozenset[int] = Field(
         default=frozenset(), validation_alias="ADMIN_TELEGRAM_IDS"
     )
+
+    admin_web_url: str = Field(default="http://127.0.0.1:8088", validation_alias="ADMIN_WEB_URL")
+
+    @field_validator("admin_web_url")
+    @classmethod
+    def validate_admin_url(cls, value: str) -> str:
+        url = urlsplit(value)
+        if (
+            url.username
+            or url.password
+            or url.query
+            or url.fragment
+            or url.path not in ("", "/")
+            or not url.hostname
+            or url.scheme not in ("http", "https")
+            or (url.scheme == "http" and url.hostname not in ("localhost", "127.0.0.1", "::1"))
+        ):
+            raise ValueError(
+                "ADMIN_WEB_URL must be HTTPS or loopback HTTP, without path or secrets"
+            )
+        _ = url.port
+        return value.rstrip("/")
 
     main_agent_enabled: bool = Field(default=True, validation_alias="MAIN_AGENT_ENABLED")
     main_agent_version: int = Field(default=3, ge=1, le=3, validation_alias="MAIN_AGENT_VERSION")

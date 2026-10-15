@@ -19,9 +19,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+admin = ["fastapi>=0.115,<1", "uvicorn>=0.34,<1"]
 books = ["pdfplumber>=0.11,<1"]
 dev = [
   "aiosqlite>=0.21,<1",
+  "fastapi>=0.115,<1",
+  "uvicorn>=0.34,<1",
   "mypy>=1.17,<2",
   "pytest>=8.4,<9",
   "pytest-asyncio>=1.1,<2",

@@ -1,7 +1,5 @@
 """Shared profile model configuration for Telegram and web entrypoints."""
 
-import httpx
-
 from namoz_bot.application.profiles.service import ProfileService
 from namoz_bot.config import Settings
 from namoz_bot.infrastructure.ai.gemini_client import GeminiClient
@@ -10,7 +8,7 @@ from namoz_bot.infrastructure.workforce.profiles import SqlAlchemyProfileReposit
 
 
 def build_profile_service(
-    settings: Settings, profiles: SqlAlchemyProfileRepository, http_client: httpx.AsyncClient
+    settings: Settings, profiles: SqlAlchemyProfileRepository, transport: GeminiClient | None
 ) -> ProfileService:
     role_registry = profiles.roles
     base_role_model = settings.gemini_main_agent_model or settings.gemini_voice_model
@@ -27,11 +25,6 @@ def build_profile_service(
             }.items()
             if m
         }
-    )
-    transport = (
-        GeminiClient(http_client, api_key=settings.gemini_api_key)
-        if settings.gemini_api_key
-        else None
     )
     catalog = ModelCatalog(
         transport, tuple(dict.fromkeys((*settings.gemini_allowed_models, *defaults.values())))

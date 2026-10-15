@@ -103,6 +103,7 @@ class SqlAlchemyProfileRepository:
         return ProfileView(
             user_id=user_id,
             telegram_user_id=user.telegram_user_id,
+            display_name=user.display_name, username=user.username, is_active=user.is_active,
             profile_type=cast(Literal["admin", "user"], kind),
             roles=tuple(
                 RoleAssignment(

@@ -37,6 +37,9 @@ class ProfileView(BaseModel):
     telegram_user_id: int
     profile_type: Literal["admin", "user"]
     roles: tuple[RoleAssignment, ...] = ()
+    display_name: str | None = None
+    username: str | None = None
+    is_active: bool = True
 
 
 class PermissionSnapshot(BaseModel):

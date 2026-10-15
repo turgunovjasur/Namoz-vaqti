@@ -131,6 +131,9 @@ class ServicesMiddleware(BaseMiddleware):
                 UserSubscription(sender.id, target.chat.id, "Toshkent", True)
             )
             assert user.id is not None
+            from namoz_bot.infrastructure.admin_web.queries import sync_identity
+
+            await sync_identity(self._session_factory, user.id, sender.full_name, sender.username)
             with access_context(self._access, user_id=user.id, telegram_user_id=sender.id):
                 capability = manual_capability(event)
                 if capability:

@@ -184,7 +184,12 @@ def create_application(settings: Settings) -> ApplicationResources:
     access = AccessService(profiles, role_registry)
     dispatcher["access_service"] = access
     dispatcher["profile_repository"] = profiles
-    profile_service = build_profile_service(settings, profiles, http_client)
+    transport = (
+        GeminiClient(http_client, api_key=settings.gemini_api_key)
+        if settings.gemini_api_key
+        else None
+    )
+    profile_service = build_profile_service(settings, profiles, transport)
     dispatcher["profile_service"] = profile_service
     main_agent = None
     menu_agents: dict[Domain, MenuAgent] = {}
