@@ -248,3 +248,65 @@ class AdminAuditRecord(Base):
     action: Mapped[str] = mapped_column(String(32))
     detail: Mapped[dict[str, JsonValue]] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class WorkforceTaskRecord(Base):
+    __tablename__ = "workforce_tasks"
+    __table_args__ = (
+        UniqueConstraint("user_id", "bot_id", "request_id", name="uq_workforce_input"),
+    )
+    id: Mapped[str] = mapped_column(String(20), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    bot_id: Mapped[int] = mapped_column(BigInteger)
+    chat_id: Mapped[int] = mapped_column(BigInteger)
+    request_id: Mapped[str] = mapped_column(String(100))
+    revision: Mapped[int] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(32), index=True)
+    lease_token: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class WorkforceRevisionRecord(Base):
+    __tablename__ = "workforce_task_revisions"
+    task_id: Mapped[str] = mapped_column(
+        ForeignKey("workforce_tasks.id", ondelete="CASCADE"), primary_key=True
+    )
+    revision: Mapped[int] = mapped_column(Integer, primary_key=True)
+    status: Mapped[str] = mapped_column(String(32))
+    plan: Mapped[dict[str, JsonValue]] = mapped_column(JSON)
+    service_result: Mapped[dict[str, JsonValue] | None] = mapped_column(JSON, nullable=True)
+    review: Mapped[dict[str, JsonValue] | None] = mapped_column(JSON, nullable=True)
+    feedback: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    review_attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+
+
+class WorkforceOutboxRecord(Base):
+    __tablename__ = "workforce_outbox"
+    __table_args__ = (
+        UniqueConstraint("task_id", "revision", "kind", name="uq_workforce_notification"),
+    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    task_id: Mapped[str] = mapped_column(ForeignKey("workforce_tasks.id", ondelete="CASCADE"))
+    revision: Mapped[int] = mapped_column(Integer)
+    kind: Mapped[str] = mapped_column(String(32))
+    chat_id: Mapped[int] = mapped_column(BigInteger)
+    payload: Mapped[dict[str, JsonValue]] = mapped_column(JSON)
+    status: Mapped[str] = mapped_column(String(16), default="pending", index=True)
+    lease_token: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    next_attempt: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+
+class WorkforceUpdateRecord(Base):
+    __tablename__ = "workforce_updates"
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    bot_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    request_id: Mapped[str] = mapped_column(String(100), primary_key=True)
+    task_id: Mapped[str] = mapped_column(String(20))
+    revision: Mapped[int] = mapped_column(Integer)
+    action: Mapped[str] = mapped_column(String(16))
