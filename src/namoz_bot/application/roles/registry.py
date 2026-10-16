@@ -1,6 +1,8 @@
 """Authoritative role catalog; callers narrow capabilities using user grants."""
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from typing import TYPE_CHECKING, cast
 
 from namoz_bot.application.roles.base import COMMON_INSTRUCTION, LEGACY_OUTPUT_INSTRUCTION
@@ -16,6 +18,9 @@ class RoleRegistry:
     def __init__(self, roles: Iterable[RoleDefinition], capabilities: "CapabilityRegistry") -> None:
         self._items: dict[str, RoleDefinition] = {}
         self.capabilities = capabilities
+        self._scope: ContextVar[dict[str, RoleDefinition] | None] = ContextVar(
+            "role_catalog", default=None
+        )
         for role in roles:
             if role.id in self._items:
                 raise ValueError(f"Duplicate role: {role.id}")
@@ -27,18 +32,36 @@ class RoleRegistry:
 
     def get(self, role_id: str) -> RoleDefinition:
         try:
-            return self._items[role_id]
+            active = self._scope.get()
+            return (active if active is not None else self._items)[role_id]
         except KeyError:
             raise ValueError("Unknown role") from None
 
     def all(self) -> tuple[RoleDefinition, ...]:
+        active = self._scope.get()
+        return tuple((active if active is not None else self._items).values())
+
+    @property
+    def scoped(self) -> bool:
+        return self._scope.get() is not None
+
+    def defaults(self) -> tuple[RoleDefinition, ...]:
         return tuple(self._items.values())
+
+    @contextmanager
+    def bind(self, roles: tuple[RoleDefinition, ...]) -> Iterator[None]:
+        checked = RoleRegistry(roles, self.capabilities)
+        token = self._scope.set(checked._items)
+        try:
+            yield
+        finally:
+            self._scope.reset(token)
 
     def validate_selection(
         self, selection: CapabilitySelection, *, entrypoint: str = "conversation"
     ) -> CapabilitySelection:
         role = self.get(selection.role_id)
-        if selection.capability_id not in role.capability_ids:
+        if not role.enabled or selection.capability_id not in role.capability_ids:
             raise ValueError("Selected capability is outside role scope")
         spec = self.capabilities.get(selection.capability_id).spec
         if entrypoint not in spec.entrypoints:

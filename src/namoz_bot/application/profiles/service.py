@@ -86,9 +86,12 @@ class ProfileService:
         self.roles.get(role_id)
         return tuple(m.id for m in self.catalog.list_for_role(role_id))
 
+    def default_model(self, role_id: str) -> str:
+        return self.default_models.get(role_id, self.default_models["assistant"])
+
     async def model(self, role_id: str) -> RoleModelSetting:
         self.roles.get(role_id)
-        return await self.repository.get_model(role_id, self.default_models[role_id])
+        return await self.repository.get_model(role_id, self.default_model(role_id))
 
     async def set_model(
         self, *, actor_id: int, role_id: str, model_id: str, expected_version: int

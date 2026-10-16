@@ -346,3 +346,30 @@ class AdminWebSessionRecord(Base):
     token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+
+class AgentRoleRecord(Base):
+    __tablename__ = "agent_roles"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    name: Mapped[str] = mapped_column(String(100))
+    name_key: Mapped[str] = mapped_column(String(200), unique=True)
+    description: Mapped[str] = mapped_column(String(2000))
+    common_rules: Mapped[str] = mapped_column(String(8000))
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    system_role: Mapped[bool] = mapped_column(Boolean, default=False)
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+
+
+class AgentRoleSkillRecord(Base):
+    __tablename__ = "agent_role_skills"
+    role_id: Mapped[str] = mapped_column(
+        ForeignKey("agent_roles.id", ondelete="CASCADE"), primary_key=True
+    )
+    capability_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+
+
+class AgentRuleTemplateRecord(Base):
+    __tablename__ = "agent_rule_templates"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    rules: Mapped[str] = mapped_column(String(8000))
+    revision: Mapped[int] = mapped_column(Integer, default=1)
