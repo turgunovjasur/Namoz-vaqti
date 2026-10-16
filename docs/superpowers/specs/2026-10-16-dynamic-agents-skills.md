@@ -1,0 +1,29 @@
+# Dynamic specialist agents and reusable skills
+
+## Authorized intent
+The user approved the discussed architecture and requested implementation with a modular backend, then explicitly added easy backend skill extensibility. Earlier discussion-only pause is superseded by “kelishdim … backendni ham modullashtirib … yoz”. Product/design choices were delegated in this continuing admin-panel task. Preserve all existing roles, skill IDs, models, grants and audit data. Legal, weather and currency roles/skills were examples: do not implement or activate those integrations.
+
+## Product contract
+One user-facing Yordamchi orchestrates specialist Gemini agents. Preserve the manager role/configuration for compatibility, but new orchestration uses the assistant model; it is not an additional independent routing agent. Existing task approval, durable execution, feedback and correction contracts remain. Each specialist has a stable ID/agent identity, name, purpose, editable common rules, model, skill allowlist, enabled state and revision. No hard deletion. Existing specialists migrate preserving IDs and permissions. System roles stay protected.
+
+Admin Roles supports create/edit, model choice, catalog skill checkboxes and a visible editable Common rules textarea. Global common-rule template is separately editable and copied only into newly created roles. Editing one role never changes another. Roles are assigned to users separately; adding a skill to a role never grants it automatically to users. Removing a skill removes obsolete user grants so re-adding does not restore revoked access. All edits are optimistic-versioned and audited; model changes also check model version and validate the provider before committing.
+
+## Backend boundaries
+- domain/roles: validated persisted role/template inputs and immutable runtime definitions.
+- application/roles: catalog management service, async scoped runtime and shared registry. Atomic per-request snapshots via ContextVar, never shared mutable per-user state.
+- infrastructure/roles: SQL catalog loading/bootstrap and management transactions. Migration seeds all seven existing roles and skill links with no changes to grants/model selections.
+- infrastructure/ai: a bounded factory of separate immutable GeminiRoleAgent instances keyed by role revision/model/scope. Share HTTP transport only; pass owner-bound context explicitly. A specialist never receives another role's pending result. Role/model changes produce a new agent configuration.
+- application/skills: native typed skill SDK, request/context/result contract and execution interface. Existing capabilities remain supported by a legacy adapter. Native plugins do not need edits to legacy action/domain enums for each new feature.
+- infrastructure/skills/plugins: trusted backend code discovery only; admin cannot load arbitrary Python or URLs. Each module exports build(dependencies), metadata, typed parameters/results, guidance and renderer. Native write skills receive the durable idempotency key and transaction; documented idempotency requirement. No generated application code from admin prompts.
+- presentation/admin_web: split role routes/serialization from HTTP security and existing profile endpoints. React form reuses existing UI components and same-origin auth.
+
+## Authorization and consistency
+A role definition and user grant are both required. Check effective role enabled state and global skill membership from authoritative SQL inside effects. Serialize catalog/grant edits with a catalog lock before owner locks; effects retain owner locking, so revocation cannot race a committed effect. Global removal and grant assignment use the same lock order. Approval and execution reject a changed role revision rather than silently using new instructions/skills. New catalog data is visible to independent bot/web processes on the next request; no restart for ordinary role edits. Existing V1/V2 routes and stored results stay readable.
+
+Dynamic roles must work with reusable existing skills, owner-bound manual menus and background delivery. Background permission checks find any currently permitted role for that delivery skill rather than assuming a fixed role name. Query text and prompt rules do not grant access or disable server validation. No promise of perfect semantic classification; canonical skill evidence remains authoritative.
+
+## Native skill contract
+Skill metadata includes id/name/description/effect/entrypoints, Pydantic input/output models and task guidance. Execution receives server-owned context, role/skill/request/operation identities, typed parameters and a transaction. Reserved account identities cannot be accepted as model-supplied parameters. Output validates before persistence and rendering; native output uses one generic persisted envelope compatible with old receipts. Do not expose arbitrary tools to the model. Plugin discovery is deterministic; duplicate IDs and invalid schemas fail startup clearly. Add a developer guide and a test-only example proving a new plugin can run without modifying core modules.
+
+## Verification and delivery
+Retain unrelated dirty menu/settings and journey-test changes. Implement on existing user-requested feature branch; no push/merge/public deployment. RED→GREEN tests cover migration preservation, isolation, role/model/template CRUD, optimistic conflicts, protected roles, native schema/permission checks, skill reuse, no auto grants, remove/re-add revocation, effect races and cross-process refresh, worker context/model isolation, generic native execution, dynamic background delivery and HTTP auth. Existing full suite, Ruff/mypy/format and frontend build must pass. Browser QA uses synthetic accounts, desktop/mobile, saves/refreshes/conflicts. Only then migrate the verified local TEST database and restart only verified TEST bot/admin processes. Production data and integrations remain untouched.

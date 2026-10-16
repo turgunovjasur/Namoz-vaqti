@@ -1,12 +1,9 @@
 """Execute the approved selection once, preserving canonical service evidence."""
 
-from typing import cast
-
 from namoz_bot.application.capabilities.registry import CapabilityRegistry
 from namoz_bot.application.workforce.access import AccessService
 from namoz_bot.application.workforce.authorization import access_context
 from namoz_bot.application.workforce.ports import TaskStore
-from namoz_bot.domain.agent_protocol import AgentRequest
 from namoz_bot.domain.workforce.tasks import ClaimedTask, TaskRevision
 
 
@@ -32,19 +29,6 @@ class TaskExecutionService:
         capability = self.capabilities.get(selection.capability_id)
         if capability.spec.requires_result and plan.parent_revision is None:
             raise ValueError("Correction is not bound to a result")
-        view = selection.parameters.get("view")
-        route = next(
-            (r for r in capability.spec.routes if r.view == view), capability.spec.routes[0]
-        )
-        request = AgentRequest(
-            domain=route.domain,
-            action=route.action,
-            parameters=selection.parameters,
-            transcript=plan.transcript,
-            context=plan.context,
-            operation_id=f"{plan.task_id}{plan.revision:06x}",
-            request_id=f"task:{plan.task_id}:{plan.revision}",
-        )
         with access_context(
             self.access,
             user_id=plan.context.user_id,
@@ -52,26 +36,13 @@ class TaskExecutionService:
             role_id=selection.role_id,
             capability_id=selection.capability_id,
         ):
-            prepared = await capability.prepare(request)
+            prepared = await capability.prepare_plan(plan)
             async with self.store.effect_scope(
                 plan.task_id, plan.revision, claim.lease_token
             ) as tx:
                 await self.access.require_in(
                     tx, plan.context.user_id, selection.role_id, selection.capability_id
                 )
-                result = prepared
-                if prepared.status == "needs_confirmation":
-                    from pydantic import JsonValue
-
-                    request = AgentRequest.model_validate(
-                        {
-                            **request.model_dump(),
-                            "context": request.context,
-                            "parameters": cast(dict[str, JsonValue], prepared.data["draft"]),
-                        }
-                    )
-                    result = await capability.execute(request, tx)
-                elif prepared.status == "done" and not prepared.data:
-                    result = await capability.execute(request, tx)
+                result = await capability.execute_plan(plan, tx, prepared)
                 await tx.save_result(result, replace_read=replace_read)
         return await self.store.get_owned(plan.task_id, plan.context)

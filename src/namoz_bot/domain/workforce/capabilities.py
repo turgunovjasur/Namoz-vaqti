@@ -28,6 +28,7 @@ class CapabilitySpec(BaseModel):
     description: str = Field(min_length=1, max_length=500)
     parameters_model: type[BaseModel]
     result_model: type[BaseModel] = AgentResult
+    guidance: str = ""
     effect: Literal["read", "write", "generate"]
     entrypoints: tuple[Literal["conversation", "background"], ...] = ("conversation",)
     routes: tuple[LegacyRoute, ...] = ()

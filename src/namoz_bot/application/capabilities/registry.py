@@ -55,13 +55,18 @@ class CapabilityRegistry:
             raise ValueError("Request is outside registered capabilities") from None
 
 
-def build_capability_registry(adapters: BusinessAdapters | None = None) -> CapabilityRegistry:
+def build_capability_registry(
+    adapters: BusinessAdapters | None = None,
+    *,
+    extra_skills: Iterable[Capability] = (),
+) -> CapabilityRegistry:
     business = adapters or AgentAdapters()
-    return CapabilityRegistry(
+    legacy = tuple(
         Capability(spec, business)
         for module in (finance, reminders, prayer, nasihat, settings, preferences)
         for spec in module.definitions()
     )
+    return CapabilityRegistry((*legacy, *extra_skills))
 
 
 class CapabilityDispatcher:

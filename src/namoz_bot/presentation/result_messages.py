@@ -51,6 +51,11 @@ def render_interpretation(
 ) -> str:
     spec = registry.get(selection.capability_id).spec
     parameters = spec.validate_parameters(selection.parameters)
+    if not spec.routes:
+        lines = [f"Men buyruqni shunday tushundim: {spec.name}."]
+        fields = spec.parameters_model.model_fields
+        lines.extend(f"{fields[key].title or key}: {value}" for key, value in parameters.items())
+        return "\n".join([*lines, f"\nEshitilgan gap: {transcript}", "\nTo‘g‘ri tushundimmi?"])
     route = spec.routes[0]
     decision = AgentDecision(
         domain=route.domain, action=route.action, parameters=parameters, transcript=transcript
@@ -135,6 +140,8 @@ VOICE_HELP = (
 
 
 def render_result(output: AgentResult, *, legacy: bool = False) -> str:
+    if output.domain == "assistant" and output.action == "skill_result":
+        return str(output.data["text"])
     data = output.data
     if data.get("voice_review"):
         return interpretation_text(output)

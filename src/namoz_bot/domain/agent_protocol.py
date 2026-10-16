@@ -294,7 +294,10 @@ class AgentResult(StrictModel):
 
     @model_validator(mode="after")
     def coherent_result(self) -> "AgentResult":
-        if (self.domain, self.action) not in ACTION_MODELS:
+        if (self.domain, self.action) not in ACTION_MODELS and (self.domain, self.action) != (
+            "assistant",
+            "skill_result",
+        ):
             raise ValueError("Unsupported result action")
         if self.status == "needs_input" and (not self.question or not self.missing_fields):
             raise ValueError("Missing input requires a question and fields")
