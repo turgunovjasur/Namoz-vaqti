@@ -43,6 +43,26 @@ class Manager:
         assistant_model: RoleModelSetting | None = None,
         persist: bool = True,
     ) -> TaskPlan:
+        async with self.access.role_scope():
+            return await self._plan(
+                context=context,
+                request_id=request_id,
+                text=text,
+                pending=pending,
+                assistant_model=assistant_model,
+                persist=persist,
+            )
+
+    async def _plan(
+        self,
+        *,
+        context: AgentContext,
+        request_id: str,
+        text: str,
+        pending: TaskRevision | None,
+        assistant_model: RoleModelSetting | None,
+        persist: bool,
+    ) -> TaskPlan:
         if not 1 <= len(text.strip()) <= 2000:
             raise ValueError("Xabar 1–2000 belgidan iborat bo‘lsin.")
         allowed = await self.access.available_roles(context.user_id)

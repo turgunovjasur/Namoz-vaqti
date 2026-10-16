@@ -6,47 +6,76 @@ from datetime import UTC, datetime
 
 from namoz_bot.application.profiles.ports import PermissionTransaction, ProfileRepository
 from namoz_bot.application.roles.registry import RoleRegistry
+from namoz_bot.application.roles.runtime import RoleCatalogRuntime
 from namoz_bot.domain.workforce.profiles import AccessDenied, PermissionSnapshot
 from namoz_bot.domain.workforce.roles import RoleDefinition
 
 
 class AccessService:
-    def __init__(self, repository: ProfileRepository, roles: RoleRegistry):
-        self.repository, self.roles = repository, roles
+    def __init__(
+        self,
+        repository: ProfileRepository,
+        roles: RoleRegistry,
+        *,
+        runtime: RoleCatalogRuntime | None = None,
+    ):
+        self.repository, self.roles, self.runtime = repository, roles, runtime
+
+    @asynccontextmanager
+    async def role_scope(self) -> AsyncIterator[None]:
+        if self.runtime is None:
+            yield
+        else:
+            async with self.runtime.scope():
+                yield
 
     def validate(self, role_id: str, capability_id: str) -> None:
-        if capability_id not in self.roles.get(role_id).capability_ids:
+        if (
+            not self.roles.get(role_id).enabled
+            or capability_id not in self.roles.get(role_id).capability_ids
+        ):
             raise AccessDenied("Capability outside role")
 
     async def allowed(self, user_id: int, role_id: str, capability_id: str) -> bool:
-        try:
-            self.validate(role_id, capability_id)
-        except (ValueError, AccessDenied):
+        async with self.role_scope():
+            try:
+                self.validate(role_id, capability_id)
+            except (ValueError, AccessDenied):
+                return False
+            return await self.repository.current_grant(user_id, role_id, capability_id) is not None
+
+    async def allowed_any(self, user_id: int, capability_id: str) -> bool:
+        async with self.role_scope():
+            for role in await self.available_roles(user_id):
+                if capability_id in role.capability_ids and await self.allowed(
+                    user_id, role.id, capability_id
+                ):
+                    return True
             return False
-        return await self.repository.current_grant(user_id, role_id, capability_id) is not None
 
     async def require(self, user_id: int, role_id: str, capability_id: str) -> PermissionSnapshot:
-        self.validate(role_id, capability_id)
-        grant = await self.repository.current_grant(user_id, role_id, capability_id)
-        if grant is None:
-            raise AccessDenied(
-                "Bu imkoniyat siz uchun yoqilmagan. Administratorga murojaat qiling."
-            )
-        return grant
+        async with self.role_scope():
+            self.validate(role_id, capability_id)
+            grant = await self.repository.current_grant(user_id, role_id, capability_id)
+            if grant is None:
+                raise AccessDenied(
+                    "Bu imkoniyat siz uchun yoqilmagan. Administratorga murojaat qiling."
+                )
+            return grant
 
     async def available_roles(self, user_id: int) -> tuple[RoleDefinition, ...]:
-        profile = await self.repository.get_profile(user_id)
-        return tuple(
-            self.roles.get(a.role_id).model_copy(
-                update={
-                    "capability_ids": tuple(
-                        c for c in self.roles.get(a.role_id).capability_ids if c in a.capability_ids
-                    )
-                }
-            )
-            for a in profile.roles
-            if a.enabled and a.capability_ids
-        )
+        async with self.role_scope():
+            profile = await self.repository.get_profile(user_id)
+            available = {r.id: r for r in self.roles.all() if r.enabled and not r.system_role}
+            result = []
+            for assignment in profile.roles:
+                role = available.get(assignment.role_id)
+                if role is None or not assignment.enabled:
+                    continue
+                caps = tuple(c for c in role.capability_ids if c in assignment.capability_ids)
+                if caps:
+                    result.append(role.model_copy(update={"capability_ids": caps}))
+            return tuple(result)
 
     async def require_in(
         self, transaction: PermissionTransaction, user_id: int, role_id: str, capability_id: str

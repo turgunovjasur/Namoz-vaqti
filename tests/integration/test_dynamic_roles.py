@@ -22,6 +22,7 @@ async def catalog_setup(access_setup, store):
     _, factory, _, _ = store
     runtime = SqlRoleCatalog(factory, profiles.roles, profiles=profiles)
     await runtime.initialize()
+    access.runtime = runtime.runtime
     service = ProfileService(
         profiles,
         profiles.roles,

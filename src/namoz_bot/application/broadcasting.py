@@ -184,8 +184,8 @@ class BroadcastService:
             return "failed", region_code
 
         async with self._semaphore:
-            if self._access is not None and not await self._access.allowed(
-                subscription.id or 0, "settings", "settings.deliver_daily"
+            if self._access is not None and not await self._access.allowed_any(
+                subscription.id or 0, "settings.deliver_daily"
             ):
                 await self._mark_failed(subscription, target_date, "permission_revoked")
                 return "skipped", region_code

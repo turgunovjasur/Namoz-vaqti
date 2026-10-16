@@ -27,6 +27,8 @@ from namoz_bot.domain.workforce.profiles import (
 from namoz_bot.infrastructure.agent_sessions import SqlAlchemyAgentTransaction
 from namoz_bot.infrastructure.orm import (
     AdminAuditRecord,
+    AgentRoleRecord,
+    AgentRoleSkillRecord,
     AgentSessionRecord,
     ProfileRecord,
     RoleAssignmentRecord,
@@ -46,6 +48,11 @@ async def lock_owner(session: AsyncSession, user_id: int) -> UserRecord:
 async def current_grant(
     session: AsyncSession, user_id: int, role_id: str, capability_id: str
 ) -> PermissionSnapshot | None:
+    if await session.scalar(select(AgentRoleRecord.id).limit(1)) is not None:
+        role = await session.get(AgentRoleRecord, role_id)
+        link = await session.get(AgentRoleSkillRecord, (role_id, capability_id))
+        if role is None or not role.enabled or link is None:
+            return None
     row = await session.get(RoleAssignmentRecord, (user_id, role_id))
     cap = await session.get(RoleCapabilityRecord, (user_id, role_id, capability_id))
     if row is None or not row.enabled or cap is None:
@@ -170,7 +177,27 @@ class SqlAlchemyProfileRepository:
             if role.system_role or not change.capability_ids.issubset(role.capability_ids):
                 raise ValueError("Invalid role capabilities")
         async with self.factory.begin() as session:
+            from namoz_bot.infrastructure.roles.locks import lock_catalog
+
+            await lock_catalog(session)
             await self.require_admin(session, actor_id)
+            if await session.scalar(select(AgentRoleRecord.id).limit(1)) is not None:
+                for change in changes:
+                    role_row = await session.get(AgentRoleRecord, change.role_id)
+                    links = set(
+                        await session.scalars(
+                            select(AgentRoleSkillRecord.capability_id).where(
+                                AgentRoleSkillRecord.role_id == change.role_id
+                            )
+                        )
+                    )
+                    if (
+                        role_row is None
+                        or role_row.system_role
+                        or (change.enabled and not role_row.enabled)
+                        or not change.capability_ids.issubset(links)
+                    ):
+                        raise ValueError("Role or skills changed; refresh the catalog")
             await lock_owner(session, user_id)
             for change in changes:
                 row = await session.get(RoleAssignmentRecord, (user_id, change.role_id))

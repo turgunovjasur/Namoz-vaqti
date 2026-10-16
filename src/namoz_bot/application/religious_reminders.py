@@ -201,8 +201,8 @@ class PersonalReligiousBroadcastService(ReligiousBroadcastService):
         while items := await self._intervals.list_due(now, limit=self._batch_size):
             allowed = []
             for item in items:
-                if self._access and not await self._access.allowed(
-                    item.user_id, "nasihat", "nasihat.deliver"
+                if self._access and not await self._access.allowed_any(
+                    item.user_id, "nasihat.deliver"
                 ):
                     await self._intervals.claim(item, now)
                     skipped += 1
@@ -233,8 +233,6 @@ class PersonalReligiousBroadcastService(ReligiousBroadcastService):
         # Recheck stored settings after Gemini and reserve before sending.
         if not await self._intervals.claim(item, now):
             return "skipped"
-        if self._access and not await self._access.allowed(
-            item.user_id, "nasihat", "nasihat.deliver"
-        ):
+        if self._access and not await self._access.allowed_any(item.user_id, "nasihat.deliver"):
             return "skipped"
         return await self._send_one(item, text)

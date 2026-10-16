@@ -81,8 +81,8 @@ class ReminderService:
                     # Deletion may happen after claiming a batch but before sending.
                     if not await self.repository.can_send(delivery):
                         continue
-                    if self.access and not await self.access.allowed(
-                        delivery.user_id, "reminder", "reminder.deliver"
+                    if self.access and not await self.access.allowed_any(
+                        delivery.user_id, "reminder.deliver"
                     ):
                         await self.repository.finish(delivery, "skipped", "permission_disabled")
                         continue

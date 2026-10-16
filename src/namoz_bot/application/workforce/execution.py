@@ -20,6 +20,10 @@ class TaskExecutionService:
         return await self._execute(claim, replace_read=True)
 
     async def _execute(self, claim: ClaimedTask, *, replace_read: bool) -> TaskRevision:
+        async with self.access.role_scope():
+            return await self._execute_scoped(claim, replace_read=replace_read)
+
+    async def _execute_scoped(self, claim: ClaimedTask, *, replace_read: bool) -> TaskRevision:
         plan = claim.task.plan
         current = await self.store.get_owned(plan.task_id, plan.context)
         if current.service_result is not None and not replace_read:

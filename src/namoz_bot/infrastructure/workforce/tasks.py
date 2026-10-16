@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from namoz_bot.application.workforce.ports import TaskTransaction
 from namoz_bot.domain.agent_protocol import AgentContext, AgentResult
+from namoz_bot.domain.workforce.profiles import AccessDenied
 from namoz_bot.domain.workforce.tasks import (
     ClaimedTask,
     ReviewVerdict,
@@ -25,13 +26,18 @@ from namoz_bot.domain.workforce.tasks import (
 from namoz_bot.infrastructure.agent_sessions import _aware
 from namoz_bot.infrastructure.orm import (
     AgentReceiptRecord,
+    AgentRoleRecord,
     AgentSessionRecord,
     WorkforceOutboxRecord,
     WorkforceRevisionRecord,
     WorkforceTaskRecord,
     WorkforceUpdateRecord,
 )
-from namoz_bot.infrastructure.workforce.profiles import SqlPermissionTransaction, lock_owner
+from namoz_bot.infrastructure.workforce.profiles import (
+    SqlPermissionTransaction,
+    current_grant,
+    lock_owner,
+)
 
 
 def revision_value(row: WorkforceRevisionRecord) -> TaskRevision:
@@ -56,6 +62,17 @@ def lease_valid(task: WorkforceTaskRecord, revision: int, token: str, now: datet
         or task.status not in {"running", "reviewing"}
     ):
         raise TaskConflict("Worker lease lost")
+
+
+async def check_plan_permission(session: AsyncSession, plan: TaskPlan) -> None:
+    role = await session.get(AgentRoleRecord, plan.role.id)
+    if role is not None and role.revision != (plan.role.revision or 1):
+        raise AccessDenied("Rol sozlamalari o‘zgargan. Buyruqni qayta yuboring.")
+    grant = await current_grant(
+        session, plan.context.user_id, plan.selection.role_id, plan.selection.capability_id
+    )
+    if grant is None or grant.assignment_revision != plan.permission.assignment_revision:
+        raise AccessDenied("Buyruq uchun ruxsat o‘zgargan. Buyruqni qayta yuboring.")
 
 
 async def put_outbox(
@@ -266,7 +283,10 @@ class SqlAlchemyTaskStore:
                 }:
                     return revision_value(row)
                 raise TaskConflict("Task is not awaiting approval")
-            if TaskPlan.model_validate_json(json.dumps(row.plan)).expires_at <= self.clock():
+            plan = TaskPlan.model_validate_json(json.dumps(row.plan))
+            if accept:
+                await check_plan_permission(session, plan)
+            if plan.expires_at <= self.clock():
                 raise TaskConflict("Approval expired")
             if previous is None:
                 session.add(
@@ -312,6 +332,7 @@ class SqlAlchemyTaskStore:
             lease_valid(task, revision, lease_token, self.clock())
             row = await session.get(WorkforceRevisionRecord, (task_id, revision))
             assert row is not None
+            await check_plan_permission(session, TaskPlan.model_validate_json(json.dumps(row.plan)))
             insert = pg_insert if session.get_bind().dialect.name == "postgresql" else sqlite_insert
             await session.execute(
                 insert(AgentSessionRecord)

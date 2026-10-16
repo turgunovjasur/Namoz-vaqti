@@ -110,6 +110,17 @@ class ServicesMiddleware(BaseMiddleware):
         data: dict[str, Any],
     ) -> Any:
         if self._access is not None:
+            async with self._access.role_scope():
+                return await self._dispatch(handler, event, data)
+        return await self._dispatch(handler, event, data)
+
+    async def _dispatch(
+        self,
+        handler: Callable[[TelegramObject, dict[str, Any]], Awaitable[Any]],
+        event: TelegramObject,
+        data: dict[str, Any],
+    ) -> Any:
+        if self._access is not None:
             target = event.message if isinstance(event, CallbackQuery) else event
             sender = getattr(event, "from_user", None)
             if (
@@ -139,7 +150,16 @@ class ServicesMiddleware(BaseMiddleware):
                 if capability:
                     await require_operation(capability)
                 roles = await self._access.available_roles(user.id)
-                with menu_visibility(frozenset(r.id for r in roles)):
+                visible = {r.id for r in roles}
+                visible.update(
+                    route.domain
+                    for r in roles
+                    for c in r.capability_ids
+                    for route in self._access.roles.capabilities.get(c).spec.routes
+                )
+                if "finance" in visible:
+                    visible.add("accounting")
+                with menu_visibility(frozenset(visible)):
                     result = await self._handle(handler, event, data)
                 if capability:
                     await require_operation(capability)

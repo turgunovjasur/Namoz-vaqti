@@ -41,6 +41,29 @@ async def test_new_skill_executes_and_survives_worker_restart_without_core_actio
     )
     roles = RoleRegistry((*definitions(), draft.role), caps)
     profiles = SqlAlchemyProfileRepository(factory, roles, admin_telegram_ids=frozenset({7}))
+    from namoz_bot.infrastructure.roles.repository import SqlRoleCatalog
+
+    runtime = SqlRoleCatalog(factory, roles, profiles=profiles)
+    await runtime.initialize()
+    # PostgreSQL migrations seeded the built-ins before this synthetic plugin was installed.
+    from namoz_bot.infrastructure.orm import AgentRoleRecord, AgentRoleSkillRecord
+
+    async with factory.begin() as session:
+        if await session.get(AgentRoleRecord, draft.role.id) is None:
+            session.add(
+                AgentRoleRecord(
+                    id=draft.role.id,
+                    name=draft.role.name,
+                    name_key=draft.role.name.casefold(),
+                    description=draft.role.description,
+                    common_rules="",
+                    enabled=True,
+                    system_role=False,
+                    revision=1,
+                )
+            )
+            await session.flush()
+            session.add(AgentRoleSkillRecord(role_id=draft.role.id, capability_id="demo.echo"))
     await profiles.set_grants(
         actor_id=user,
         user_id=user,

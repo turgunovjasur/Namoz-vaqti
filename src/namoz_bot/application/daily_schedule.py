@@ -85,8 +85,8 @@ class PersonalDailyBroadcastService:
             recipients = []
             for item in page:
                 if await self._preferences.claim(item, now):
-                    if self._access is None or await self._access.allowed(
-                        item.subscription.id or 0, "settings", "settings.deliver_daily"
+                    if self._access is None or await self._access.allowed_any(
+                        item.subscription.id or 0, "settings.deliver_daily"
                     ):
                         recipients.append(item.subscription)
                     else:
