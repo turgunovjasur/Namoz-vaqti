@@ -45,7 +45,11 @@ function ModelRow({
         </span>
         <div>
           <h2>{role.name}</h2>
-          <p>{role.description}</p>
+          <p>
+            {role.reserved
+              ? "Saqlangan eski sozlama. Hozir boshqaruv va tekshiruv Yordamchi modelida bajariladi."
+              : role.description}
+          </p>
           <span className="version">
             Versiya {current.version} · Global sozlama
           </span>
@@ -57,7 +61,7 @@ function ModelRow({
           <select
             id={`model-${role.id}`}
             value={choice}
-            disabled={busy}
+            disabled={busy || role.reserved}
             onChange={(e) => {
               setChoice(e.target.value);
               setSuccess(false);
@@ -74,7 +78,7 @@ function ModelRow({
             className="primary"
             onClick={save}
             busy={busy}
-            disabled={choice === current.model_id}
+            disabled={choice === current.model_id || role.reserved}
           >
             <Save size={15} />
             {busy ? "Tekshirilmoqda…" : "Saqlash"}
@@ -126,7 +130,15 @@ export function ModelsPage({ roles }: { roles: Role[] }) {
             <ModelRow
               key={`${model.role_id}:${model.version}`}
               model={model}
-              role={roles.find((r) => r.id === model.role_id)!}
+              role={
+                roles.find((r) => r.id === model.role_id) ||
+                ({
+                  id: model.role_id,
+                  name: model.role_id,
+                  description: "Yangi rol. Rollar sahifasini yangilang.",
+                  reserved: false,
+                } as Role)
+              }
               onReload={reload}
             />
           ))

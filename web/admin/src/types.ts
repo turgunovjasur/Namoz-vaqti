@@ -18,12 +18,20 @@ export type Capability = {
   name: string;
   description: string;
   effect: "read" | "write" | "generate";
+  entrypoints: ("conversation" | "background")[];
+  guidance: string;
 };
 export type Role = {
   id: string;
   name: string;
   description: string;
   system_role: boolean;
+  agent_id: string;
+  common_rules: string;
+  enabled: boolean;
+  revision: number;
+  reserved: boolean;
+  model: Model;
   capabilities: Capability[];
 };
 export type Model = {
@@ -52,3 +60,5 @@ export type GrantDraft = {
   capability_ids: string[];
   expected_revision: number;
 };
+
+export type RuleTemplate = { rules: string; revision: number };

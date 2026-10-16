@@ -38,6 +38,29 @@ function ChangeDetails({ change, roles }: { change: Change; roles: Role[] }) {
         <p className="mono">{String(change.detail.model_id)}</p>
       </>
     );
+  if (change.action === "create_role" || change.action === "update_role")
+    return (
+      <>
+        <strong>
+          {String(change.detail.name)} —{" "}
+          {change.action === "create_role"
+            ? "rol yaratildi"
+            : "rol tahrirlandi"}
+        </strong>
+        <p>
+          {String(change.detail.model_id)} ·{" "}
+          {(change.detail.capability_ids as string[]).length} skill · tahrir{" "}
+          {String(change.detail.revision)}
+        </p>
+      </>
+    );
+  if (change.action === "set_role_template")
+    return (
+      <strong>
+        Umumiy qoidalar shabloni yangilandi · tahrir{" "}
+        {String(change.detail.revision)}
+      </strong>
+    );
   return <strong>{change.action}</strong>;
 }
 export function HistoryPage({ roles }: { roles: Role[] }) {

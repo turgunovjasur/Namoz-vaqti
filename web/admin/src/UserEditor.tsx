@@ -168,7 +168,10 @@ export function UserEditor({
               >
                 <summary>
                   <div>
-                    <strong>{role.name}</strong>
+                    <strong>
+                      {role.name}
+                      {!role.enabled ? " · global o‘chiq" : ""}
+                    </strong>
                     <span>
                       {d.capability_ids.length} / {role.capabilities.length}{" "}
                       imkoniyat
@@ -180,7 +183,7 @@ export function UserEditor({
                     aria-label={`${role.name} rolini yoqish`}
                     aria-checked={d.enabled}
                     className={`switch ${d.enabled ? "on" : ""}`}
-                    disabled={busy}
+                    disabled={busy || !role.enabled}
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
@@ -206,7 +209,7 @@ export function UserEditor({
                       <input
                         type="checkbox"
                         checked={d.capability_ids.includes(cap.id)}
-                        disabled={busy || !d.enabled}
+                        disabled={busy || !d.enabled || !role.enabled}
                         onChange={(e) =>
                           update(role.id, (old) => ({
                             ...old,
@@ -232,7 +235,7 @@ export function UserEditor({
           <LockKeyhole size={16} />
           <span>
             {roles
-              .filter((r) => r.system_role)
+              .filter((r) => r.system_role && !r.reserved)
               .map((r) => r.name)
               .join(" va ")}{" "}
             — barcha foydalanuvchilar uchun doimiy tizim rollari.

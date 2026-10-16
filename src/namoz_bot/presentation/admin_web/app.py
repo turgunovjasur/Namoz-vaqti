@@ -12,12 +12,15 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from namoz_bot.application.profiles.service import ProfileService
+from namoz_bot.application.roles.catalog import RoleCatalogService
 from namoz_bot.config import Settings
 from namoz_bot.domain.errors import ExternalServiceError
 from namoz_bot.domain.workforce.profiles import AccessDenied, ProfileConflict
 from namoz_bot.infrastructure.admin_web.auth import AdminAuth, AdminIdentity, csrf_token
 from namoz_bot.infrastructure.admin_web.queries import AdminQueries
+from namoz_bot.infrastructure.roles.repository import SqlRoleCatalog
 from namoz_bot.infrastructure.workforce.profiles import SqlAlchemyProfileRepository
+from namoz_bot.presentation.admin_web.role_routes import role_router
 from namoz_bot.presentation.admin_web.schemas import AssignmentInput, ModelInput, TicketInput
 
 COOKIE = "yordamchi_admin"
@@ -38,7 +41,9 @@ def create_app(
     if not isinstance(profiles, SqlAlchemyProfileRepository):
         raise TypeError("Admin panel requires the SQL profile repository")
     queries = AdminQueries(profiles)
-    capabilities = service.roles.capabilities
+    catalog = SqlRoleCatalog(factory, service.roles, profiles=profiles)
+    role_service = RoleCatalogService(catalog, profiles, service)
+    app.state.role_service = role_service
     origin = settings.admin_web_url
     authority = urlsplit(origin).netloc.lower()
     secure = origin.startswith("https://")
@@ -52,7 +57,11 @@ def create_app(
         if request.method not in ("GET", "HEAD", "OPTIONS"):
             if request.headers.get("origin") != origin:
                 return JSONResponse({"detail": "So‘rov manbasi tasdiqlanmadi."}, status_code=403)
-        response = await call_next(request)
+        if request.url.path.startswith("/api/"):
+            async with catalog.scope():
+                response = await call_next(request)
+        else:
+            response = await call_next(request)
         response.headers["Cache-Control"] = "no-store"
         response.headers["Referrer-Policy"] = "no-referrer"
         response.headers["X-Content-Type-Options"] = "nosniff"
@@ -166,28 +175,7 @@ def create_app(
             )
         ).model_dump(mode="json")
 
-    @app.get("/api/roles")
-    async def roles(actor: Actor) -> dict[str, Any]:
-        return {
-            "roles": [
-                {
-                    "id": r.id,
-                    "name": r.name,
-                    "description": r.description,
-                    "system_role": r.system_role,
-                    "capabilities": [
-                        {
-                            "id": c.id,
-                            "name": c.name,
-                            "description": c.description,
-                            "effect": c.effect,
-                        }
-                        for c in [capabilities.get(cid).spec for cid in r.capability_ids]
-                    ],
-                }
-                for r in service.roles.all()
-            ]
-        }
+    app.include_router(role_router(role_service, catalog, identity))
 
     @app.get("/api/models")
     async def models(actor: Actor) -> dict[str, Any]:

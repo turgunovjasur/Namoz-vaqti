@@ -197,8 +197,8 @@ export function UsersPage({ roles }: { roles: Role[] }) {
         )}
       </section>
       <p className="page-footnote">
-        Profilni ochish uchun foydalanuvchini tanlang. Yordamchi va Ish
-        boshqaruvchi doimiy tizim rollaridir.
+        Profilni ochish uchun foydalanuvchini tanlang. Yordamchi barcha
+        foydalanuvchilar bilan muloqot qiladi.
       </p>
       {selected ? (
         <UserEditor

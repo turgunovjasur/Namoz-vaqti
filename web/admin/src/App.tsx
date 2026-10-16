@@ -75,6 +75,10 @@ export function App() {
       window.removeEventListener("admin-session-expired", expire);
     };
   }, []);
+  async function refreshRoles() {
+    const catalog = await api<{ roles: Role[] }>("/api/roles");
+    setReady((old) => (old ? { ...old, roles: catalog.roles } : old));
+  }
   async function logout() {
     setLoggingOut(true);
     try {
@@ -213,7 +217,7 @@ export function App() {
           {section === "users" ? (
             <UsersPage roles={ready.roles} />
           ) : section === "roles" ? (
-            <RolesPage roles={ready.roles} />
+            <RolesPage roles={ready.roles} onRefresh={refreshRoles} />
           ) : section === "models" ? (
             <ModelsPage roles={ready.roles} />
           ) : (
