@@ -171,3 +171,27 @@ def build(dependencies):
             effect="read"),)
 """)
     assert build_runtime_capabilities().get("test.discovered").spec.routes == ()
+
+
+async def test_native_receipt_uses_task_identity_not_incoming_update_id():
+    from namoz_bot.application.skills.native import NativeSkill
+
+    async def execute(call, params, transaction):
+        return Output(answer=params.word)
+
+    skill = NativeSkill(
+        id="demo.echo",
+        name="Echo",
+        description="Echo",
+        input_model=Input,
+        output_model=Output,
+        execute=execute,
+        render=lambda r: r.answer,
+        effect="read",
+    )
+    first = plan()
+    second = first.model_copy(update={"task_id": "b" * 20})
+    a = await skill.execute_plan(first, None, None)
+    b = await skill.execute_plan(second, None, None)
+    assert a.request_id != b.request_id
+    assert a.request_id == f"task:{first.task_id}:{first.revision}"

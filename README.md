@@ -599,3 +599,16 @@ oladi. Lokal frontendni qayta o‘zgartirganda `npm run build --prefix web/admin
 bajaring. Bot va panel bir xil bazadan foydalanadi; ruxsat o‘zgarishlari botda ham
 amal qiladi. Admin profilini webdan o‘zgartirib bo‘lmaydi; ishonchli adminlar faqat
 server konfiguratsiyasida belgilanadi.
+
+### Dinamik agentlar va skilllar
+
+**Rollar → Rol qo‘shish** formasida nom, vazifa, Gemini modeli, umumiy qoidalar va
+skilllar tanlanadi. Har bir rol alohida Gemini agent konfiguratsiyasiga ega;
+foydalanuvchiga esa **Yordamchi** javob beradi. Yangi rollar va skill ruxsatlari
+foydalanuvchilarga alohida biriktiriladi. Umumiy qoidalar shabloni faqat yangi
+rollarga ko‘chiriladi; rolni o‘chirish, skillni olib tashlash va versiya ziddiyatlari
+backendda tekshiriladi. Eski rollar, ruxsatlar va model tanlovlari saqlanadi.
+
+Yangi backend skill uchun bitta modul/papka va typed input/output yetadi;
+markaziy action ro‘yxatiga yangi shart yozish talab qilinmaydi.
+[Skill qo‘shish qo‘llanmasi](docs/skills-development.md).

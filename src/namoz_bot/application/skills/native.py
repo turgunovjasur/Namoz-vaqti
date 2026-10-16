@@ -85,7 +85,7 @@ class NativeSkill[P: BaseModel, R: BaseModel](Capability):
         if not 1 <= len(text.strip()) <= 3500:
             raise ValueError("Skill renderer must return 1..3500 characters")
         return AgentResult(
-            request_id=plan.request_id,
+            request_id=call.idempotency_key,
             operation_id=call.operation_id,
             domain="assistant",
             action="skill_result",
