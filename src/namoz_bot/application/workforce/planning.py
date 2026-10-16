@@ -129,7 +129,7 @@ class Manager:
             context=context,
             roles=described,
             pending=pending,
-            model=models["manager"].model_id,
+            model=models["assistant"].model_id,
         )
         role = next((r for r in roles if r.id == role_id), None)
         if role is None:
@@ -150,7 +150,7 @@ class Manager:
             capabilities=tuple(
                 self.access.roles.capabilities.get(c).spec for c in role.capability_ids
             ),
-            pending=pending,
+            pending=pending if pending and pending.plan.selection.role_id == role_id else None,
             model=models[role_id].model_id,
         )
         selected = CapabilitySelection.model_validate(raw.model_dump())
@@ -198,15 +198,17 @@ class Manager:
                         parameters[key] = pending.plan.selection.parameters[key]
             selected = selected.model_copy(update={"parameters": parameters})
         spec = self.access.roles.capabilities.get(selected.capability_id).spec
-        route = spec.routes[0]
-        parameters = page_parameters(
-            selected.parameters, route.domain, route.action, context.last_view
-        )
-        if parameters.get("ordinal") and parameters.get("target_id") is None:
-            target_id = ordinal_target(parameters, route.domain, context)
-            if target_id is not None:
-                parameters["target_id"] = target_id
-                parameters.pop("ordinal", None)
+        parameters = selected.parameters
+        if spec.routes:
+            route = spec.routes[0]
+            parameters = page_parameters(
+                selected.parameters, route.domain, route.action, context.last_view
+            )
+            if parameters.get("ordinal") and parameters.get("target_id") is None:
+                target_id = ordinal_target(parameters, route.domain, context)
+                if target_id is not None:
+                    parameters["target_id"] = target_id
+                    parameters.pop("ordinal", None)
         selected = self.access.roles.validate_selection(
             selected.model_copy(update={"parameters": parameters})
         )
@@ -216,6 +218,7 @@ class Manager:
         task_id = pending.plan.task_id if followup and pending else uuid4().hex[:20]
         revision = pending.plan.revision + 1 if followup and pending else 1
         plan = TaskPlan(
+            coordinator_role="assistant",
             task_id=task_id,
             revision=revision,
             request_id=request_id,
@@ -227,7 +230,9 @@ class Manager:
             transcript=text,
             expires_at=self.clock() + timedelta(minutes=15),
             question=selected.question,
-            review_instruction=REVIEW_INSTRUCTION,
+            review_instruction=self.access.roles.get("assistant").common_rules
+            + "\n"
+            + REVIEW_INSTRUCTION,
             parent_revision=pending.plan.revision if followup and pending else None,
             original_result=pending.plan.original_result if followup and pending else None,
         )

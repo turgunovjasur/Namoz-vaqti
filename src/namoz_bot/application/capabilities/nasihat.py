@@ -3,6 +3,13 @@
 from namoz_bot.application.capabilities.base import background, operation
 from namoz_bot.domain.workforce.capabilities import CapabilitySpec, LegacyRoute
 
+GUIDANCE = """
+Kitobdan asl parcha va manbani xizmat oladi: nasihatni, iqtibosni yoki manbani o‘zing yozma.
+Erkin diniy savol-javob yoki fatvo mavjud skillga kirmaydi. Interval hours butun0..168:
+har6soat=6,o‘chirish=0; yoqish intervali aytilmasa savol ber. Joriy interval ko‘rish uchun view
+interval.
+""".strip()
+
 
 def definitions() -> tuple[CapabilitySpec, ...]:
     return (
@@ -13,6 +20,7 @@ def definitions() -> tuple[CapabilitySpec, ...]:
             "nasihat",
             "religious_excerpt",
             "generate",
+            guidance=GUIDANCE,
             routes=(
                 LegacyRoute(domain="nasihat", action="religious_excerpt"),
                 LegacyRoute(domain="prayer", action="religious_excerpt"),
@@ -25,6 +33,7 @@ def definitions() -> tuple[CapabilitySpec, ...]:
             "nasihat",
             "open_settings",
             "read",
+            guidance=GUIDANCE,
             routes=(
                 LegacyRoute(domain="nasihat", action="open_settings"),
                 LegacyRoute(domain="nasihat", action="open_settings", view="interval"),
@@ -37,6 +46,7 @@ def definitions() -> tuple[CapabilitySpec, ...]:
             "nasihat",
             "set_interval",
             "write",
+            guidance=GUIDANCE,
             correction_id="nasihat.set_interval",
         ),
         background(

@@ -3,6 +3,12 @@
 from namoz_bot.application.capabilities.base import background, operation
 from namoz_bot.domain.workforce.capabilities import CapabilitySpec, LegacyRoute
 
+GUIDANCE = """
+Joriy kunlik jadval sozlamalarida view general yoki daily. Vaqtni HH:MM ajrat:
+ertalab7=07:00,kechqurun7=19:00; kun qismi noaniq7da bo‘lsa taxmin qilma va savol ber. Yangi
+vaqtni xizmat saqlaydi. Tugma yoki menyu talab qilma.
+""".strip()
+
 
 def definitions() -> tuple[CapabilitySpec, ...]:
     return (
@@ -13,6 +19,7 @@ def definitions() -> tuple[CapabilitySpec, ...]:
             "settings",
             "open",
             "read",
+            guidance=GUIDANCE,
             routes=tuple(
                 LegacyRoute(domain="settings", action="open", view=view)
                 for view in (None, "general", "daily")
@@ -25,6 +32,7 @@ def definitions() -> tuple[CapabilitySpec, ...]:
             "settings",
             "set_daily",
             "write",
+            guidance=GUIDANCE,
             correction_id="settings.set_daily",
         ),
         background(

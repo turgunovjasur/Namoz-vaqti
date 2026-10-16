@@ -36,6 +36,7 @@ class TaskConflict(Exception):
 class TaskPlan(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
     protocol_version: Literal[2] = 2
+    coordinator_role: Literal["assistant", "manager"] = "manager"
     task_id: str = Field(pattern=r"^[a-f0-9]{20}$")
     revision: int = Field(ge=1, le=100000)
     request_id: str = Field(min_length=1, max_length=100)

@@ -88,6 +88,7 @@ def operation(
     effect: str,
     *,
     routes: tuple[LegacyRoute, ...] | None = None,
+    guidance: str = "",
     requires_result: bool = False,
     correction_id: str | None = None,
 ) -> CapabilitySpec:
@@ -96,6 +97,7 @@ def operation(
             "id": id,
             "name": name,
             "description": description,
+            "guidance": guidance,
             "parameters_model": ACTION_MODELS[(domain, action)],
             "effect": effect,
             "requires_result": requires_result,

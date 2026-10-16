@@ -18,7 +18,6 @@ from namoz_bot.application.accounting import LedgerService
 from namoz_bot.application.agent_adapters import AgentAdapters
 from namoz_bot.application.capabilities.registry import (
     CapabilityDispatcher,
-    build_capability_registry,
 )
 from namoz_bot.application.conversation_actions import ConversationAdapters
 from namoz_bot.application.daily_schedule import (
@@ -42,6 +41,7 @@ from namoz_bot.application.religious_reminders import (
     ReligiousReminderService,
 )
 from namoz_bot.application.reminders import ReminderService
+from namoz_bot.application.roles.catalog import RoleCatalogService
 from namoz_bot.application.roles.registry import build_role_registry
 from namoz_bot.application.schedules import ScheduleService
 from namoz_bot.application.voice_reminders import VoiceReminderService
@@ -76,6 +76,8 @@ from namoz_bot.infrastructure.repositories import (
     SqlAlchemyDeliveryRepository,
     SqlAlchemySubscriptionRepository,
 )
+from namoz_bot.infrastructure.roles.repository import SqlRoleCatalog
+from namoz_bot.infrastructure.skills.bootstrap import build_runtime_capabilities
 from namoz_bot.infrastructure.telegram import TelegramMessageSender, TelegramRateLimiter
 from namoz_bot.infrastructure.workforce.bootstrap import build_profile_service
 from namoz_bot.infrastructure.workforce.outbox import SqlAlchemyTaskOutbox
@@ -178,12 +180,13 @@ def create_application(settings: Settings) -> ApplicationResources:
         religious_intervals = ReligiousIntervalService(
             interval_repository, default_hours=settings.gemini_reminder_interval_hours
         )
-    metadata = build_capability_registry()
+    metadata = build_runtime_capabilities(http=http_client)
     role_registry = build_role_registry(metadata)
     profiles = SqlAlchemyProfileRepository(
         session_factory, role_registry, admin_telegram_ids=settings.admin_telegram_ids
     )
-    access = AccessService(profiles, role_registry)
+    role_catalog = SqlRoleCatalog(session_factory, role_registry, profiles=profiles)
+    access = AccessService(profiles, role_registry, runtime=role_catalog.runtime)
     dispatcher["access_service"] = access
     dispatcher["profile_repository"] = profiles
     transport = (
@@ -193,6 +196,8 @@ def create_application(settings: Settings) -> ApplicationResources:
     )
     profile_service = build_profile_service(settings, profiles, transport)
     dispatcher["profile_service"] = profile_service
+    dispatcher["role_catalog"] = role_catalog
+    dispatcher["role_catalog_service"] = RoleCatalogService(role_catalog, profiles, profile_service)
     main_agent = None
     menu_agents: dict[Domain, MenuAgent] = {}
     if (
@@ -249,7 +254,7 @@ def create_application(settings: Settings) -> ApplicationResources:
                 model=base_model,
             )
             executor = service_adapters
-        capabilities = build_capability_registry(service_adapters)
+        capabilities = build_runtime_capabilities(service_adapters, http=http_client)
         executor = CapabilityDispatcher(build_role_registry(capabilities), capabilities, access)
         main_agent = MainAgent(
             extractor,
@@ -298,7 +303,12 @@ def create_application(settings: Settings) -> ApplicationResources:
         tasks = SqlAlchemyTaskStore(session_factory)
         queue = SqlAlchemyTaskQueue(session_factory)
         workforce_outbox = SqlAlchemyTaskOutbox(session_factory)
-        manager = Manager(access, profile_service, GeminiRoleInterpreter(transport), tasks)
+        manager = Manager(
+            access,
+            profile_service,
+            GeminiRoleInterpreter(transport, coordinator=lambda: role_registry.get("assistant")),
+            tasks,
+        )
         assistant = AssistantService(
             manager,
             GeminiTranscriber(transport),

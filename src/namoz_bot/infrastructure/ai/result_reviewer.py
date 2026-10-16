@@ -14,7 +14,7 @@ class GeminiResultReviewer:
 
     async def review(self, plan: TaskPlan, result: AgentResult) -> ReviewVerdict:
         payload = await self.transport.generate_json(
-            model=plan.models["manager"].model_id,
+            model=plan.models[plan.coordinator_role].model_id,
             instruction=plan.review_instruction or REVIEW_INSTRUCTION,
             schema={
                 "type": "OBJECT",

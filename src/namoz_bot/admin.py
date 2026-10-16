@@ -10,12 +10,12 @@ from urllib.parse import urlsplit
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from namoz_bot.application.capabilities.registry import build_capability_registry
 from namoz_bot.application.roles.registry import build_role_registry
 from namoz_bot.config import Settings
 from namoz_bot.infrastructure.admin_web.auth import AdminAuth
 from namoz_bot.infrastructure.ai.gemini_client import GeminiClient
 from namoz_bot.infrastructure.db import create_database
+from namoz_bot.infrastructure.skills.bootstrap import build_runtime_capabilities
 from namoz_bot.infrastructure.workforce.bootstrap import build_profile_service
 from namoz_bot.infrastructure.workforce.profiles import SqlAlchemyProfileRepository
 from namoz_bot.local import LocalSettings
@@ -61,7 +61,7 @@ async def run(args: argparse.Namespace, settings: Settings) -> None:
         async with httpx.AsyncClient(timeout=30) as http:
             profiles = SqlAlchemyProfileRepository(
                 factory,
-                build_role_registry(build_capability_registry()),
+                build_role_registry(build_runtime_capabilities(http=http)),
                 admin_telegram_ids=settings.admin_telegram_ids,
             )
             transport = (
