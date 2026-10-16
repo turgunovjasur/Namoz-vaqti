@@ -44,13 +44,20 @@ class AccessService:
                 return False
             return await self.repository.current_grant(user_id, role_id, capability_id) is not None
 
-    async def allowed_any(self, user_id: int, capability_id: str) -> bool:
+    async def require_any(self, user_id: int, capability_id: str) -> PermissionSnapshot:
         async with self.role_scope():
             for role in await self.available_roles(user_id):
                 if capability_id in role.capability_ids and await self.allowed(
                     user_id, role.id, capability_id
                 ):
-                    return True
+                    return await self.require(user_id, role.id, capability_id)
+        raise AccessDenied("Bu imkoniyat siz uchun yoqilmagan. Administratorga murojaat qiling.")
+
+    async def allowed_any(self, user_id: int, capability_id: str) -> bool:
+        try:
+            await self.require_any(user_id, capability_id)
+            return True
+        except AccessDenied:
             return False
 
     async def require(self, user_id: int, role_id: str, capability_id: str) -> PermissionSnapshot:

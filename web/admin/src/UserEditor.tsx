@@ -19,17 +19,20 @@ function drafts(user: Profile, roles: Role[]): GrantDraft[] {
 }
 export function UserEditor({
   user,
-  roles,
+  roles: initialRoles,
+  onCatalog,
   onClose,
   onSaved,
 }: {
   user: Profile;
   roles: Role[];
+  onCatalog: (roles: Role[]) => void;
   onClose: () => void;
   onSaved: (user: Profile) => void;
 }) {
+  const [roles, setRoles] = useState(initialRoles);
   const [baseline, setBaseline] = useState(user),
-    [draft, setDraft] = useState(() => drafts(user, roles)),
+    [draft, setDraft] = useState(() => drafts(user, initialRoles)),
     [busy, setBusy] = useState(false),
     [error, setError] = useState<Error | null>(null),
     [saved, setSaved] = useState(false);
@@ -94,9 +97,14 @@ export function UserEditor({
       return;
     setBusy(true);
     try {
-      const value = await api<Profile>(`/api/users/${user.user_id}`);
+      const [value, catalog] = await Promise.all([
+        api<Profile>(`/api/users/${user.user_id}`),
+        api<{ roles: Role[] }>("/api/roles"),
+      ]);
+      setRoles(catalog.roles);
+      onCatalog(catalog.roles);
       setBaseline(value);
-      setDraft(drafts(value, roles));
+      setDraft(drafts(value, catalog.roles));
       setError(null);
     } catch (e) {
       setError(e as Error);
@@ -149,7 +157,8 @@ export function UserEditor({
         {error ? (
           <Message error>
             {error.message}
-            {error instanceof ApiError && error.status === 409 ? (
+            {error instanceof ApiError &&
+            (error.status === 409 || error.status === 400) ? (
               <Button onClick={refresh} busy={busy}>
                 So‘nggi ma’lumotni olish
               </Button>
@@ -183,7 +192,7 @@ export function UserEditor({
                     aria-label={`${role.name} rolini yoqish`}
                     aria-checked={d.enabled}
                     className={`switch ${d.enabled ? "on" : ""}`}
-                    disabled={busy || !role.enabled}
+                    disabled={busy || (!role.enabled && !d.enabled)}
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();

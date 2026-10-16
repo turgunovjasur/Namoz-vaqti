@@ -46,3 +46,76 @@ async def test_roles_have_distinct_immutable_agents_and_no_foreign_pending_conte
     )
     assert newer is not agent
     assert len(factory) == 2
+
+
+async def test_independent_skill_parameter_types_and_nested_objects_do_not_overwrite():
+    from pydantic import BaseModel, ConfigDict
+
+    from namoz_bot.domain.workforce.capabilities import CapabilitySpec
+    from namoz_bot.infrastructure.ai.agent_factory import AgentFactory
+
+    class NumericDetail(BaseModel):
+        count: int
+
+    class TextDetail(BaseModel):
+        label: str
+
+    class Numeric(BaseModel):
+        model_config = ConfigDict(extra="forbid", strict=True)
+        value: int
+        detail: NumericDetail
+
+    class Textual(BaseModel):
+        model_config = ConfigDict(extra="forbid", strict=True)
+        value: str
+        detail: TextDetail
+
+    specs = tuple(
+        CapabilitySpec(id=id, name=id, description=id, parameters_model=shape, effect="read")
+        for id, shape in [("demo.numeric", Numeric), ("demo.textual", Textual)]
+    )
+    role = RoleDefinition(
+        id="mixed",
+        name="Mixed",
+        description="Typed skills",
+        instruction="Typed skills",
+        capability_ids=tuple(s.id for s in specs),
+    )
+
+    class AI:
+        async def generate_json(self, **kwargs):
+            parameters = kwargs["schema"]["properties"]["parameters"]
+            variants = parameters.get("anyOf", [parameters])
+            numeric = next(
+                (
+                    v
+                    for v in variants
+                    if v.get("properties", {}).get("value", {}).get("type") == "INTEGER"
+                ),
+                None,
+            )
+            textual = next(
+                (
+                    v
+                    for v in variants
+                    if v.get("properties", {}).get("value", {}).get("type") == "STRING"
+                ),
+                None,
+            )
+            assert numeric is not None and textual is not None
+            assert set(numeric["required"]) == {"value", "detail"}
+            assert set(textual["required"]) == {"value", "detail"}
+            assert numeric["properties"]["detail"]["properties"]["count"]["type"] == "INTEGER"
+            assert textual["properties"]["detail"]["properties"]["label"]["type"] == "STRING"
+            return {
+                "capability_id": "demo.numeric",
+                "parameters": {"value": 3, "detail": {"count": 2}},
+                "question": None,
+            }
+
+    selected = (
+        await AgentFactory(AI())
+        .resolve(role, specs, "model-a")
+        .interpret(text="Count", context=plan().context, pending=None)
+    )
+    assert selected.parameters == {"value": 3, "detail": {"count": 2}}

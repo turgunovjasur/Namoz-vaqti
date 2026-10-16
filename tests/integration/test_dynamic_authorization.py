@@ -146,3 +146,48 @@ async def test_global_revoke_waits_for_owner_effect_and_cannot_restore_stale_gra
                 expected_revision=2,
             )
     assert not await access.allowed_any(target, "finance.report")
+
+
+async def test_model_write_serializes_with_role_edit_and_stale_version_conflicts(
+    catalog_setup, store
+):
+    import asyncio
+
+    from namoz_bot.domain.workforce.profiles import ProfileConflict
+    from tests.integration.test_agent_sessions import NOW
+
+    catalog, runtime, profiles, access, actor, target = catalog_setup
+    _, factory, _, _ = store
+    if factory.kw["bind"].dialect.name != "postgresql":
+        pytest.skip("PostgreSQL row lock race")
+    role = await catalog.create(actor, draft())
+    async with runtime.scope():
+        await profiles.set_grants(
+            actor_id=actor,
+            user_id=target,
+            role_id=role.id,
+            enabled=True,
+            capability_ids=frozenset({"finance.report"}),
+            expected_revision=0,
+        )
+        async with access.effect_scope(target, role.id, "finance.report", now=NOW):
+            role_edit = asyncio.create_task(
+                catalog.update(
+                    actor,
+                    role.id,
+                    draft(model_id="model-b", expected_revision=1, expected_model_version=1),
+                )
+            )
+            await asyncio.sleep(0.05)
+            assert not role_edit.done()
+            model_edit = asyncio.create_task(
+                profiles.set_model(
+                    actor_id=actor, role_id=role.id, model_id="model-a", expected_version=1
+                )
+            )
+            await asyncio.sleep(0.05)
+        outcomes = await asyncio.wait_for(
+            asyncio.gather(role_edit, model_edit, return_exceptions=True), 5
+        )
+    assert sum(isinstance(value, ProfileConflict) for value in outcomes) == 1
+    assert (await profiles.get_model(role.id, "model-a")).version == 2

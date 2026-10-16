@@ -242,9 +242,10 @@ async def receive_accounting(
     entry = None
     try:
         if request.intent in {"income", "expense"}:
-            with selected_operation("accounting", f"finance.{request.intent}"):
+            grant = await access_service.require_any(owner, f"finance.{request.intent}")
+            with selected_operation(grant.role_id, f"finance.{request.intent}"):
                 async with access_service.effect_scope(
-                    owner, "accounting", f"finance.{request.intent}", now=message.date
+                    owner, grant.role_id, f"finance.{request.intent}", now=message.date
                 ) as tx:
                     entry = await tx.ledger.record(
                         owner,
@@ -312,8 +313,9 @@ async def accounting_callback(
         if action == "undo":
             if not value.isdigit():
                 raise ValueError("Yozuv raqami noto‘g‘ri.")
-            with selected_operation("accounting", "finance.undo"):
-                async with access_service.effect_scope(owner, "accounting", "finance.undo") as tx:
+            grant = await access_service.require_any(owner, "finance.undo")
+            with selected_operation(grant.role_id, "finance.undo"):
+                async with access_service.effect_scope(owner, grant.role_id, "finance.undo") as tx:
                     cancelled = await tx.ledger.cancel(owner, int(value))
                     balance = await tx.ledger.balance(owner)
             text = (

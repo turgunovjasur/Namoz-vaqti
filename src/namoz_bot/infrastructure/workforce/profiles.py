@@ -316,6 +316,9 @@ class SqlAlchemyProfileRepository:
         self, *, actor_id: int, role_id: str, model_id: str, expected_version: int
     ) -> RoleModelSetting:
         async with self.factory.begin() as session:
+            from namoz_bot.infrastructure.roles.locks import lock_catalog
+
+            await lock_catalog(session)
             await self.require_admin(session, actor_id)
             if expected_version == 0:
                 insert = (

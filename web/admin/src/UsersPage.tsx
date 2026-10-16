@@ -6,7 +6,7 @@ import {
   UserRoundCheck,
   Users,
 } from "lucide-react";
-import { useDebounced, useRemote } from "./api";
+import { api, useDebounced, useRemote } from "./api";
 import type { Profile, Role, UsersPage as Page } from "./types";
 import {
   Avatar,
@@ -14,13 +14,22 @@ import {
   Empty,
   Failure,
   Loading,
+  Message,
   nameOf,
   Next,
   RolePills,
 } from "./ui";
 import { UserEditor } from "./UserEditor";
 
-export function UsersPage({ roles }: { roles: Role[] }) {
+export function UsersPage({
+  roles,
+  onCatalog,
+}: {
+  roles: Role[];
+  onCatalog: (roles: Role[]) => void;
+}) {
+  const [opening, setOpening] = useState(false),
+    [openError, setOpenError] = useState<Error | null>(null);
   const [search, setSearch] = useState(""),
     [filter, setFilter] = useState(""),
     [cursors, setCursors] = useState<number[]>([]),
@@ -40,6 +49,33 @@ export function UsersPage({ roles }: { roles: Role[] }) {
     capCount = new Set(
       specialists.flatMap((r) => r.capabilities.map((c) => c.id)),
     ).size;
+  async function open(user: Profile) {
+    if (opening) return;
+    setOpening(true);
+    setOpenError(null);
+    try {
+      const [profile, catalog] = await Promise.all([
+        api<Profile>(`/api/users/${user.user_id}`),
+        api<{ roles: Role[] }>("/api/roles"),
+      ]);
+      onCatalog(catalog.roles);
+      setSelected(profile);
+    } catch (e) {
+      setOpenError(e as Error);
+    } finally {
+      setOpening(false);
+    }
+  }
+  async function refreshList() {
+    try {
+      const catalog = await api<{ roles: Role[] }>("/api/roles");
+      onCatalog(catalog.roles);
+      reload();
+      setOpenError(null);
+    } catch (e) {
+      setOpenError(e as Error);
+    }
+  }
   return (
     <>
       <header className="page-head">
@@ -53,6 +89,7 @@ export function UsersPage({ roles }: { roles: Role[] }) {
           Server bilan bog‘langan
         </span>
       </header>
+      {openError ? <Message error>{openError.message}</Message> : null}
       <div className="stats">
         <div>
           <span>Foydalanuvchilar</span>
@@ -108,7 +145,7 @@ export function UsersPage({ roles }: { roles: Role[] }) {
           <Button
             className="icon-button"
             aria-label="Ro‘yxatni yangilash"
-            onClick={reload}
+            onClick={refreshList}
           >
             <span className="refresh-symbol">↻</span>
           </Button>
@@ -134,13 +171,14 @@ export function UsersPage({ roles }: { roles: Role[] }) {
                 </thead>
                 <tbody>
                   {data.users.map((user) => (
-                    <tr key={user.user_id} onClick={() => setSelected(user)}>
+                    <tr key={user.user_id} onClick={() => open(user)}>
                       <td>
                         <button
                           className="person-button"
+                          disabled={opening}
                           onClick={(e) => {
                             e.stopPropagation();
-                            setSelected(user);
+                            open(user);
                           }}
                         >
                           <div className="identity">
@@ -205,6 +243,7 @@ export function UsersPage({ roles }: { roles: Role[] }) {
           key={selected.user_id}
           user={selected}
           roles={roles}
+          onCatalog={onCatalog}
           onClose={() => setSelected(null)}
           onSaved={(value) => {
             setSelected(value);

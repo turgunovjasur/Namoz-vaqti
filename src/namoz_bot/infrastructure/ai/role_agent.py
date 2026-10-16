@@ -62,28 +62,15 @@ class GeminiRoleAgent:
         correcting = bool(
             pending and (pending.status == "awaiting_correction" or pending.plan.original_result)
         )
-        fields: dict[str, JsonValue] = {}
+        # Keep each complete parameter shape separate: field names belong to a skill.
+        variants = []
         for spec in capabilities:
-            properties = cast(
-                dict[str, JsonValue],
-                provider_schema(spec.parameters_model.model_json_schema()).get("properties", {}),
-            )
-            for name, prop in properties.items():
-                if name in fields and isinstance(prop, dict) and isinstance(fields[name], dict):
-                    previous = cast(dict[str, JsonValue], fields[name])
-                    if isinstance(prop.get("enum"), list) and isinstance(
-                        previous.get("enum"), list
-                    ):
-                        prop = {
-                            **prop,
-                            "enum": list(
-                                dict.fromkeys(
-                                    cast(list[str], previous["enum"])
-                                    + cast(list[str], prop["enum"])
-                                )
-                            ),
-                        }
-                fields[name] = prop
+            shape = provider_schema(spec.parameters_model.model_json_schema())
+            if shape.get("properties") and shape not in variants:
+                variants.append(shape)
+        parameters_schema: dict[str, JsonValue] = (
+            variants[0] if len(variants) == 1 else {"anyOf": cast(list[JsonValue], variants)}
+        )
         payload = await self.transport.generate_json(
             model=model,
             instruction=self.instruction,
@@ -96,13 +83,13 @@ class GeminiRoleAgent:
                         "enum": [c.id for c in capabilities],
                         "nullable": True,
                     },
-                    **({"parameters": {"type": "OBJECT", "properties": fields}} if fields else {}),
+                    **({"parameters": parameters_schema} if variants else {}),
                     "question": {"type": "STRING", "nullable": True},
                 },
                 "required": [
                     "capability_id",
                     "question",
-                    *(["parameters"] if fields else []),
+                    *(["parameters"] if variants else []),
                     *(["continuation"] if correcting else []),
                 ],
             },
@@ -113,7 +100,14 @@ class GeminiRoleAgent:
                             "text": text,
                             "context": safe_context(context, pending),
                             "capabilities": [
-                                {"id": c.id, "name": c.name, "description": c.description}
+                                {
+                                    "id": c.id,
+                                    "name": c.name,
+                                    "description": c.description,
+                                    "input_schema": provider_schema(
+                                        c.parameters_model.model_json_schema()
+                                    ),
+                                }
                                 for c in capabilities
                             ],
                         },

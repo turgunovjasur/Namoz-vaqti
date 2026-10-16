@@ -75,6 +75,9 @@ export function App() {
       window.removeEventListener("admin-session-expired", expire);
     };
   }, []);
+  function updateCatalog(roles: Role[]) {
+    setReady((old) => (old ? { ...old, roles } : old));
+  }
   async function refreshRoles() {
     const catalog = await api<{ roles: Role[] }>("/api/roles");
     setReady((old) => (old ? { ...old, roles: catalog.roles } : old));
@@ -215,7 +218,7 @@ export function App() {
             <Failure error={error} retry={() => setError(null)} />
           ) : null}
           {section === "users" ? (
-            <UsersPage roles={ready.roles} />
+            <UsersPage roles={ready.roles} onCatalog={updateCatalog} />
           ) : section === "roles" ? (
             <RolesPage roles={ready.roles} onRefresh={refreshRoles} />
           ) : section === "models" ? (
