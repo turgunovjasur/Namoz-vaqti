@@ -20,6 +20,7 @@ class Settings(BaseSettings):
 
     telegram_bot_token: SecretStr = Field(validation_alias="TELEGRAM_BOT_TOKEN")
     database_url: str = Field(validation_alias="DATABASE_URL")
+    qori_enabled: bool = False
     gemini_api_key: SecretStr | None = Field(default=None, validation_alias="GEMINI_API_KEY")
     gemini_book_corpus_path: Path | None = Field(
         default=None, validation_alias="GEMINI_BOOK_CORPUS_PATH"
@@ -72,6 +73,9 @@ class Settings(BaseSettings):
 
     main_agent_enabled: bool = Field(default=True, validation_alias="MAIN_AGENT_ENABLED")
     main_agent_version: int = Field(default=3, ge=1, le=3, validation_alias="MAIN_AGENT_VERSION")
+    workforce_max_concurrency: int = Field(
+        default=3, ge=1, le=32, validation_alias="WORKFORCE_MAX_CONCURRENCY"
+    )
     gemini_main_agent_model: str | None = Field(
         default=None,
         validation_alias="GEMINI_MAIN_AGENT_MODEL",

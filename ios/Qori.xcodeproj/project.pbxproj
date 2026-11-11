@@ -1,0 +1,105 @@
+// !$*UTF8*$!
+{
+ archiveVersion = 1; classes = {}; objectVersion = 56; objects = {
+		AE33A368948FB1DB3AABAC25 /* PrayerWidgetContent.swift */ = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PrayerWidgetContent.swift"; sourceTree = "<group>"; };
+		8AE2DC873CEA19B6EA83882F /* Build PrayerWidgetContent.swift */ = { isa = PBXBuildFile; fileRef = AE33A368948FB1DB3AABAC25; };
+		8F694E05FCC41B1605C84FD6 /* Build PrayerWidgetContent.swift */ = { isa = PBXBuildFile; fileRef = AE33A368948FB1DB3AABAC25; };
+
+		9F320A1C2EFB181AC765851F /* PrayerWidgetSnapshot.swift */ = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PrayerWidgetSnapshot.swift"; sourceTree = "<group>"; };
+		0B260B6D0245F2E3103D9044 /* Build PrayerWidgetSnapshot.swift */ = { isa = PBXBuildFile; fileRef = 9F320A1C2EFB181AC765851F; };
+		39DF2908A10E1A7190529749 /* Build PrayerWidgetSnapshot.swift */ = { isa = PBXBuildFile; fileRef = 9F320A1C2EFB181AC765851F; };
+
+		40B20262F5887E9B59550ED5 /* PrayerWidgetGalleryView.swift */ = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PrayerWidgetGalleryView.swift"; sourceTree = "<group>"; };
+		8B5795BC7518DCF284B6CC14 /* Build PrayerWidgetGalleryView.swift */ = { isa = PBXBuildFile; fileRef = 40B20262F5887E9B59550ED5; };
+
+		44F2955A0F5A627FEEF727A2 /* AdviceNotifications.swift */ = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AdviceNotifications.swift"; sourceTree = "<group>"; };
+		3DF8DC1794A61472687C1D83 /* Build AdviceNotifications.swift */ = { isa = PBXBuildFile; fileRef = 44F2955A0F5A627FEEF727A2; };
+		45A38F39724F5E52ED4B3439 /* AdviceQueue.swift */ = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AdviceQueue.swift"; sourceTree = "<group>"; };
+		3132BCC1F43752B10CFB08C6 /* Build AdviceQueue.swift */ = { isa = PBXBuildFile; fileRef = 45A38F39724F5E52ED4B3439; };
+		8E4F86B16B383BEF66D06111 /* Resources/NasihatBooks */ = { isa = PBXFileReference; lastKnownFileType = folder; path = "Resources/NasihatBooks"; sourceTree = "<group>"; };
+		27343C8D6DD5BC2F002BD385 /* Build Resources/NasihatBooks */ = { isa = PBXBuildFile; fileRef = 8E4F86B16B383BEF66D06111; };
+
+		7AB25F282FABC37DC0E46722 /* NasihatView.swift */ = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NasihatView.swift"; sourceTree = "<group>"; };
+		C73E1826ABC049F045998821 /* Build NasihatView.swift */ = { isa = PBXBuildFile; fileRef = 7AB25F282FABC37DC0E46722; };
+
+		9BA16DBB52C1D7F580FA10A5 /* NasihatStore.swift */ = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NasihatStore.swift"; sourceTree = "<group>"; };
+		517D8C40292FC6B7972C48EB /* Build NasihatStore.swift */ = { isa = PBXBuildFile; fileRef = 9BA16DBB52C1D7F580FA10A5; };
+
+		7C585F213EC9ED8C1ACE50E8 /* Assets.xcassets */ = { isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Assets.xcassets"; sourceTree = "<group>"; };
+		7739FC06C53453A98451F71D /* App artwork */ = { isa = PBXBuildFile; fileRef = 7C585F213EC9ED8C1ACE50E8; };
+		A59BCA3EC92F8172DBC13AE3 /* NextPrayerWidget.swift */ = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NextPrayerWidget.swift"; sourceTree = "<group>"; };
+		E08B7AF38E231BE56F7D22DB /* WidgetSettings.swift */ = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WidgetSettings.swift"; sourceTree = "<group>"; };
+		A219A82BC376255AB432288A /* Info.plist */ = { isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Info.plist"; sourceTree = "<group>"; };
+		BCC3547C44DB33AA8D96E220 /* WidgetSettings.entitlements */ = { isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "WidgetSettings.entitlements"; sourceTree = "<group>"; };
+		F37D64AF303AEB1DB0152BAB /* QoriWidget */ = { isa = PBXGroup; children = (AE33A368948FB1DB3AABAC25, 9F320A1C2EFB181AC765851F, A59BCA3EC92F8172DBC13AE3,E08B7AF38E231BE56F7D22DB,A219A82BC376255AB432288A,BCC3547C44DB33AA8D96E220); path = QoriWidget; sourceTree = "<group>"; };
+		74C4940AB591A7B34B3E0A21 /* Widget timeline */ = { isa = PBXBuildFile; fileRef = A59BCA3EC92F8172DBC13AE3; };
+		F984C4D797AA747A7F4A08F7 /* Widget settings reader */ = { isa = PBXBuildFile; fileRef = E08B7AF38E231BE56F7D22DB; };
+		D3A8101BB5E8BCF12178C96F /* Widget times */ = { isa = PBXBuildFile; fileRef = 81FD1AB5EDF2E69BBED7804D; };
+		4FA401A01CE2A6EB4FFB1ED6 /* Widget preferences */ = { isa = PBXBuildFile; fileRef = 77238318CF0D41969297A884; };
+		6532130054473F8C6FDDD6D5 /* App widget settings */ = { isa = PBXBuildFile; fileRef = E08B7AF38E231BE56F7D22DB; };
+		D424CD0BA0C4E99AB012EEF6 /* QoriWidget.appex */ = { isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = QoriWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		9CA23C52DE66FCCDA03B1C35 /* Embed widget product */ = { isa = PBXBuildFile; fileRef = D424CD0BA0C4E99AB012EEF6; settings = { ATTRIBUTES = (RemoveHeadersOnCopy); }; };
+		8519942FA5813011530FC58D /* Embed App Extensions */ = { isa = PBXCopyFilesBuildPhase; buildActionMask = 2147483647; dstPath = ""; dstSubfolderSpec = 13; files = (9CA23C52DE66FCCDA03B1C35); name = "Embed App Extensions"; runOnlyForDeploymentPostprocessing = 0; };
+		F22D56AB923F8087CBAD7A9A /* Widget Sources */ = { isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (8F694E05FCC41B1605C84FD6, 39DF2908A10E1A7190529749, 74C4940AB591A7B34B3E0A21,F984C4D797AA747A7F4A08F7,D3A8101BB5E8BCF12178C96F,4FA401A01CE2A6EB4FFB1ED6); runOnlyForDeploymentPostprocessing = 0; };
+		F36CDC1B76082591F5F2D92C /* Widget Debug */ = { isa = XCBuildConfiguration; buildSettings = { APPLICATION_EXTENSION_API_ONLY = YES; CODE_SIGN_STYLE = Automatic; CODE_SIGN_ENTITLEMENTS = QoriWidget/WidgetSettings.entitlements; INFOPLIST_FILE = QoriWidget/Info.plist; TARGETED_DEVICE_FAMILY = 1; CURRENT_PROJECT_VERSION = 1; MARKETING_VERSION = 1.0; PRODUCT_BUNDLE_IDENTIFIER = uz.namozvaqti.Qori.Widget; PRODUCT_NAME = QoriWidget; SKIP_INSTALL = YES; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks"; }; name = Debug; };
+		8FC0EA49F6249C072B49D589 /* Widget Release */ = { isa = XCBuildConfiguration; buildSettings = { APPLICATION_EXTENSION_API_ONLY = YES; CODE_SIGN_STYLE = Automatic; CODE_SIGN_ENTITLEMENTS = QoriWidget/WidgetSettings.entitlements; INFOPLIST_FILE = QoriWidget/Info.plist; TARGETED_DEVICE_FAMILY = 1; CURRENT_PROJECT_VERSION = 1; MARKETING_VERSION = 1.0; PRODUCT_BUNDLE_IDENTIFIER = uz.namozvaqti.Qori.Widget; PRODUCT_NAME = QoriWidget; SKIP_INSTALL = YES; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks"; }; name = Release; };
+		1DE1D9BB830F22B003CAAAC9 /* Widget Configuration */ = { isa = XCConfigurationList; buildConfigurations = (F36CDC1B76082591F5F2D92C,8FC0EA49F6249C072B49D589); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		6F2CC95133CD3839136C6889 /* Widget Target */ = { isa = PBXNativeTarget; buildConfigurationList = 1DE1D9BB830F22B003CAAAC9; buildPhases = (F22D56AB923F8087CBAD7A9A); buildRules = (); dependencies = (); name = QoriWidget; productName = QoriWidget; productReference = D424CD0BA0C4E99AB012EEF6; productType = "com.apple.product-type.app-extension"; };
+		D2752153EE5B221E744CC183 /* Widget Proxy */ = { isa = PBXContainerItemProxy; containerPortal = 985959785319747668373CC6; proxyType = 1; remoteGlobalIDString = 6F2CC95133CD3839136C6889; remoteInfo = QoriWidget; };
+		EC4CAFD58513972A5336F53A /* Widget Dependency */ = { isa = PBXTargetDependency; target = 6F2CC95133CD3839136C6889; targetProxy = D2752153EE5B221E744CC183; };
+		D5D61E9A15814CE892A9E825 /* prayer-chime.wav */ = { isa = PBXFileReference; lastKnownFileType = audio.wav; path = "prayer-chime.wav"; sourceTree = "<group>"; };
+		9EF990D7FEE7465BB25B74D9 /* Build prayer-chime.wav */ = { isa = PBXBuildFile; fileRef = D5D61E9A15814CE892A9E825; };
+		5C206CB6AFE94D64AD2EAC32 /* PrayerOptionsView.swift */ = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PrayerOptionsView.swift"; sourceTree = "<group>"; };
+		B032C98498C6432AA67B28FC /* Build PrayerOptionsView.swift */ = { isa = PBXBuildFile; fileRef = 5C206CB6AFE94D64AD2EAC32; };
+		F0EF426A1B894A3CA0E7AC33 /* PrayerAlerts.swift */ = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PrayerAlerts.swift"; sourceTree = "<group>"; };
+		6A4A15389FF64CE684198F97 /* Build PrayerAlerts.swift */ = { isa = PBXBuildFile; fileRef = F0EF426A1B894A3CA0E7AC33; };
+		77238318CF0D41969297A884 /* PrayerPreferences.swift */ = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PrayerPreferences.swift"; sourceTree = "<group>"; };
+		FDAA86F1E055499294324496 /* Build PrayerPreferences.swift */ = { isa = PBXBuildFile; fileRef = 77238318CF0D41969297A884; };
+		BBF29B5481D6B2BF3C4024FD /* prayer-regions.json */ = { isa = PBXFileReference; lastKnownFileType = text.json; path = "prayer-regions.json"; sourceTree = "<group>"; };
+		2489AF516E86EF32ECC4352B /* Build prayer-regions.json */ = { isa = PBXBuildFile; fileRef = BBF29B5481D6B2BF3C4024FD; };
+		81FD1AB5EDF2E69BBED7804D /* PrayerSchedule.swift */ = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PrayerSchedule.swift"; sourceTree = "<group>"; };
+		9E00306D28C5C481651780A4 /* Build PrayerSchedule.swift */ = { isa = PBXBuildFile; fileRef = 81FD1AB5EDF2E69BBED7804D; };
+		C5C214013175A66709711A3D /* PrayerTimesView.swift */ = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PrayerTimesView.swift"; sourceTree = "<group>"; };
+		877D47EA12670657D1011356 /* Build PrayerTimesView.swift */ = { isa = PBXBuildFile; fileRef = C5C214013175A66709711A3D; };
+		1875DF05B6320744CBEE7324 /* QoriApp.swift */ = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "QoriApp.swift"; sourceTree = "<group>"; };
+		A09DB7C78AC109F17C309C29 /* Build QoriApp.swift */ = { isa = PBXBuildFile; fileRef = 1875DF05B6320744CBEE7324; };
+		6C8E8C0DB26A6EA9BF8874B0 /* Quran.swift */ = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Quran.swift"; sourceTree = "<group>"; };
+		62758EA546F99222F57FC29B /* Build Quran.swift */ = { isa = PBXBuildFile; fileRef = 6C8E8C0DB26A6EA9BF8874B0; };
+		215A0DDB22FD055651492035 /* ReaderSettings.swift */ = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ReaderSettings.swift"; sourceTree = "<group>"; };
+		6FDF293A7D84C9B56FD550F5 /* Build ReaderSettings.swift */ = { isa = PBXBuildFile; fileRef = 215A0DDB22FD055651492035; };
+		34EABE02240B715E33FA2A84 /* ReaderView.swift */ = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ReaderView.swift"; sourceTree = "<group>"; };
+		BFE520E0EE675D76A95099E9 /* Build ReaderView.swift */ = { isa = PBXBuildFile; fileRef = 34EABE02240B715E33FA2A84; };
+		056C43776E0ED2FF12E5124B /* RecitationPlayer.swift */ = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RecitationPlayer.swift"; sourceTree = "<group>"; };
+		912E7280C2C879DDEE427EB9 /* Build RecitationPlayer.swift */ = { isa = PBXBuildFile; fileRef = 056C43776E0ED2FF12E5124B; };
+		7995CA6BEFBB64470DE92E72 /* quran-simple.txt */ = { isa = PBXFileReference; lastKnownFileType = text; path = "quran-simple.txt"; sourceTree = "<group>"; };
+		35ADD35531889D8B41B63951 /* Build quran-simple.txt */ = { isa = PBXBuildFile; fileRef = 7995CA6BEFBB64470DE92E72; };
+		035382BFE729165D2EED8633 /* surah-names.txt */ = { isa = PBXFileReference; lastKnownFileType = text; path = "surah-names.txt"; sourceTree = "<group>"; };
+		0917024B17C0BBDA8C296184 /* Build surah-names.txt */ = { isa = PBXBuildFile; fileRef = 035382BFE729165D2EED8633; };
+		ED4EABFC52F03915DFB3928A /* uz-sodik.txt */ = { isa = PBXFileReference; lastKnownFileType = text; path = "uz-sodik.txt"; sourceTree = "<group>"; };
+		986CAF77E71E1B7170A97F5C /* Build uz-sodik.txt */ = { isa = PBXBuildFile; fileRef = ED4EABFC52F03915DFB3928A; };
+		FAE1EA440F45FC4189DD720E /* AmiriQuranColored.ttf */ = { isa = PBXFileReference; lastKnownFileType = file; path = "AmiriQuranColored.ttf"; sourceTree = "<group>"; };
+		8E7565D1B584BDADA18174AF /* Build AmiriQuranColored.ttf */ = { isa = PBXBuildFile; fileRef = FAE1EA440F45FC4189DD720E; };
+		C873D233978421C2173C7092 /* AmiriQuran-OFL.txt */ = { isa = PBXFileReference; lastKnownFileType = text; path = "AmiriQuran-OFL.txt"; sourceTree = "<group>"; };
+		391636AA2557A63539373EA7 /* Build AmiriQuran-OFL.txt */ = { isa = PBXBuildFile; fileRef = C873D233978421C2173C7092; };
+		4CE9C392DC2EA3481BAF26AC /* quran-uthmani.txt */ = { isa = PBXFileReference; lastKnownFileType = text; path = "quran-uthmani.txt"; sourceTree = "<group>"; };
+		B650761ED64C7C16E4B43F36 /* Build quran-uthmani.txt */ = { isa = PBXBuildFile; fileRef = 4CE9C392DC2EA3481BAF26AC; };
+		9AC3B5AD93CBC0305C62F78F /* Info.plist */ = { isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Info.plist"; sourceTree = "<group>"; };
+		EB814BE3CA3B78C0734C5605 /* Main */ = { isa = PBXGroup; children = (E96C8EC3063B8DC40541BAEB, F37D64AF303AEB1DB0152BAB, 3B80EC5157880B7E728DB70F, 4EDC8BFAFC6BD936B849F38C);  sourceTree = "<group>"; };
+		E96C8EC3063B8DC40541BAEB /* Qori */ = { isa = PBXGroup; children = (40B20262F5887E9B59550ED5, 44F2955A0F5A627FEEF727A2, 45A38F39724F5E52ED4B3439, 8E4F86B16B383BEF66D06111, 7AB25F282FABC37DC0E46722, 9BA16DBB52C1D7F580FA10A5, 1875DF05B6320744CBEE7324, 7C585F213EC9ED8C1ACE50E8, 5C206CB6AFE94D64AD2EAC32, F0EF426A1B894A3CA0E7AC33, 77238318CF0D41969297A884, 81FD1AB5EDF2E69BBED7804D, C5C214013175A66709711A3D, 6C8E8C0DB26A6EA9BF8874B0, 215A0DDB22FD055651492035, 34EABE02240B715E33FA2A84, 056C43776E0ED2FF12E5124B, E89B30AA1DC30A6AD8C34610, 9AC3B5AD93CBC0305C62F78F); path = Qori; sourceTree = "<group>"; };
+		E89B30AA1DC30A6AD8C34610 /* Resources */ = { isa = PBXGroup; children = (7995CA6BEFBB64470DE92E72, D5D61E9A15814CE892A9E825, BBF29B5481D6B2BF3C4024FD, 035382BFE729165D2EED8633, ED4EABFC52F03915DFB3928A); path = Resources; sourceTree = "<group>"; };
+		3B80EC5157880B7E728DB70F /* Bot Quran assets */ = { isa = PBXGroup; children = (FAE1EA440F45FC4189DD720E, C873D233978421C2173C7092, 4CE9C392DC2EA3481BAF26AC); name = "Shared Quran assets"; path = "../src/namoz_bot/qori/assets"; sourceTree = "<group>"; };
+		4EDC8BFAFC6BD936B849F38C /* Products */ = { isa = PBXGroup; children = (93556D2579A71F3EE258AA4D,D424CD0BA0C4E99AB012EEF6); name = Products; sourceTree = "<group>"; };
+		93556D2579A71F3EE258AA4D /* Qori.app */ = { isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Qori.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		CAF85B0888D78F1F83771A07 /* Sources */ = { isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (8AE2DC873CEA19B6EA83882F, 0B260B6D0245F2E3103D9044, 8B5795BC7518DCF284B6CC14, 3DF8DC1794A61472687C1D83, 3132BCC1F43752B10CFB08C6, C73E1826ABC049F045998821, 517D8C40292FC6B7972C48EB, A09DB7C78AC109F17C309C29, 6532130054473F8C6FDDD6D5, B032C98498C6432AA67B28FC, 6A4A15389FF64CE684198F97, FDAA86F1E055499294324496, 9E00306D28C5C481651780A4, 877D47EA12670657D1011356, 62758EA546F99222F57FC29B, 6FDF293A7D84C9B56FD550F5, BFE520E0EE675D76A95099E9, 912E7280C2C879DDEE427EB9); runOnlyForDeploymentPostprocessing = 0; };
+		4E1CDF1A9ED32622E06571BA /* App resources */ = { isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (27343C8D6DD5BC2F002BD385, 35ADD35531889D8B41B63951, 7739FC06C53453A98451F71D, 9EF990D7FEE7465BB25B74D9, 2489AF516E86EF32ECC4352B, 0917024B17C0BBDA8C296184, 986CAF77E71E1B7170A97F5C, 8E7565D1B584BDADA18174AF, 391636AA2557A63539373EA7, B650761ED64C7C16E4B43F36); runOnlyForDeploymentPostprocessing = 0; };
+		CAFD6B725820BD8EFB592E21 /* Frameworks */ = { isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		433548979C024CC63B5F3B8D /* ProjectDebug */ = { isa = XCBuildConfiguration; buildSettings = { SDKROOT = iphoneos; IPHONEOS_DEPLOYMENT_TARGET = 16.0; CLANG_ENABLE_MODULES = YES; SWIFT_VERSION = 5.0; SWIFT_OPTIMIZATION_LEVEL = "-Onone"; ENABLE_TESTABILITY = YES; SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG; }; name = Debug; };
+		B800A40FDE6F0A0218D9BCD2 /* ProjectRelease */ = { isa = XCBuildConfiguration; buildSettings = { SDKROOT = iphoneos; IPHONEOS_DEPLOYMENT_TARGET = 16.0; CLANG_ENABLE_MODULES = YES; SWIFT_VERSION = 5.0; }; name = Release; };
+		E7D1FE59799B28DD1744118E /* Project configs */ = { isa = XCConfigurationList; buildConfigurations = (433548979C024CC63B5F3B8D, B800A40FDE6F0A0218D9BCD2); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		6CCC433D89988F3E2859E1DB /* AppDebug */ = { isa = XCBuildConfiguration; buildSettings = { ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; CODE_SIGN_ENTITLEMENTS = QoriWidget/WidgetSettings.entitlements; PRODUCT_BUNDLE_IDENTIFIER = uz.namozvaqti.Qori; PRODUCT_NAME = Qori; TARGETED_DEVICE_FAMILY = 1; INFOPLIST_FILE = Qori/Info.plist; MARKETING_VERSION = 1.0; CURRENT_PROJECT_VERSION = 1; CODE_SIGN_STYLE = Automatic; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; }; name = Debug; };
+		60E450B27FD0D02DD5AA6B63 /* AppRelease */ = { isa = XCBuildConfiguration; buildSettings = { ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; CODE_SIGN_ENTITLEMENTS = QoriWidget/WidgetSettings.entitlements; PRODUCT_BUNDLE_IDENTIFIER = uz.namozvaqti.Qori; PRODUCT_NAME = Qori; TARGETED_DEVICE_FAMILY = 1; INFOPLIST_FILE = Qori/Info.plist; MARKETING_VERSION = 1.0; CURRENT_PROJECT_VERSION = 1; CODE_SIGN_STYLE = Automatic; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; }; name = Release; };
+		30318DF1595C5F4A8F935286 /* App configs */ = { isa = XCConfigurationList; buildConfigurations = (6CCC433D89988F3E2859E1DB, 60E450B27FD0D02DD5AA6B63); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		CFBD5CE6F10E13B4882995AE /* Qori Target */ = { isa = PBXNativeTarget; buildConfigurationList = 30318DF1595C5F4A8F935286; buildPhases = (CAF85B0888D78F1F83771A07, CAFD6B725820BD8EFB592E21, 4E1CDF1A9ED32622E06571BA, 8519942FA5813011530FC58D); buildRules = (); dependencies = (EC4CAFD58513972A5336F53A); name = Qori; productName = Qori; productReference = 93556D2579A71F3EE258AA4D; productType = "com.apple.product-type.application"; };
+		985959785319747668373CC6 /* Project */ = { isa = PBXProject; attributes = { LastSwiftUpdateCheck = 1600; LastUpgradeCheck = 1600; }; buildConfigurationList = E7D1FE59799B28DD1744118E; compatibilityVersion = "Xcode 14.0"; developmentRegion = uz; hasScannedForEncodings = 0; knownRegions = (uz, Base); mainGroup = EB814BE3CA3B78C0734C5605; productRefGroup = 4EDC8BFAFC6BD936B849F38C; projectDirPath = ""; projectRoot = ""; targets = (CFBD5CE6F10E13B4882995AE,6F2CC95133CD3839136C6889); };
+ }; rootObject = 985959785319747668373CC6;
+}

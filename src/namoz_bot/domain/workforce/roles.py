@@ -13,6 +13,7 @@ class RoleDefinition(BaseModel):
     system_role: bool = False
     common_rules: str = Field(default="", max_length=8000)
     enabled: bool = True
+    archived: bool = False
     revision: int = Field(default=0, ge=0)
 
 

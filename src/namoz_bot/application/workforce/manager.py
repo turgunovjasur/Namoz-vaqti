@@ -34,7 +34,8 @@ class ManagedExecution:
             claim,
             verdict,
             TaskMessage(
-                text=self.review.render(result, complete=complete),
+                text=f"Vazifa: {task.plan.transcript[:200]}\n\n"
+                + self.review.render(result, complete=complete),
                 task_id=task.plan.task_id,
                 revision=task.plan.revision,
                 buttons="feedback" if result.status == "done" else None,

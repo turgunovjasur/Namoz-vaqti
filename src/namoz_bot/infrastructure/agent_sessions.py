@@ -149,6 +149,7 @@ class SqlAlchemyAgentStore:
                         "action": payload["action"],
                         "page": data.get("page", 0),
                         "today": data.get("today", False),
+                        "month": str(data["month"])[:7] if data.get("month") else None,
                         "ids": [entry["id"] for entry in entries if isinstance(entry, dict)],
                     }
                 )
@@ -215,6 +216,10 @@ class SqlAlchemyAgentStore:
                             self._factory,
                             session=session,
                         ).balance(user_id)
+                        if "month_balance" in result.data:
+                            result.data["month_balance"] = await SqlAlchemyLedgerRepository(
+                                self._factory, session=session
+                            ).balance(user_id, month=entry.period)
             return result
 
     async def cleanup(self, now: datetime) -> None:

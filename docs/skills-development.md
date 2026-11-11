@@ -66,7 +66,7 @@ modullarni tartib bilan yuklaydi, noto‘g‘ri modul va takroriy skill ID’da 
  tushishni to‘xtatadi. `main.py`, rol registry, action/domain enum yoki admin
 frontendga har bir yangi skill uchun shart qo‘shish kerak emas.
 
-Panelda **Rollar → Rol qo‘shish/Tahrirlash → Skilllar** orqali skillni rolga tanlang.
+Panelda **Rollar → Agent qo‘shish/Tahrirlash → Skilllar** orqali skillni rolga tanlang.
 Keyin **Foydalanuvchilar → Profil → Rol va imkoniyatlar** orqali foydalanuvchiga
 alohida ruxsat bering. Mavjud rolga yangi skill qo‘shish userga avtomatik ruxsat
 bermaydi. Skill rol ichidan olib tashlansa, uning eski user ruxsatlari o‘chadi;
@@ -137,3 +137,22 @@ Mavjud 7 rol, skill ID’lari, user ruxsatlari va model sozlamalari migratsiyada
 saqlanadi. `manager` eski yozuvlar uchun qoladi; yangi yo‘naltirish va tekshirish
 Yordamchi modelida. Tasdiqlashdan yoki bajarishdan oldin rol revisioni/ruxsat
  o‘zgargan bo‘lsa buyruq qayta yuboriladi. Tarixiy task o‘z modeli va dalilini saqlaydi.
+
+## Uzoq davom etadigan ishlar
+
+Tashqi API yoki AI orqali uzoq davom etadigan `read`/`generate` skillda
+`execute=` o‘rniga `prepare=prepare` bering:
+
+```python
+async def prepare(call: SkillCall, parameters: Parameters) -> Result:
+    return await generation_service.generate(parameters, key=call.idempotency_key)
+
+# NativeSkill(..., prepare=prepare, render=render, effect="generate")
+```
+
+`prepare` tranzaksiya va foydalanuvchi SQL qulfidan tashqarida chaqiriladi. Shu
+foydalanuvchi bu paytda boshqa topshiriq yuborishi va uning natijasini olishi mumkin.
+Natija tayyor bo‘lgach, ruxsat qayta tekshirilib, qisqa tranzaksiyada receipt bilan
+saqlanadi. `prepare` biznes ma’lumotlarini o‘zgartirmasligi kerak; bekor bo‘lgan
+worker yoki uzilishdan keyin u qayta chaqirilishi mumkin. `execute` va `prepare`dan
+faqat bittasini tanlang. `write` skill uchun tranzaksiyali `execute` shart.

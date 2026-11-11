@@ -6,6 +6,7 @@ from datetime import date
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from namoz_bot.domain.reminders import WEEKDAYS
+from namoz_bot.presentation.agent_menu_context import menu_allows
 from namoz_bot.presentation.keyboards import LIST_LABEL, TODAY_REMINDERS_LABEL
 
 MONTHS = (
@@ -183,6 +184,19 @@ def page_keyboard(
                 ),
             ]
         )
+    for row in rows:
+        row[:] = [
+            b
+            for b in row
+            if not (
+                ((b.callback_data or "").endswith(":add") and not menu_allows("reminder.create"))
+                or (
+                    (b.callback_data or "").endswith(":delete")
+                    and not menu_allows("reminder.delete")
+                )
+            )
+        ]
+    rows = [row for row in rows if row]
     action = "list" if deleting else "section"
     rows.append([InlineKeyboardButton(text="⬅️ Orqaga", callback_data=f"remmenu:{owner}:{action}")])
     return InlineKeyboardMarkup(inline_keyboard=rows)

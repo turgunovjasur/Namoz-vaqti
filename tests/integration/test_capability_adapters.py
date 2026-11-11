@@ -5,9 +5,9 @@ from namoz_bot.application.capabilities.registry import (
     build_capability_registry,
 )
 from namoz_bot.application.main_agent import MainAgent
-from namoz_bot.application.roles.registry import build_role_registry
 from namoz_bot.infrastructure.orm import FinanceEntryRecord
 from namoz_bot.infrastructure.repositories import SqlAlchemySubscriptionRepository
+from tests.helpers.roles import build_role_registry
 from tests.integration.test_agent_sessions import store  # noqa: F401
 from tests.integration.test_voice_agent_actions import NOW, command
 from tests.integration.test_voice_agent_actions import voice_agent as _fixture

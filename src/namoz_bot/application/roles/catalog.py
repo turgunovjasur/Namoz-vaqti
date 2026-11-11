@@ -47,14 +47,14 @@ class RoleCatalogService:
     async def update(self, actor_id: int, role_id: str, draft: RoleWrite) -> RoleDefinition:
         await self._admin(actor_id)
         current = await self.store.read_role(role_id)
+        if current.archived:
+            raise ValueError("Arxivlangan agentni tahrirlab bo‘lmaydi")
         if current.system_role and (
             current.id != "assistant"
-            or draft.name != current.name
-            or draft.description != current.description
-            or draft.enabled != current.enabled
+            or not draft.enabled
             or draft.capability_ids != frozenset(current.capability_ids)
         ):
-            raise ValueError("Tizim rolining nomi, vazifasi va skilllari himoyalangan")
+            raise ValueError("Yordamchi doim faol; tizim rolining skilllari himoyalangan")
         self._validate_skills(draft.capability_ids)
         role = current.model_copy(
             update={
@@ -75,6 +75,13 @@ class RoleCatalogService:
         if draft.model_id != old_model.model_id:
             await self.models.catalog.validate(draft.model_id, role)
         return await self.store.update_role(actor_id, role, draft)
+
+    async def archive(self, actor_id: int, role_id: str, *, expected_revision: int) -> None:
+        await self._admin(actor_id)
+        role = await self.store.read_role(role_id)
+        if role.system_role or role.id == "assistant":
+            raise ValueError("Yordamchini o‘chirib bo‘lmaydi")
+        await self.store.archive_role(actor_id, role_id, expected_revision)
 
     async def template(self, actor_id: int) -> RuleTemplate:
         await self._admin(actor_id)

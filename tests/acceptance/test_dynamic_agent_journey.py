@@ -1,7 +1,6 @@
 from namoz_bot.application.capabilities.registry import build_capability_registry
 from namoz_bot.application.profiles.service import ProfileService
 from namoz_bot.application.roles.catalog import RoleCatalogService
-from namoz_bot.application.roles.registry import build_role_registry
 from namoz_bot.application.skills.native import NativeSkill
 from namoz_bot.application.workforce.access import AccessService
 from namoz_bot.application.workforce.assistant import AssistantService
@@ -14,6 +13,7 @@ from namoz_bot.infrastructure.workforce.profiles import SqlAlchemyProfileReposit
 from namoz_bot.infrastructure.workforce.queue import SqlAlchemyTaskQueue
 from namoz_bot.infrastructure.workforce.tasks import SqlAlchemyTaskStore
 from namoz_bot.presentation.result_messages import render_result, render_task_plan
+from tests.helpers.roles import build_role_registry
 from tests.integration.test_agent_sessions import NOW
 from tests.integration.test_agent_sessions import store as store
 from tests.integration.test_dynamic_roles import ValidModels

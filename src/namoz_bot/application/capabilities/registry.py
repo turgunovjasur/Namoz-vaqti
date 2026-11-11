@@ -85,23 +85,7 @@ class CapabilityDispatcher:
         capability = self.capabilities.for_request(request)
         if capability.spec.requires_result:
             raise ValueError("Correction requires a result-bound task")
-        # V1 prayer religious excerpts retain their original request envelope.
-        owner = (
-            "nasihat"
-            if (request.domain, request.action) == ("prayer", "religious_excerpt")
-            else request.domain
-        )
-        role = self.roles.get(owner)
-        if capability.spec.id not in role.capability_ids:
-            raise ValueError("Request is outside role capabilities")
         return capability
-
-    def _role(self, request: AgentRequest) -> str:
-        return (
-            "nasihat"
-            if (request.domain, request.action) == ("prayer", "religious_excerpt")
-            else request.domain
-        )
 
     async def prepare(self, request: AgentRequest) -> AgentResult:
         if request.domain == "assistant":
@@ -109,8 +93,8 @@ class CapabilityDispatcher:
         capability = self._resolve(request)
         if self.access is None:
             return await capability.prepare(request)
-        role = self._role(request)
-        await self.access.require(request.context.user_id, role, capability.spec.id)
+        grant = await self.access.require_any(request.context.user_id, capability.spec.id)
+        role = grant.role_id
         with access_context(
             self.access,
             user_id=request.context.user_id,
@@ -128,7 +112,8 @@ class CapabilityDispatcher:
         capability = self._resolve(request)
         if self.access is None:
             return await capability.execute(request, transaction)
-        role = self._role(request)
+        grant = await self.access.require_any(request.context.user_id, capability.spec.id)
+        role = grant.role_id
         await self.access.require_in(
             cast(PermissionTransaction, transaction),
             request.context.user_id,

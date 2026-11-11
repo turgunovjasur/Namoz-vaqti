@@ -60,3 +60,6 @@ packages = ["namoz_bot"]
 [[tool.mypy.overrides]]
 module = ["apscheduler.*"]
 ignore_missing_imports = true
+
+[tool.setuptools.package-data]
+"namoz_bot.qori" = ["assets/*.txt", "assets/*.ttf"]

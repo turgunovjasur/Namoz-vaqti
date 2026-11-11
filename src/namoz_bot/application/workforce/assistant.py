@@ -119,8 +119,8 @@ class AssistantService:
                 await self.manager.access.require(context.user_id, s.role_id, s.capability_id)
             task = await self.tasks.approve(task_id, revision, context, request_id, accepted)
             if task.status == "cancelled":
-                return TaskMessage(text="❌ Buyruq bekor qilindi.")
-            return TaskMessage(text="✅ Buyruq navbatga qo‘yilgan. Natija yangi xabarda keladi.")
+                return TaskMessage(text="❌ Buyruq bekor qilindi.", dismiss_source=True)
+            return TaskMessage(dismiss_source=True)
         except (TaskConflict, AccessDenied):
             return TaskMessage(
                 text="Bu tasdiq eskirgan, sizga tegishli emas yoki imkoniyat o‘chirilgan."

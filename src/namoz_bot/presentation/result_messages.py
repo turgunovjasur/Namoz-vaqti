@@ -139,6 +139,14 @@ VOICE_HELP = (
 )
 
 
+def finance_receipt_balance(data: dict[str, JsonValue]) -> str:
+    if "month_balance" in data:
+        return (
+            f"Oy farqi ({str(data['period'])[:7]}): {format_money(int(str(data['month_balance'])))}"
+        )
+    return f"Umumiy balans: {format_money(int(str(data['balance'])))}"
+
+
 def render_result(output: AgentResult, *, legacy: bool = False) -> str:
     if output.domain == "assistant" and output.action == "skill_result":
         return str(output.data["text"])
@@ -190,24 +198,21 @@ def render_result(output: AgentResult, *, legacy: bool = False) -> str:
         if output.action == "correct":
             return (
                 f"✅ Yozuv tuzatildi: #{data['entry_id']}\n{data['description']} — "
-                f"{format_money(int(str(data['amount'])))}\n"
-                f"Balans: {format_money(int(str(data['balance'])))}"
+                f"{format_money(int(str(data['amount'])))}\n" + finance_receipt_balance(data)
             )
         if output.action in {"income", "expense"}:
             label = "Kirim" if output.action == "income" else ("Chiqim" if legacy else "Xarajat")
             if data.get("cancelled"):
-                return (
-                    f"↩️ #{data['entry_id']} yozuvi bekor qilingan.\n"
-                    f"Balans: {format_money(int(str(data['balance'])))}"
+                return f"↩️ #{data['entry_id']} yozuvi bekor qilingan.\n" + finance_receipt_balance(
+                    data
                 )
             return (
                 f"✅ {label} {'qayd etildi' if legacy else 'saqlandi'}: #{data['entry_id']}\n"
                 f"{data['description']} — "
-                f"{format_money(int(str(data['amount'])))}\n"
-                f"Balans: {format_money(int(str(data['balance'])))}"
+                f"{format_money(int(str(data['amount'])))}\n" + finance_receipt_balance(data)
             )
         if output.action == "balance":
-            label = "Joriy balans" if legacy else "Balans"
+            label = "Umumiy balans"
             return f"💰 {label}: {format_money(int(str(data['balance'])))}"
         if output.action == "report":
             kind = data.get("report_type", "summary")
@@ -221,15 +226,18 @@ def render_result(output: AgentResult, *, legacy: bool = False) -> str:
             for field, label in parts.items():
                 if kind == "summary" or kind == field:
                     report_lines.append(f"{label}: {format_money(int(str(data[field])))}")
-            closing_balance = format_money(int(str(data["closing_balance"])))
-            balance_label = (
-                "Hisobning haqiqiy balansi" if data.get("category") else "Oy oxiridagi balans"
-            )
-            report_lines.append(f"{balance_label}: {closing_balance}")
+            if kind == "summary":
+                difference = int(str(data["income"])) - int(str(data["expense"]))
+                report_lines.append(f"Oy farqi: {format_money(difference)}")
             return "\n".join(report_lines)
     if output.action in {"list", "history"}:
         rows = cast(list[dict[str, JsonValue]], data.get("entries", []))
-        lines = ["📋 Eslatmalar" if output.action == "list" else "📋 Yozuvlar tarixi"]
+        lines = [
+            "📋 Eslatmalar"
+            if output.action == "list"
+            else "📋 Yozuvlar tarixi"
+            + (f" · {str(data['month'])[:7]}" if data.get("month") else "")
+        ]
         for number, row in enumerate(rows, 1):
             detail = (
                 f"{row['text']} · {row['time']} · {row['schedule']}"

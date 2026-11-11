@@ -88,13 +88,15 @@ class SqlAlchemyLedgerRepository:
             assert row is not None
             return _entry(row)
 
-    async def balance(self, user_id: int) -> int:
+    async def balance(self, user_id: int, *, month: date | None = None) -> int:
         r = FinanceEntryRecord
         signed = case((r.kind == "income", r.amount), else_=-r.amount)
         async with session_scope(self._factory, self._session, write=False) as session:
             total = await session.scalar(
                 select(func.coalesce(func.sum(signed), 0)).where(
-                    r.user_id == user_id, r.cancelled_at.is_(None)
+                    r.user_id == user_id,
+                    r.cancelled_at.is_(None),
+                    *([r.period == month.replace(day=1)] if month else []),
                 )
             )
             return int(total or 0)
@@ -137,11 +139,16 @@ class SqlAlchemyLedgerRepository:
                 int(row[3]) + int(row[4]) if category else None,
             )
 
-    async def history(self, user_id: int, *, offset: int, limit: int) -> list[LedgerEntry]:
+    async def history(
+        self, user_id: int, *, offset: int, limit: int, month: date | None = None
+    ) -> list[LedgerEntry]:
         async with session_scope(self._factory, self._session, write=False) as session:
             rows = await session.scalars(
                 select(FinanceEntryRecord)
-                .where(FinanceEntryRecord.user_id == user_id)
+                .where(
+                    FinanceEntryRecord.user_id == user_id,
+                    *([FinanceEntryRecord.period == month.replace(day=1)] if month else []),
+                )
                 .order_by(FinanceEntryRecord.id.desc())
                 .offset(offset)
                 .limit(limit)

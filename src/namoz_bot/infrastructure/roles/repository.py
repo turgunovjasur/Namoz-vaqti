@@ -9,9 +9,12 @@ if TYPE_CHECKING:
     from namoz_bot.infrastructure.roles.management import SqlRoleManagement
     from namoz_bot.infrastructure.workforce.profiles import SqlAlchemyProfileRepository
 
-from sqlalchemy import func, select
+from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from namoz_bot.application.roles.assistant import ROLE as ASSISTANT
 from namoz_bot.application.roles.base import COMMON_INSTRUCTION
 from namoz_bot.application.roles.registry import RoleRegistry
 from namoz_bot.application.roles.runtime import RoleCatalogRuntime
@@ -29,6 +32,7 @@ def definition(row: AgentRoleRecord, caps: tuple[str, ...]) -> RoleDefinition:
         common_rules=row.common_rules,
         capability_ids=caps,
         enabled=row.enabled,
+        archived=row.archived,
         revision=row.revision,
         system_role=row.system_role,
     )
@@ -51,28 +55,23 @@ class SqlRoleCatalog:
         if self._initialized:
             return
         async with self.factory.begin() as session:
-            if not await session.scalar(select(func.count()).select_from(AgentRoleRecord)):
-                await lock_catalog(session)
-                if not await session.scalar(select(func.count()).select_from(AgentRoleRecord)):
-                    for role in self.roles.defaults():
-                        session.add(
-                            AgentRoleRecord(
-                                id=role.id,
-                                name=role.name,
-                                name_key=role.name.casefold(),
-                                description=role.description,
-                                common_rules=COMMON_INSTRUCTION,
-                                enabled=role.id != "manager",
-                                system_role=role.system_role,
-                                revision=1,
-                            )
-                        )
-                    await session.flush()
-                    session.add_all(
-                        AgentRoleSkillRecord(role_id=role.id, capability_id=c)
-                        for role in self.roles.defaults()
-                        for c in role.capability_ids
-                    )
+            await lock_catalog(session)
+            insert = pg_insert if session.get_bind().dialect.name == "postgresql" else sqlite_insert
+            await session.execute(
+                insert(AgentRoleRecord)
+                .values(
+                    id=ASSISTANT.id,
+                    name=ASSISTANT.name,
+                    name_key=ASSISTANT.name.casefold(),
+                    description=ASSISTANT.description,
+                    common_rules=COMMON_INSTRUCTION,
+                    enabled=True,
+                    archived=False,
+                    system_role=True,
+                    revision=1,
+                )
+                .on_conflict_do_nothing(index_elements=["id"])
+            )
         self._initialized = True
 
     async def load(self) -> tuple[RoleDefinition, ...]:
@@ -126,6 +125,9 @@ class SqlRoleCatalog:
         self, actor_id: int, role: RoleDefinition, draft: RoleWrite
     ) -> RoleDefinition:
         return await self._management().update(actor_id, role, draft)
+
+    async def archive_role(self, actor_id: int, role_id: str, expected_revision: int) -> None:
+        await self._management().archive(actor_id, role_id, expected_revision)
 
     def _management(self) -> "SqlRoleManagement":
         from namoz_bot.infrastructure.roles.management import SqlRoleManagement

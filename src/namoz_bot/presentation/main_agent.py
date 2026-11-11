@@ -17,7 +17,10 @@ from namoz_bot.application.main_agent import MainAgent
 from namoz_bot.application.reminders import ReminderService
 from namoz_bot.application.voice_reminders import MAX_VOICE_BYTES, MAX_VOICE_SECONDS
 from namoz_bot.domain.agent_protocol import AgentContext, AgentResult
-from namoz_bot.presentation.accounting import AccountingStates, _button, _keyboard
+from namoz_bot.presentation.accounting import AccountingStates
+from namoz_bot.presentation.accounting_menu import button as _button
+from namoz_bot.presentation.accounting_menu import keyboard as _keyboard
+from namoz_bot.presentation.agent_menu_context import is_agent_navigation
 from namoz_bot.presentation.handlers import (
     HandlerServices,
     handle_offsets,
@@ -80,6 +83,7 @@ def legacy_menu_input(message: Message, raw_state: str | None) -> bool:
     command = text.split()[0].split("@")[0] if text.strip() else ""
     return (
         text in NAVIGATION
+        or is_agent_navigation(text)
         or (
             raw_state is not None
             and raw_state != AccountingStates.active.state
@@ -112,7 +116,10 @@ class AgentMessageFilter(BaseFilter):
     async def __call__(self, message: Message, state: FSMContext) -> bool:
         if self.agent is None or message.chat.type != "private" or message.from_user is None:
             return False
-        if message.text and (message.text.startswith("/") or message.text in NAVIGATION):
+        if message.text and (
+            message.text.startswith("/")
+            or (message.text in NAVIGATION or is_agent_navigation(message.text))
+        ):
             return False
         if not message.text and not message.voice:
             return False
@@ -138,7 +145,15 @@ async def render_agent_result(message: Message, state: FSMContext, result: Agent
         )
     elif result.domain == "accounting" and result.status == "done":
         assert message.from_user is not None
-        markup = _keyboard(message.from_user.id)
+        from datetime import date
+
+        from namoz_bot.presentation.accounting_menu import MONTH_KEY
+
+        period = data.get("month") or data.get("period")
+        month = date.fromisoformat(str(period)[:7] + "-01") if period else None
+        if month:
+            await state.update_data({MONTH_KEY: month.isoformat()})
+        markup = _keyboard(message.from_user.id, month=month)
         await state.set_state(AccountingStates.active)
         if result.action in {"income", "expense"} and not data.get("cancelled"):
             markup.inline_keyboard.insert(

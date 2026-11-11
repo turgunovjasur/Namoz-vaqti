@@ -32,6 +32,10 @@ hisoblaydi. Sana YYYY-MM-DD, oy YYYY-MM, vaqt HH:MM; vaqt zonasi Asia/Tashkent.
 """.strip()
 
 
+def configured_instruction(role: RoleDefinition) -> str:
+    return f"{role.common_rules}\n\nRol: {role.name}. Vazifa: {role.instruction}"
+
+
 def define_role(
     id: str,
     name: str,

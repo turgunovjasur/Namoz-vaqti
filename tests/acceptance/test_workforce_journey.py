@@ -10,6 +10,7 @@ from namoz_bot.domain.agent_protocol import AgentContext
 from namoz_bot.infrastructure.orm import Base, FinanceEntryRecord
 from namoz_bot.main import create_application
 from tests.acceptance.test_voice_reminder_journey import VoiceJourney
+from tests.helpers.workforce import drain_workforce
 from tests.integration.test_agent_sessions import NOW
 
 
@@ -88,12 +89,12 @@ async def test_voice_one_transcription_exact_approval_durable_execution_fresh_re
     assert workforce_route.call_count == 3
     job = j.app.scheduler.get_job("workforce")
     assert job is not None
-    await job.func()
+    await drain_workforce(j.app)
     assert isinstance(j.last, SendMessage) and j.session.last_ids[7] != preview
     assert "120 000" in j.last.text and "Siz kutgan natijami?" in j.last.text
     assert workforce_route.call_count == 4
     await j.click(data=yes)
-    await job.func()
+    await drain_workforce(j.app)
     async with async_sessionmaker(j.app.db_engine)() as session:
         assert len(list(await session.scalars(select(FinanceEntryRecord)))) == 1
 
@@ -106,7 +107,7 @@ async def test_failed_replacement_voice_retires_previous_approval(
     old = j.button("✅ Ha")
     await j.voice(size=6000000)
     await j.click(data=old)
-    await j.app.scheduler.get_job("workforce").func()
+    await drain_workforce(j.app)
     async with async_sessionmaker(j.app.db_engine)() as session:
         assert not list(await session.scalars(select(FinanceEntryRecord)))
 

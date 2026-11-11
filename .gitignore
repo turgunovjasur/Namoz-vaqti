@@ -135,6 +135,7 @@ celerybeat.pid
 *.rdb
 *.aof
 *.pid
+.local-run.lock
 
 # RabbitMQ
 mnesia/

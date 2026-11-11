@@ -81,22 +81,28 @@ async def require_operation(
     selected = context.capability_id
     # A saved transaction's receipt includes its actual balance, not a separate balance request.
     helpers = {
-        "finance.balance": {"finance.income", "finance.expense", "finance.undo", "finance.correct"}
+        "finance.balance": {"finance.income", "finance.expense", "finance.undo", "finance.correct"},
+        "preferences.region_view": {"prayer.set_region"},
+        "preferences.offsets_view": {"prayer.set_offset", "prayer.reset_offsets"},
+        "settings.open": {"settings.set_daily"},
+        "nasihat.settings_view": {"nasihat.set_interval"},
+        "reminder.list": {"reminder.delete"},
     }
     if selected is not None and selected != capability_id:
         if selected not in helpers.get(capability_id, set()):
             raise AccessDenied("Capability outside selected operation")
         capability_id = selected
-    roles = (
-        (context.access.roles.get(context.role_id),)
-        if context.role_id
-        else context.access.roles.all()
-    )
-    for role in roles:
-        if capability_id in role.capability_ids and await context.access.allowed(
-            context.user_id, role.id, capability_id
-        ):
-            return await context.access.require(context.user_id, role.id, capability_id)
+    async with context.access.role_scope():
+        roles = (
+            (context.access.roles.get(context.role_id),)
+            if context.role_id
+            else context.access.roles.all()
+        )
+        for role in roles:
+            if capability_id in role.capability_ids and await context.access.allowed(
+                context.user_id, role.id, capability_id
+            ):
+                return await context.access.require(context.user_id, role.id, capability_id)
     raise AccessDenied("Bu imkoniyat siz uchun yoqilmagan. Administratorga murojaat qiling.")
 
 

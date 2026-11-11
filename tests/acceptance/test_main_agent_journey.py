@@ -148,8 +148,8 @@ async def test_menu_does_not_discard_agent_draft(agent_journey, agent_route):
 
 
 async def test_legacy_time_input_is_not_consumed(agent_journey, agent_route):
-    await agent_journey.text("⚙️ Sozlamalar")
-    await agent_journey.text("📅 Kunlik jadval")
+    await agent_journey.text("🕌 Namoz vaqti")
+    await agent_journey.text("⚙️ Sozlash")
     await agent_journey.click("✍️ Boshqa vaqt")
     await agent_journey.text("07:30")
     assert agent_route.call_count == 0
@@ -259,7 +259,7 @@ async def test_start_offers_pending_resume(agent_journey, agent_route):
 async def test_missing_key_and_disabled_agent_preserve_menus(agent_journey, respx_mock):
     assert agent_journey.app.dispatcher["main_agent"] is None
     await agent_journey.text("💰 Kirim-chiqim")
-    assert "Joriy balans: 0 so‘m" in agent_journey.last.text
+    assert "Oy farqi: 0 so‘m" in agent_journey.last.text
     assert not respx_mock.calls
 
 

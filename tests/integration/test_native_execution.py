@@ -1,7 +1,7 @@
 from datetime import timedelta
 
 from namoz_bot.application.capabilities.registry import build_capability_registry
-from namoz_bot.application.roles.registry import RoleRegistry, definitions
+from namoz_bot.application.roles.registry import RoleRegistry
 from namoz_bot.application.skills.native import NativeSkill
 from namoz_bot.application.workforce.access import AccessService
 from namoz_bot.application.workforce.execution import TaskExecutionService
@@ -9,6 +9,7 @@ from namoz_bot.infrastructure.workforce.profiles import SqlAlchemyProfileReposit
 from namoz_bot.infrastructure.workforce.queue import SqlAlchemyTaskQueue
 from namoz_bot.infrastructure.workforce.tasks import SqlAlchemyTaskStore
 from namoz_bot.presentation.result_messages import render_result, render_task_plan
+from tests.helpers.roles import definitions
 from tests.integration.test_agent_sessions import NOW
 from tests.integration.test_agent_sessions import store as store
 from tests.unit.skills.test_native_skills import Input, Output, plan

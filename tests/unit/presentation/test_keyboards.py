@@ -29,13 +29,13 @@ def test_main_menu_has_no_notification_toggle() -> None:
         "📅 Bugungi jadval",
         "📍 Hududni o‘zgartirish",
         "🕌 Masjidga moslash",
-        "ℹ️ Yordam",
+        "⚙️ Sozlash",
         "⬅️ Asosiy menyu",
     ]
     assert [len(row) for row in menu.keyboard] == [2, 2, 1]
     assert [button.text for button in menu.keyboard[1]] == [
         "🕌 Masjidga moslash",
-        "ℹ️ Yordam",
+        "⚙️ Sozlash",
     ]
 
 
@@ -99,13 +99,10 @@ def test_region_callbacks_use_stable_region_codes() -> None:
     assert callbacks["Andijon tumani"] == "region:andijon"
 
 
-def test_root_menu_selects_four_sections_and_service_settings():
+def test_root_menu_selects_sections_without_profile():
     assert [button.text for row in build_main_menu().keyboard for button in row] == [
         "🕌 Namoz vaqti",
         "📖 Nasihat",
         "🔔 Eslatmalar",
         "💰 Kirim-chiqim",
-        "⚙️ Sozlamalar",
-        "👤 Profil",
-        "ℹ️ Yordam",
     ]

@@ -548,13 +548,11 @@ async def test_menu_and_daily_creation_list_with_duplicate_save(journey):
     await journey.text("/start")
     labels = [b.text for row in journey.last.reply_markup.keyboard for b in row]
     assert labels == [
-        "🕌 Namoz vaqti",
-        "📖 Nasihat",
-        "🔔 Eslatmalar",
-        "💰 Kirim-chiqim",
-        "⚙️ Sozlamalar",
-        "👤 Profil",
-        "ℹ️ Yordam",
+        "📅 Taqvimchi",
+        "🔔 Rejalashtiruvchi",
+        "💰 Hisobchi",
+        "📖 Nasihatgo‘y",
+        "🤖 Sozlovchi",
     ]
     await journey.text("🕌 Namoz vaqti")
     labels = [b.text for row in journey.last.reply_markup.keyboard for b in row]
@@ -809,13 +807,11 @@ async def test_list_back_menu_add_save_back_and_home(journey):
     await journey.click("⬅️ Orqaga")
     await journey.click("⬅️ Orqaga")
     assert [b.text for row in journey.last.reply_markup.keyboard for b in row] == [
-        "🕌 Namoz vaqti",
-        "📖 Nasihat",
-        "🔔 Eslatmalar",
-        "💰 Kirim-chiqim",
-        "⚙️ Sozlamalar",
-        "👤 Profil",
-        "ℹ️ Yordam",
+        "📅 Taqvimchi",
+        "🔔 Rejalashtiruvchi",
+        "💰 Hisobchi",
+        "📖 Nasihatgo‘y",
+        "🤖 Sozlovchi",
     ]
 
 

@@ -186,6 +186,7 @@ def create_app(
                     "options": service.model_options(r.id),
                 }
                 for r in service.roles.all()
+                if not r.archived
             ]
         }
 

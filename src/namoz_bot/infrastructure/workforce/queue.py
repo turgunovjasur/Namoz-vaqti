@@ -12,14 +12,18 @@ from namoz_bot.infrastructure.workforce.tasks import put_outbox, revision_value
 
 
 def failure_message(row: WorkforceRevisionRecord) -> TaskMessage:
+    label = f"Vazifa: {str(row.plan.get('transcript', row.task_id))[:200]}\n\n"
     if row.service_result is not None:
         saved = row.service_result.get("effect") == "committed"
-        return TaskMessage(
-            text=("Amal saqlandi." if saved else "Natija olindi.")
-            + " Natijani tekshirish yakunlanmadi. Amalni qayta bajarmang."
-        )
+        text = (
+            "Amal saqlandi." if saved else "Natija olindi."
+        ) + " Natijani tekshirish yakunlanmadi. Amalni qayta bajarmang."
+    else:
+        text = "Vazifa bajarilmadi. Ruxsatlar yoki ma’lumotlarni tekshirib qayta ayting."
     return TaskMessage(
-        text="Vazifa bajarilmadi. Ruxsatlar yoki ma’lumotlarni tekshirib qayta ayting."
+        text="🤖 " + label + text,
+        task_id=row.task_id,
+        revision=row.revision,
     )
 
 
@@ -43,7 +47,7 @@ class SqlAlchemyTaskQueue:
                         ),
                     )
                     .order_by(WorkforceTaskRecord.created_at, WorkforceTaskRecord.id)
-                    .limit(min(3, max(1, limit)))
+                    .limit(min(32, max(1, limit)))
                     .with_for_update(skip_locked=True)
                 )
             )

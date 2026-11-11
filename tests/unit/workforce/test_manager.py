@@ -63,6 +63,31 @@ async def test_task_pins_models_parameters_and_does_not_read_business_before_app
     assert (await tasks.get_owned(plan.task_id, plan.context)).status == "awaiting_approval"
 
 
+async def test_task_pins_edited_assistant_identity_and_duties_for_review(workforce):
+    tasks, _, access, old, _, profiles, _ = workforce
+    roles = tuple(
+        role.model_copy(
+            update={
+                "name": "Kotib",
+                "instruction": "Natijani foydalanuvchi vazifasiga solishtir.",
+                "common_rules": "Faqat xizmat dalillariga tayan.",
+            }
+        )
+        if role.id == "assistant"
+        else role
+        for role in access.roles.all()
+    )
+    manager = Manager(access, service(profiles), Interpreter(), tasks)
+    with access.roles.bind(roles):
+        plan = await manager.plan(
+            context=old.context, request_id="edited-assistant", text="Oylik tushdi", pending=None
+        )
+    saved = await tasks.get_owned(plan.task_id, plan.context)
+    assert "Kotib" in saved.plan.review_instruction
+    assert "Natijani foydalanuvchi vazifasiga solishtir." in saved.plan.review_instruction
+    assert "Faqat xizmat dalillariga tayan." in saved.plan.review_instruction
+
+
 async def test_reviewer_failure_after_save_returns_receipt_and_never_reexecutes(workforce):
     from sqlalchemy import select
 

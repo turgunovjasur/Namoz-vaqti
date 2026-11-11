@@ -9,4 +9,5 @@ if [[ $# -ne 0 ]]; then
     exit 2
 fi
 
+# Local runner replaces old local services, migrates TEST DB and supervises both services.
 exec bash "$project_dir/run_bot.sh" --local

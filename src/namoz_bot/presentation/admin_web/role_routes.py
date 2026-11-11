@@ -19,6 +19,11 @@ class TemplateInput(BaseModel):
     expected_revision: int = Field(ge=1)
 
 
+class ArchiveInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    expected_revision: int = Field(ge=1)
+
+
 def role_router(
     service: RoleCatalogService, catalog: SqlRoleCatalog, identity: Callable[..., Any]
 ) -> APIRouter:
@@ -27,7 +32,13 @@ def role_router(
 
     @router.get("/api/roles")
     async def roles(actor: Actor) -> dict[str, Any]:
-        return {"roles": [await role_view(service.models, r) for r in service.models.roles.all()]}
+        return {
+            "roles": [
+                await role_view(service.models, r)
+                for r in service.models.roles.all()
+                if not r.archived
+            ]
+        }
 
     @router.get("/api/skills")
     async def skills(actor: Actor) -> dict[str, Any]:
@@ -47,6 +58,11 @@ def role_router(
     async def update(role_id: str, body: RoleWrite, actor: Actor) -> dict[str, Any]:
         role = await service.update(actor.user_id, role_id, body)
         return await role_view(service.models, role)
+
+    @router.delete("/api/roles/{role_id}")
+    async def archive(role_id: str, body: ArchiveInput, actor: Actor) -> dict[str, bool]:
+        await service.archive(actor.user_id, role_id, expected_revision=body.expected_revision)
+        return {"ok": True}
 
     @router.get("/api/role-template")
     async def template(actor: Actor) -> dict[str, Any]:

@@ -26,6 +26,38 @@ class SqlRoleManagement:
     def __init__(self, catalog: "SqlRoleCatalog", profiles: SqlAlchemyProfileRepository):
         self.catalog, self.profiles = catalog, profiles
 
+    async def archive(self, actor_id: int, role_id: str, expected_revision: int) -> None:
+        async with self.catalog.factory.begin() as session:
+            await lock_catalog(session)
+            await self.profiles.require_admin(session, actor_id)
+            row = await session.get(AgentRoleRecord, role_id)
+            if row is None or row.system_role or role_id == "assistant":
+                raise ValueError("Bu agentni arxivlab bo‘lmaydi")
+            if row.revision != expected_revision or row.archived:
+                raise ProfileConflict("Role changed")
+            owners = list(
+                await session.scalars(
+                    select(RoleAssignmentRecord.user_id)
+                    .where(RoleAssignmentRecord.role_id == role_id)
+                    .order_by(RoleAssignmentRecord.user_id)
+                )
+            )
+            for owner in owners:
+                await lock_owner(session, owner)
+            row.enabled, row.archived, row.revision = False, True, row.revision + 1
+            await session.execute(
+                update(RoleAssignmentRecord)
+                .where(RoleAssignmentRecord.role_id == role_id)
+                .values(enabled=False, revision=RoleAssignmentRecord.revision + 1)
+            )
+            session.add(
+                AdminAuditRecord(
+                    actor_id=actor_id,
+                    action="archive_role",
+                    detail={"role_id": role_id, "name": row.name, "revision": row.revision},
+                )
+            )
+
     async def write_template(
         self, actor_id: int, rules: str, expected_revision: int
     ) -> RuleTemplate:
@@ -92,6 +124,7 @@ class SqlRoleManagement:
                 model = await session.get(RoleModelRecord, role.id)
                 if (
                     row is None
+                    or row.archived
                     or row.revision != draft.expected_revision
                     or ((model.version if model else 0) != draft.expected_model_version)
                 ):

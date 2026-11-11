@@ -60,6 +60,18 @@ class UserRecord(Base):
     )
 
 
+class SelectedSurahRecord(Base):
+    __tablename__ = "qori_selected_surahs"
+    __table_args__ = (
+        CheckConstraint("chapter BETWEEN 1 AND 114", name="ck_qori_chapter_range"),
+    )
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    chapter: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
+
+
 class DailyScheduleRecord(Base):
     __tablename__ = "daily_schedule_preferences"
 
@@ -356,6 +368,7 @@ class AgentRoleRecord(Base):
     description: Mapped[str] = mapped_column(String(2000))
     common_rules: Mapped[str] = mapped_column(String(8000))
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    archived: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     system_role: Mapped[bool] = mapped_column(Boolean, default=False)
     revision: Mapped[int] = mapped_column(Integer, default=1)
 

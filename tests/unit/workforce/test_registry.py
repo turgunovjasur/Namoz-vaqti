@@ -6,9 +6,10 @@ from namoz_bot.application.capabilities.registry import (
     CapabilityRegistry,
     build_capability_registry,
 )
-from namoz_bot.application.roles.registry import RoleRegistry, build_role_registry
+from namoz_bot.application.roles.registry import RoleRegistry
 from namoz_bot.domain.agent_protocol import AgentContext, AgentRequest
 from namoz_bot.domain.workforce.capabilities import CapabilitySelection
+from tests.helpers.roles import build_role_registry
 
 NOW = datetime(2026, 10, 13, 10, tzinfo=UTC)
 

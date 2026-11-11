@@ -306,7 +306,9 @@ class SqlAlchemyTaskStore:
                     task,
                     "accepted",
                     TaskMessage(
-                        text="✅ Buyruq qabul qilindi. Ishni boshladim; tugagach xabar beraman."
+                        text="🤖 So‘rovingiz qabul qilindi. Natija tayyorlanmoqda…",
+                        task_id=task.id,
+                        revision=task.revision,
                     ),
                     self.clock(),
                 )

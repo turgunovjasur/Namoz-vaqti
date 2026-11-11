@@ -5,10 +5,10 @@ import pytest
 from pydantic import SecretStr
 
 from namoz_bot.application.capabilities.registry import build_capability_registry
-from namoz_bot.application.roles.registry import build_role_registry
 from namoz_bot.domain.errors import ExternalServiceError
 from namoz_bot.infrastructure.ai.gemini_client import GeminiClient
 from namoz_bot.infrastructure.ai.model_catalog import ModelCatalog
+from tests.helpers.roles import build_role_registry
 
 
 async def test_model_catalog_requires_allowlist_and_successful_json_probe():

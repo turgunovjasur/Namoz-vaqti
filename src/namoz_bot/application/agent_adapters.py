@@ -218,6 +218,7 @@ class AgentAdapters:
                         **asdict(entry),
                         "entry_id": entry.id,
                         "balance": await transaction.ledger.balance(user),
+                        "month_balance": await transaction.ledger.balance(user, month=entry.period),
                     }
                 ),
             )
@@ -259,6 +260,7 @@ class AgentAdapters:
                             **asdict(entry),
                             "entry_id": entry.id,
                             "balance": await ledger.balance(user),
+                            "month_balance": await ledger.balance(user, month=entry.period),
                         }
                     ),
                 )
@@ -281,11 +283,13 @@ class AgentAdapters:
                 )
             if request.action == "history":
                 page = int(str(p.get("page", 0)))
-                entries, more = await ledger.history(user, page)
+                period = accounting_request(request).period(request.context.message_time)
+                entries, more = await ledger.history(user, page, month=period)
                 return result(
                     request,
                     data=json_data(
                         {
+                            "month": period.isoformat(),
                             "entries": [asdict(entry) for entry in entries],
                             "page": page,
                             "more": more,

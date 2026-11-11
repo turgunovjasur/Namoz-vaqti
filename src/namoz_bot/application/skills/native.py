@@ -38,12 +38,18 @@ class NativeSkill[P: BaseModel, R: BaseModel](Capability):
         description: str,
         input_model: type[P],
         output_model: type[R],
-        execute: Callable[[SkillCall, P, AgentTransaction], Awaitable[R | dict[str, JsonValue]]],
+        execute: Callable[[SkillCall, P, AgentTransaction], Awaitable[R | dict[str, JsonValue]]]
+        | None = None,
+        prepare: Callable[[SkillCall, P], Awaitable[R | dict[str, JsonValue]]] | None = None,
         render: Callable[[R], str],
         effect: Literal["read", "write", "generate"],
         guidance: str = "",
         idempotent: bool = False,
     ) -> None:
+        if (execute is None) == (prepare is None):
+            raise ValueError("Provide exactly one native executor or preparer")
+        if prepare is not None and effect == "write":
+            raise ValueError("Write skills must execute inside their effect transaction")
         if RESERVED_IDENTITIES.intersection(input_model.model_fields):
             raise ValueError("Skill input cannot contain server-owned identity fields")
         if input_model.model_config.get("extra") != "forbid":
@@ -61,18 +67,31 @@ class NativeSkill[P: BaseModel, R: BaseModel](Capability):
         )
         self.input_model, self.output_model = input_model, output_model
         self._executor, self._renderer = execute, render
+        self._preparer = prepare
 
     async def prepare_plan(self, plan: TaskPlan) -> AgentResult | None:
-        self.input_model.model_validate(plan.selection.parameters)
+        params = self.input_model.model_validate(plan.selection.parameters)
+        if self._preparer is not None:
+            call = self._call(plan)
+            return self._result(call, await self._preparer(call, params))
         return None
 
     async def execute_plan(
         self, plan: TaskPlan, transaction: AgentTransaction, prepared: AgentResult | None
     ) -> AgentResult:
+        call = self._call(plan)
+        if self._preparer is not None:
+            if prepared is None or prepared.request_id != call.idempotency_key:
+                raise ValueError("Missing or mismatched prepared result")
+            return prepared
+        assert self._executor is not None
+        params = self.input_model.model_validate(plan.selection.parameters)
+        return self._result(call, await self._executor(call, params, transaction))
+
+    def _call(self, plan: TaskPlan) -> SkillCall:
         if plan.selection.capability_id != self.spec.id:
             raise ValueError("Skill outside selected operation")
-        params = self.input_model.model_validate(plan.selection.parameters)
-        call = SkillCall(
+        return SkillCall(
             context=plan.context,
             role_id=plan.selection.role_id,
             skill_id=self.spec.id,
@@ -80,7 +99,9 @@ class NativeSkill[P: BaseModel, R: BaseModel](Capability):
             operation_id=f"{plan.task_id}{plan.revision:06x}",
             idempotency_key=f"task:{plan.task_id}:{plan.revision}",
         )
-        value = self.output_model.model_validate(await self._executor(call, params, transaction))
+
+    def _result(self, call: SkillCall, output: R | dict[str, JsonValue]) -> AgentResult:
+        value = self.output_model.model_validate(output)
         text = self._renderer(value)
         if not 1 <= len(text.strip()) <= 3500:
             raise ValueError("Skill renderer must return 1..3500 characters")

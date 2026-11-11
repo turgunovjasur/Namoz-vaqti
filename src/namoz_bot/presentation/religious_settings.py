@@ -9,6 +9,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from namoz_bot.domain.religious_intervals import ReligiousInterval
+from namoz_bot.presentation.agent_menu_context import menu_allows
 from namoz_bot.presentation.handlers import HandlerServices
 from namoz_bot.presentation.keyboards import (
     DAILY_SCHEDULE_LABEL,
@@ -27,6 +28,8 @@ INTERVAL_PANEL_ID = "nasihat_interval_panel_id"
 
 
 def interval_keyboard() -> InlineKeyboardMarkup:
+    if not menu_allows("nasihat.set_interval"):
+        return InlineKeyboardMarkup(inline_keyboard=[])
     buttons = [
         InlineKeyboardButton(text=f"Har {hours} soatda", callback_data=f"nasihat:set:{hours}")
         for hours in (1, 2, 4, 6, 12, 24)

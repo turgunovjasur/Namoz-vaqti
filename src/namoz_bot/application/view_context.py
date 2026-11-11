@@ -14,6 +14,8 @@ def page_parameters(
         values["page"] = max(0, min(100000, view.page + direction))
         if action == "list":
             values["today"] = view.today
+        elif view.month and not values.get("month"):
+            values["month"] = view.month
     return values
 
 

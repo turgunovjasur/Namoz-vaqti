@@ -106,6 +106,19 @@ async def test_previous_month_balance_rolls_over_and_other_users_are_isolated(le
     assert await service.balance(other) == 99_000_000
 
 
+async def test_monthly_balance_and_history_exclude_previous_month(ledger):
+    service, user, _ = ledger
+    await service.record(user, request(amount=2_000_000, month="2026-09"), "old", NOW)
+    current = await service.record(user, request(amount=5_000_000), "new", NOW)
+    month = date(2026, 10, 1)
+    assert await service.balance(user, month=month) == 5_000_000
+    assert await service.balance(user, month=date(2026, 11, 1)) == 0
+    rows, more = await service.history(user, 0, month=month)
+    assert [entry.id for entry in rows] == [current.id]
+    assert not more
+    assert await service.balance(user) == 7_000_000
+
+
 async def test_duplicate_message_and_replayed_cancelled_record_do_not_change_balance(ledger):
     service, user, _ = ledger
     first = await service.record(user, request(), "same-message", NOW)

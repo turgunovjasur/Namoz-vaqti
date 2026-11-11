@@ -3,10 +3,8 @@
 from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
-from namoz_bot.application.roles.base import COMMON_INSTRUCTION, LEGACY_OUTPUT_INSTRUCTION
-from namoz_bot.domain.agent_protocol import Domain
 from namoz_bot.domain.workforce.capabilities import CapabilitySelection
 from namoz_bot.domain.workforce.roles import RoleDefinition
 
@@ -61,7 +59,7 @@ class RoleRegistry:
         self, selection: CapabilitySelection, *, entrypoint: str = "conversation"
     ) -> CapabilitySelection:
         role = self.get(selection.role_id)
-        if not role.enabled or selection.capability_id not in role.capability_ids:
+        if role.archived or not role.enabled or selection.capability_id not in role.capability_ids:
             raise ValueError("Selected capability is outside role scope")
         spec = self.capabilities.get(selection.capability_id).spec
         if entrypoint not in spec.entrypoints:
@@ -72,31 +70,10 @@ class RoleRegistry:
 
 
 def definitions() -> tuple[RoleDefinition, ...]:
-    from namoz_bot.application.roles import (
-        accountant,
-        adviser,
-        assistant,
-        manager,
-        planner,
-        prayer_calendar,
-        settings,
-    )
+    from namoz_bot.application.roles.assistant import ROLE
 
-    return tuple(
-        module.ROLE
-        for module in (assistant, manager, prayer_calendar, adviser, planner, accountant, settings)
-    )
+    return (ROLE,)
 
 
 def build_role_registry(capabilities: "CapabilityRegistry") -> RoleRegistry:
     return RoleRegistry(definitions(), capabilities)
-
-
-def specialist_instructions() -> dict[Domain, str]:
-    return {
-        cast(Domain, role.id): LEGACY_OUTPUT_INSTRUCTION
-        + "\n\n"
-        + role.instruction.removeprefix(COMMON_INSTRUCTION + "\n\n")
-        for role in definitions()
-        if not role.system_role
-    }

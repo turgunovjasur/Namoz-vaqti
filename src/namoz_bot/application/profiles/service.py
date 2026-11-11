@@ -97,7 +97,10 @@ class ProfileService:
         self, *, actor_id: int, role_id: str, model_id: str, expected_version: int
     ) -> RoleModelSetting:
         await self._admin(actor_id)
-        await self.catalog.validate(model_id, self.roles.get(role_id))
+        role = self.roles.get(role_id)
+        if role.archived:
+            raise ValueError("Agent arxivlangan")
+        await self.catalog.validate(model_id, role)
         return await self.repository.set_model(
             actor_id=actor_id, role_id=role_id, model_id=model_id, expected_version=expected_version
         )

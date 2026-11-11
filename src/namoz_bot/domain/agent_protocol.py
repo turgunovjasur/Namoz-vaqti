@@ -68,6 +68,12 @@ class PageParameters(StrictModel):
     page_step: Literal["next", "previous"] | None = None
 
 
+class FinanceHistoryParameters(PageParameters):
+    month: str | None = None
+
+    _month = field_validator("month")(_valid_month)
+
+
 class ReminderParameters(StrictModel):
     text: str | None = Field(default=None, min_length=1, max_length=1000)
     time: str | None = None
@@ -175,7 +181,7 @@ ACTION_MODELS: dict[tuple[str, str], type[StrictModel]] = {
     ("accounting", "expense"): FinanceParameters,
     ("accounting", "balance"): EmptyParameters,
     ("accounting", "report"): ReportParameters,
-    ("accounting", "history"): PageParameters,
+    ("accounting", "history"): FinanceHistoryParameters,
     ("accounting", "undo"): TargetParameters,
     ("settings", "open"): ViewParameters,
     ("settings", "set_daily"): DailyTimeParameters,
@@ -227,6 +233,10 @@ class AgentViewState(StrictModel):
     action: Literal["list", "history"]
     page: int = Field(ge=0, le=100000)
     today: bool = False
+    month: str | None = None
+
+    _month = field_validator("month")(_valid_month)
+
     ids: list[int] = Field(default_factory=list, max_length=5)
 
     @model_validator(mode="after")

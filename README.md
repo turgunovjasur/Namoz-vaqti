@@ -7,16 +7,19 @@ Telegram foydalanuvchilariga yuboradigan asinxron bot.
 
 ### Rollar — V3
 
-Standart oqim: **foydalanuvchi → Yordamchi → Ish boshqaruvchi → mutaxassis →
-Ish boshqaruvchi → Yordamchi → foydalanuvchi**. Ovoz bir marta matnga o‘giriladi;
-boshqaruvchi ruxsat etilgan rollardan bittasini tanlaydi va faqat shu mutaxassis
+Standart oqim: **foydalanuvchi → Yordamchi → mutaxassis → Yordamchi → foydalanuvchi**.
+Yagona Yordamchi panelda tahrirlanadi, o‘chirilmaydi va doim faol. Ovoz bir marta
+matnga o‘giriladi; Yordamchi ruxsat etilgan rollardan bittasini tanlaydi va faqat shu mutaxassis
 parametrlarni ajratadi. Javoblar matnda keladi. Menyu doim mavjud, ovoz esa qo‘lda
 ma’lumot kiritilayotgan holatda ham ishlaydi.
+
+Quyidagilar panelda sozlanadigan rollarga misollar. Yangi o‘rnatishda faqat
+Yordamchi yaratiladi; mutaxassislarni admin **Rollar → Agent qo‘shish** orqali
+yaratadi. Mavjud bazadagi mutaxassislar va ruxsatlar yangilashda saqlanadi.
 
 | Rol | Vazifa |
 | --- | --- |
 | Yordamchi | Ovoz/matnni qabul qilish, talqinni tasdiqlatish, natija va savollarni yetkazish |
-| Ish boshqaruvchi | Ruxsat etilgan rolga yo‘naltirish, xizmat dalillari asosida natijani tekshirish |
 | Taqvimchi | Namoz jadvali, hudud va masjidga moslash farqlari |
 | Nasihatgo‘y | Kitobdan nasihat va uning avtomatik yuborish oralig‘i |
 | Rejalashtiruvchi | Eslatma yaratish, ro‘yxat, o‘chirish va tasdiqlangan tuzatish |
@@ -44,9 +47,17 @@ olinadi. Tekshiruvchi ularni qayta to‘qimaydi. Tekshiruvda bir martagacha xavf
 qayta o‘qish/render qilish mumkin; yozilgan biznes amali takrorlanmaydi. Tekshiruvchi
 ishlamasa, saqlangan natija va tekshiruv tugamaganligi haqidagi xabar yuboriladi.
 
+Yordamchi javoblari bitta `🤖` xabarida chiqadi. Tasdiqlash kartasi javob berilgach
+o‘chadi; qabul qilingan vazifaning bitta vaqtinchalik holat xabari natija yoki xato
+xabari yetkazilgach o‘chiriladi. Parallel vazifalar o‘z holat xabarlariga ega.
+Natijaga «Ha» bosilganda tugmalar olinadi, qo‘shimcha «Vazifa yakunlandi» xabari
+yuborilmaydi. Holat xabari IDsi va natija yetkazilganligi outboxda saqlanadi:
+o‘chirishni qayta urinish, jumladan restartdan keyin, yetkazilganligi qayd etilgan
+natijani takror yubormaydi.
+
 ### Admin va user profillari
 
-**👤 Profil** menyusi yoki `/profile` orqali profil ochiladi. Profil turi faqat
+Telegram’da Profil tugmasi ko‘rsatilmaydi; eski `/profile` buyrug‘i ishlaydi. Profil turi faqat
 `admin` yoki `user`; bu AI rolidan alohida. Foydalanuvchi o‘ziga biriktirilgan
 rollar va imkoniyatlarni ko‘radi. Admin foydalanuvchini tanlab, rolni hamda uning
 ichidagi alohida imkoniyatlarni yoqadi/o‘chiradi va **Saqlash**ni bosadi. Rolni
@@ -99,8 +110,9 @@ Vazifa navbati, lease, receipt va natija outboxi restartdan tiklanadi. Biznes
 amali va receipt birga commit qilinadi. Telegram xabarni olgan, lekin tarmoq javobi
 yo‘qolgan holatda xabar qayta yetkazilishi mumkin; bu biznes amalini qayta bajarmaydi.
 
-Yangi rol uchun `application/roles/` ichiga ta’rif/ko‘rsatma yozib registryga
-qo‘shing. Imkoniyatlar `application/capabilities/`da alohida ta’riflanadi va mavjud
+Yangi rolni admin panelda yarating: nomi, vazifasi, qoidalari, modeli va skilllarini
+belgilang, so‘ng foydalanuvchiga biriktiring. Rol uchun Python fayl yoki registry
+o‘zgarishi kerak emas. Imkoniyatlar `application/capabilities/`da alohida ta’riflanadi va mavjud
 xizmatni chaqiradi; bir capability IDni bir nechta rolga qo‘shish uning kodini
 ko‘paytirmaydi. Yangi imkoniyatlar modelga faqat aniq admin ruxsatidan keyin taklif
 qilinadi. Tashqi servis, yangi biznes amal yoki migratsiya kerak bo‘lsa, u alohida
@@ -132,32 +144,46 @@ berilgan rol va imkoniyatlarga qarab ko‘rsatiladi.
 
 ## Menyular va eslatmalar
 
-### Kirim-chiqim — 1-versiya
+### Agent menyulari
 
-Asosiy menyuda **💰 Kirim-chiqim**ni tanlang. Shu bo‘limda ovoz yoki matn yuboring:
+Asosiy Telegram menyusidagi tugmalar admin panelda yaratilgan, foydalanuvchiga
+biriktirilgan faol agentlarning nomidan olinadi: masalan, **📅 Taqvimchi**,
+**🔔 Rejalashtiruvchi**, **💰 Hisobchi**, **📖 Nasihatgo‘y**. Nomni panelda o‘zgartirsangiz,
+`/menu` yoki `/start` bilan yangi nom ko‘rinadi. Agent ichida faqat unga va shu
+foydalanuvchiga ruxsat berilgan amallar chiqadi. Yangi yoki aralash skillarga ega
+agentlar ham shu tartibda ko‘rinadi; maxsus forma bo‘lmagan skill uchun topshiriq
+matn yoki ovoz bilan beriladi. Asosiy menyuda faqat biriktirilgan agentlar chiqadi; agent berilmagan bo‘lsa klaviatura yashiriladi.
+
+### Hisobchi — oylar bo‘yicha hisob
+
+Asosiy menyuda moliyaviy agentni (masalan, **💰 Hisobchi**) tanlang. Ovoz yoki matn yuboring:
 «Oktyabrda 10 million oylik tushdi», «120 mingga kiyim oldim», «Balansim qancha?»,
 «Oktyabrda qancha oylik tushdi?» yoki «Oktyabrda qancha sarfladim?».
 Gemini `GEMINI_VOICE_MODEL` orqali mazmunni ajratadi; hisob-kitoblar bazadagi
 yozuvlardan aniq butun so‘mda olinadi. Yozuvlar faqat egasiga tegishli.
 
-Aniq bitta kirim/chiqim darhol saqlanadi va yangi balans ko‘rsatiladi.
+Aniq bitta kirim/chiqim darhol saqlanadi va yozuv tegishli bo‘lgan oyning farqi ko‘rsatiladi.
 **↩️ Yozuvni bekor qilish** shu yozuvni hisobdan chiqaradi, tarixda belgilangan holda
 saqlaydi. Takror bosish yoki takror kelgan Telegram xabari balansni ikki marta
 o‘zgartirmaydi. Noaniq summa, kelajak rejasi, boshqa valyuta yoki bir xabardagi bir
 nechta operatsiya saqlanmaydi: bitta amalga oshgan operatsiyani aniq qayta ayting.
 
-**💳 Balans**, **📊 Shu oy hisoboti** va **📒 Tarix** AI chaqirmasdan ishlaydi.
-Hisobot jami kirim, oylik tushumi, jami chiqim, oy farqi, oldingi oylar qoldig‘i
-va oy yakunidagi qoldiqni ko‘rsatadi. Balans oy boshida nollanmaydi.
-Tarix beshta yozuvdan sahifalanadi va oldingi faol yozuvlarni ham bekor qilish mumkin.
+Hisobchi joriy oyni ochadi. **◀️ Oldingi oy**, **Keyingi oy ▶️** yoki **📅 Oy tanlash**
+orqali oy va yil tanlanadi. **📊 Oy hisoboti** va **📒 Shu oy tarixi** faqat tanlangan
+oyni ko‘rsatadi. Hisobotdagi kirim, oylik tushumi, chiqim va oy farqiga boshqa oylar
+qo‘shilmaydi. Yangi oyda yozuvlar bo‘lmasa barcha oylik summalar 0 bo‘ladi.
+**💳 Umumiy balans** alohida tugma orqali barcha oylarni jamlaydi. Bu tugmalar AI
+chaqirmasdan ishlaydi. Tarix beshta yozuvdan sahifalanadi; ruxsat bo‘lsa faol
+yozuvlarni bekor qilish mumkin. Eski yozuvlar saqlanadi, oy almashganda o‘chirilmaydi.
 Balans boshlanishi 0; mavjud pulni boshlang‘ich kirim sifatida qayd etish mumkin.
 Qayd qilinmagan xarajat yoki tushum hisobga kirmaydi; bank ulanishi mavjud emas.
 
-Sana aytilmagan yozuv Toshkentdagi xabar sanasiga tegishli. Faqat oy aytilsa,
+Sana aytilmagan yozuv Toshkentdagi xabar sanasiga tegishli — ekranda eski oy ochiq
+bo‘lsa ham yangi yozuv avtomatik o‘sha oyga yozilmaydi. Faqat oy aytilsa,
 kun to‘qilmaydi va tarixda «kun aytilmagan» ko‘rsatiladi. Oy aytilib yil aytilmasa,
 xabar yuborilgan yil ishlatiladi. Avvalgi yil uchun yilni ham ayting.
 Asosiy agent o‘chirilgan rejimda bo‘limdan chiqilgach ovozli kiritish yana eslatma yaratishga qaytadi; restartdan
-keyin **💰 Kirim-chiqim**ni qayta oching. Asosiy menyu ochiq qoladi.
+keyin moliyaviy agent menyusini qayta oching. Asosiy menyu ochiq qoladi.
 Audio chegarasi 2 daqiqa/5 MB. Moliyaviy ovoz, transkript va summalar ilova logiga
 yozilmaydi; bazada izoh, summa, kategoriya, sana/oy va bekor qilish holati saqlanadi.
 Bu versiyada so‘m, bitta umumiy balans va oylik hisobotlar bor.
@@ -411,7 +437,8 @@ bash run_local_bot.sh
 
 `run_local_bot.sh` mavjud `run_bot.sh --local` buyrug‘ini chaqiradi.
 Uni loyiha papkasidan `./run_local_bot.sh` bilan ham ishga tushirish mumkin.
-Skript test sozlamalari bilan migratsiyani bajaradi, so‘ng test botni
+Skript shu loyiha papkasidagi oldingi lokal bot/admin jarayonlarini to‘xtatadi,
+test sozlamalari bilan migratsiyani bajaradi, so‘ng test bot va admin serverni
 ishga tushiradi. Test tokeni yoki test bazasi bo‘sh bo‘lsa, ishga tushmaydi;
 asosiy `TELEGRAM_BOT_TOKEN` va `DATABASE_URL` ga qaytmaydi. Terminalda
 eski asosiy token eksport qilingan bo‘lsa ham `TEST_` qiymatlari ishlatiladi.
@@ -556,11 +583,18 @@ npm run build --prefix web/admin
 Lokal TEST bot/baza bilan:
 
 ```bash
-# TEST_DATABASE_URL uchun migratsiyani run_local_bot.sh ham avtomatik bajaradi.
+# TEST baza migratsiyasi, bot va admin web-server birga ishga tushadi.
 bash run_local_bot.sh
-# Boshqa terminalda, shu loyiha ildizida:
-.venv/bin/python -m namoz_bot.admin --local serve
 ```
+
+`Ctrl+C` bot va admin web-serverni birga to‘xtatadi. Ulardan biri yopilsa yoki
+ishga tushmasa (masalan, 8088 porti band bo‘lsa), ikkinchisi ham to‘xtatiladi.
+Oldin alohida ishga tushirilgan `namoz_bot.admin --local serve` ham avtomatik
+to‘xtatiladi. Yopilish uchun 12 soniya beriladi, zarur bo‘lsa majburan yopiladi.
+Ikki start bir vaqtda bajarilsa, ishga tushirish qulfi ularni ketma-ket bajaradi.
+Boshqa loyiha va production jarayonlari avtomatik yopilmaydi. Jarayonlarni
+aniqlash uchun macOS/Linux dagi `ps` va `lsof` ishlatiladi.
+Faqat admin server kerak bo‘lsa: `.venv/bin/python -m namoz_bot.admin --local serve`.
 
 `ADMIN_TELEGRAM_IDS` ichidagi admin botga `/admin` yuboradi yoki **Profil →
 🌐 Admin web panel** tugmasini bosadi. Bot besh daqiqalik, bir marta ishlaydigan
@@ -602,7 +636,13 @@ server konfiguratsiyasida belgilanadi.
 
 ### Dinamik agentlar va skilllar
 
-**Rollar → Rol qo‘shish** formasida nom, vazifa, Gemini modeli, umumiy qoidalar va
+**Yordamchi** — panelda doim mavjud va faol bo‘ladigan yagona suhbat koordinatori.
+Admin uning nomi, vazifasi, Gemini modeli va umumiy qoidalarini tahrirlaydi;
+uni o‘chirish yoki nofaol qilish mumkin emas. Nomi o‘zgarsa ham yangi xabarlar
+shu yordamchiga keladi. Tahrirlangan vazifa va qoidalar yangi topshiriqlarning
+yo‘naltirish va natijani tekshirish bosqichlarida ishlatiladi.
+
+**Rollar → Agent qo‘shish** formasida nom, vazifa, Gemini modeli, umumiy qoidalar va
 skilllar tanlanadi. Har bir rol alohida Gemini agent konfiguratsiyasiga ega;
 foydalanuvchiga esa **Yordamchi** javob beradi. Yangi rollar va skill ruxsatlari
 foydalanuvchilarga alohida biriktiriladi. Umumiy qoidalar shabloni faqat yangi
@@ -612,3 +652,17 @@ backendda tekshiriladi. Eski rollar, ruxsatlar va model tanlovlari saqlanadi.
 Yangi backend skill uchun bitta modul/papka va typed input/output yetadi;
 markaziy action ro‘yxatiga yangi shart yozish talab qilinmaydi.
 [Skill qo‘shish qo‘llanmasi](docs/skills-development.md).
+
+### Parallel vazifalar
+
+Tasdiqlangan ishlar mustaqil navbatga qo‘yiladi. Yangi xabar navbatdagi yoki
+bajarilayotgan ishni bekor qilmaydi; faqat hali tasdiqlanmagan qoralama yangilanadi.
+`WORKFORCE_MAX_CONCURRENCY=3` bir jarayonda bir vaqtning o‘zida uchta ishni bajaradi
+(1–32 oralig‘ida sozlanadi). Bo‘sh joyga keyingi ish olinadi; natijalar alohida
+yuborish jarayoni orqali har bir vazifa nomi bilan keladi. Uzoq generatsiya
+skilllari `prepare` orqali SQL qulfidan tashqarida ishlaydi.
+
+Yangilashda `alembic upgrade head` bajaring va bot/admin jarayonlarini qayta
+ishga tushiring. Eski Ish boshqaruvchi katalog yozuvi arxivlanadi; tarixdagi
+model nusxalari saqlanadi. Agentni paneldan arxivlash uning barcha userlar uchun
+ishlashini to‘xtatadi, ammo yozuvlar va vazifalar tarixini o‘chirmaydi.

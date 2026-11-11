@@ -109,3 +109,15 @@ async def test_rate_limiter_spaces_consecutive_permits() -> None:
     await limiter.acquire()
 
     assert sleeps == [pytest.approx(0.04)]
+
+
+async def test_long_book_passage_is_delivered_in_full_with_bounded_messages() -> None:
+    class SizeCheckingBot(FakeBot):
+        async def send_message(self, chat_id: int, text: str, **kwargs: Any) -> None:
+            assert len(text.encode("utf-16-le")) // 2 <= 4096, "Message exceeds Telegram limit"
+            await super().send_message(chat_id, text, **kwargs)
+
+    bot = SizeCheckingBot()
+    text = "📖 Asl kitob matni. " * 800 + "OXIRI. Manba: 8–12-sahifalar."
+    await TelegramMessageSender(cast(Bot, bot), rate_limiter=FakeLimiter()).send(10, text)
+    assert "".join(part for _, part in bot.calls) == text

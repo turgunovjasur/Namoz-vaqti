@@ -2,7 +2,7 @@
 
 import asyncio
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterator
 from typing import Protocol
 
 from aiogram import Bot
@@ -17,6 +17,30 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from namoz_bot.domain.errors import RecipientBlockedError
 from namoz_bot.domain.workforce.tasks import TaskMessage
+
+
+def message_chunks(text: str) -> Iterator[str]:
+    """Deliver complete plain text within a conservative UTF-16 message budget."""
+    if not text:
+        yield text
+        return
+    start = 0
+    while start < len(text):
+        end = start
+        units = 0
+        last_space = start
+        while end < len(text):
+            width = 2 if ord(text[end]) > 0xFFFF else 1
+            if units + width > 4000:
+                break
+            units += width
+            end += 1
+            if text[end - 1].isspace():
+                last_space = end
+        if end < len(text) and last_space > start:
+            end = last_space
+        yield text[start:end]
+        start = end
 
 
 class RateLimiter(Protocol):
@@ -73,6 +97,10 @@ class TelegramMessageSender:
         self._retry_delays = retry_delays
 
     async def send(self, chat_id: int, text: str) -> None:
+        for chunk in message_chunks(text):
+            await self._send_chunk(chat_id, chunk)
+
+    async def _send_chunk(self, chat_id: int, text: str) -> None:
         for attempt in range(self._max_attempts):
             await self._rate_limiter.acquire()
             try:
@@ -95,19 +123,39 @@ class TelegramMessageSender:
                 delay = self._retry_delays[delay_index] if self._retry_delays else 0.0
                 await self._sleep(delay)
 
-    async def deliver_task(self, chat_id: int, message: TaskMessage) -> None:
+    async def deliver_task(self, chat_id: int, message: TaskMessage) -> int | None:
+        message_id = None
         chunks = [message.text[i : i + 4000] for i in range(0, len(message.text), 4000)]
         for index, text in enumerate(chunks):
             await self._rate_limiter.acquire()
             try:
-                await self._bot.send_message(
+                sent = await self._bot.send_message(
                     chat_id,
                     text,
                     parse_mode=None,
                     reply_markup=task_markup(message) if index == len(chunks) - 1 else None,
                 )
+                message_id = sent.message_id
             except TelegramForbiddenError as exc:
                 raise RecipientBlockedError("Recipient blocked") from exc
+        return message_id
+
+    async def delete_task_message(self, chat_id: int, message_id: int) -> None:
+        await self._rate_limiter.acquire()
+        try:
+            await self._bot.delete_message(chat_id, message_id)
+        except TelegramBadRequest as exc:
+            if not any(
+                marker in str(exc).lower()
+                for marker in (
+                    "message to delete not found",
+                    "message can’t be deleted",
+                    "message can't be deleted",
+                )
+            ):
+                raise
+        except TelegramForbiddenError as exc:
+            raise RecipientBlockedError("Recipient blocked") from exc
 
     @staticmethod
     def _is_permanent_recipient_error(exc: TelegramBadRequest) -> bool:

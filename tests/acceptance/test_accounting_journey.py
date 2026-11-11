@@ -53,10 +53,10 @@ async def open_finance(journey, user=7):
 
 async def test_section_is_available_and_zero_balance_menu_stays_open(ledger_journey):
     labels = [b.text for row in ledger_journey.session.reply_keyboards[7].keyboard for b in row]
-    assert "💰 Kirim-chiqim" in labels
+    assert "💰 Hisobchi" in labels
     await open_finance(ledger_journey)
     assert "0 so‘m" in ledger_journey.last.text
-    assert "Kirim-chiqim" in ledger_journey.last.text
+    assert "Hisobchi" in ledger_journey.last.text
     assert 7 in ledger_journey.session.reply_keyboards
 
 
@@ -78,7 +78,7 @@ async def test_voice_income_expense_and_salary_report_use_persisted_records(
     )
     await ledger_journey.voice()
     assert "Chiqim qayd etildi" in ledger_journey.last.text
-    assert "9 880 000 so‘m" in ledger_journey.last.text
+    assert "-120 000 so‘m" in ledger_journey.last.text
     finance_route.respond(
         200,
         json=response(
@@ -90,10 +90,13 @@ async def test_voice_income_expense_and_salary_report_use_persisted_records(
     await ledger_journey.voice()
     assert "Oylik tushumi: 10 000 000 so‘m" in ledger_journey.last.text
     assert len(await entries(ledger_journey)) == 2
-    await ledger_journey.click("📊 Shu oy hisoboti")
+    from namoz_bot.presentation.accounting import ledger_service_month
+
+    await ledger_journey.click(data=f"acct:7:month:{ledger_service_month().isoformat()}")
+    await ledger_journey.click("📊 Oy hisoboti")
     assert "Jami chiqim: 120 000 so‘m" in ledger_journey.last.text
-    await ledger_journey.click("📒 Tarix")
-    assert "Kiyim" in ledger_journey.last.text and "Oylik" in ledger_journey.last.text
+    await ledger_journey.click("📒 Shu oy tarixi")
+    assert "Kiyim" in ledger_journey.last.text and "Oylik" not in ledger_journey.last.text
     assert 7 in ledger_journey.session.reply_keyboards
 
 
@@ -139,7 +142,7 @@ async def test_manual_write_without_balance_grant_has_truthful_receipt(
             )
         )
     await open_finance(j)
-    assert "yoqilmagan" not in j.last.text and "Kirim-chiqim" in j.last.text
+    assert "yoqilmagan" not in j.last.text and "Hisobchi" in j.last.text
     if operation == "expense":
         finance_route.respond(
             200,
@@ -204,7 +207,7 @@ async def test_voice_balance_report_does_not_add_a_transaction(ledger_journey, f
         ),
     )
     await ledger_journey.voice()
-    assert "Joriy balans: 0 so‘m" in ledger_journey.last.text
+    assert "Umumiy balans: 0 so‘m" in ledger_journey.last.text
     assert await entries(ledger_journey) == []
 
 
@@ -237,13 +240,13 @@ async def test_provider_failure_leaves_accounting_usable(ledger_journey, finance
     await ledger_journey.voice()
     assert "voice-test-key" not in ledger_journey.last.text
     assert "qayta" in ledger_journey.last.text
-    await ledger_journey.click("💳 Balans")
-    assert "Joriy balans: 0 so‘m" in ledger_journey.last.text
+    await ledger_journey.click("💳 Umumiy balans")
+    assert "Umumiy balans: 0 so‘m" in ledger_journey.last.text
 
 
 async def test_leaving_accounting_restores_reminder_voice_routing(ledger_journey, finance_route):
     await open_finance(ledger_journey)
-    old_history = ledger_journey.button("📒 Tarix")
+    old_history = ledger_journey.button("📒 Shu oy tarixi")
     await ledger_journey.text("🔔 Eslatmalar")
     finance_route.respond(200, json=response(extracted()))
     await ledger_journey.voice()
@@ -258,7 +261,7 @@ async def test_reports_work_without_gemini_key(ledger_journey, respx_mock):
     await open_finance(ledger_journey)
     await ledger_journey.voice()
     assert "sozlanmagan" in ledger_journey.last.text
-    await ledger_journey.click("💳 Balans")
+    await ledger_journey.click("💳 Umumiy balans")
     assert "0 so‘m" in ledger_journey.last.text
     assert not respx_mock.calls
 

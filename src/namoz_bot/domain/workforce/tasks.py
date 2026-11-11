@@ -62,7 +62,7 @@ class TaskPlan(BaseModel):
         ):
             raise ValueError("Task identity or permission mismatch")
         if s.capability_id not in self.role.capability_ids or any(
-            r not in self.models for r in ("assistant", "manager", s.role_id)
+            r not in self.models for r in ("assistant", self.coordinator_role, s.role_id)
         ):
             raise ValueError("Missing role scope or model snapshot")
         if self.expires_at.tzinfo is None:
@@ -100,7 +100,8 @@ class ClaimedTask(BaseModel):
 
 class TaskMessage(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
-    text: str = Field(min_length=1, max_length=16000)
+    text: str = Field(default="", max_length=16000)
+    dismiss_source: bool = False
     task_id: str | None = None
     revision: int | None = None
     buttons: Literal["approval", "feedback"] | None = None

@@ -60,7 +60,8 @@ class TaskRunner(Protocol):
 
 
 class TaskSender(Protocol):
-    async def deliver_task(self, chat_id: int, message: TaskMessage) -> None: ...
+    async def deliver_task(self, chat_id: int, message: TaskMessage) -> int | None: ...
+    async def delete_task_message(self, chat_id: int, message_id: int) -> None: ...
 
 
 class Transcriber(Protocol):

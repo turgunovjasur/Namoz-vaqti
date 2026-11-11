@@ -18,7 +18,7 @@ def labels(journey):
 
 
 async def test_voice_expense_requires_yes_and_appends_result(conversation, routes):
-    assert "💰 Kirim-chiqim" in labels(conversation)
+    assert "💰 Hisobchi" in labels(conversation)
     await conversation.voice()
     preview_id = conversation.session.last_ids[7]
     assert "120 000" in conversation.last.text and "Kiyim" in conversation.last.text
@@ -28,7 +28,7 @@ async def test_voice_expense_requires_yes_and_appends_result(conversation, route
     await conversation.click(data=yes)
     assert isinstance(conversation.last, SendMessage)
     assert conversation.session.last_ids[7] != preview_id and "saqlandi" in conversation.last.text
-    assert "💰 Kirim-chiqim" in labels(conversation)
+    assert "💰 Hisobchi" in labels(conversation)
     await conversation.click(data=yes)
     async with async_sessionmaker(conversation.app.db_engine)() as session:
         assert len(list(await session.scalars(select(FinanceEntryRecord)))) == 1
@@ -41,12 +41,12 @@ async def test_voice_no_cancels_without_business_effect(conversation, routes):
     assert isinstance(conversation.last, SendMessage)
     async with async_sessionmaker(conversation.app.db_engine)() as session:
         assert not list(await session.scalars(select(FinanceEntryRecord)))
-    assert "💰 Kirim-chiqim" in labels(conversation)
+    assert "💰 Hisobchi" in labels(conversation)
 
 
 async def test_voice_setting_works_inside_manual_menu_only_after_yes(conversation, routes):
-    await conversation.text("⚙️ Sozlamalar")
-    await conversation.text("📅 Kunlik jadval")
+    await conversation.text("🕌 Namoz vaqti")
+    await conversation.text("⚙️ Sozlash")
     await conversation.click("✍️ Boshqa vaqt")
     routes[0].respond(200, json=route_response("settings", "Kunlik jadval ertalab 7 da kelsin"))
     routes[4].respond(200, json=response("settings", "set_daily", {"time": "07:00"}))
@@ -59,7 +59,7 @@ async def test_voice_setting_works_inside_manual_menu_only_after_yes(conversatio
     async with async_sessionmaker(conversation.app.db_engine)() as session:
         after = await session.scalar(select(DailyScheduleRecord))
         assert after.at == "07:00"
-    assert "💰 Kirim-chiqim" in labels(conversation)
+    assert "💰 Hisobchi" in labels(conversation)
 
 
 async def test_voice_read_waits_for_yes_before_fetching_book(conversation, routes, respx_mock):
@@ -120,12 +120,12 @@ async def test_another_user_cannot_approve_voice(conversation, routes):
 
 
 async def test_manual_daily_result_is_new_message_and_menu_stays_visible(conversation):
-    await conversation.text("📅 Kunlik jadval")
+    await conversation.text("⚙️ Sozlash")
     panel = conversation.session.last_ids[7]
     await conversation.click("18:00")
     assert isinstance(conversation.last, SendMessage)
     assert conversation.session.last_ids[7] != panel and "18:00" in conversation.last.text
-    assert "💰 Kirim-chiqim" in labels(conversation)
+    assert "💰 Hisobchi" in labels(conversation)
 
 
 async def test_manual_nasihat_result_is_new_message(conversation):
@@ -160,26 +160,26 @@ async def test_manual_offset_result_is_new_message(conversation, respx_mock):
 
 async def test_manual_reminder_keeps_menu_in_every_step_and_appends_saved_result(conversation):
     await conversation.text("🔔 Eslatmalar")
-    assert "💰 Kirim-chiqim" in labels(conversation)
+    assert "💰 Hisobchi" in labels(conversation)
     await conversation.click("📋 Eslatma ro‘yxati")
     await conversation.click("➕ Qo‘shish")
-    assert "💰 Kirim-chiqim" in labels(conversation)
+    assert "💰 Hisobchi" in labels(conversation)
     await conversation.text("Kitob")
-    assert "💰 Kirim-chiqim" in labels(conversation)
+    assert "💰 Hisobchi" in labels(conversation)
     await conversation.choose_time(hour=20, minute=0)
-    assert "💰 Kirim-chiqim" in labels(conversation)
+    assert "💰 Hisobchi" in labels(conversation)
     await conversation.click("🔁 Har kuni")
     before = conversation.session.last_ids[7]
     await conversation.click("✅ Saqlash")
     assert isinstance(conversation.last, SendMessage)
     assert conversation.session.last_ids[7] != before and len(await conversation.rows()) == 1
-    assert "💰 Kirim-chiqim" in labels(conversation)
+    assert "💰 Hisobchi" in labels(conversation)
 
 
 async def test_manual_accounting_read_appends_result(conversation, routes):
     await conversation.text("💰 Kirim-chiqim")
     before = conversation.session.last_ids[7]
-    await conversation.click("💳 Balans")
+    await conversation.click("💳 Umumiy balans")
     assert isinstance(conversation.last, SendMessage)
     assert conversation.session.last_ids[7] != before and "balans" in conversation.last.text.lower()
     result_id = conversation.session.last_ids[7]
@@ -205,7 +205,7 @@ async def test_saved_reminder_result_survives_starting_next_reminder(conversatio
 
 async def test_manual_balance_result_survives_switching_to_reminders(conversation):
     await conversation.text("💰 Kirim-chiqim")
-    await conversation.click("💳 Balans")
+    await conversation.click("💳 Umumiy balans")
     saved_id = conversation.session.last_ids[7]
     saved_text = conversation.session.messages[(7, saved_id)].text
     await conversation.text("🔔 Eslatmalar")

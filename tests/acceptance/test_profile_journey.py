@@ -20,6 +20,14 @@ async def profile_journey(tmp_path):
     )
     async with app.db_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    from namoz_bot.application.capabilities.registry import build_capability_registry
+    from tests.helpers.roles import build_role_registry, seed_roles
+
+    await seed_roles(
+        async_sessionmaker(app.db_engine), build_role_registry(build_capability_registry())
+    )
     await app.bot.session.close()
     journey = VoiceJourney(app)
     journey.seed_legacy_access = False
@@ -54,10 +62,9 @@ async def test_admin_assigns_subset_user_sees_own_roles_after_saved_restart(prof
     assert "Xarajat yozish" in j.last.text
 
 
-async def test_fresh_user_has_only_profile_help_and_no_admin_controls(profile_journey):
+async def test_fresh_user_has_no_menu_buttons_or_admin_controls(profile_journey):
     j = profile_journey
-    labels = [b.text for row in j.session.reply_keyboards[8].keyboard for b in row]
-    assert labels == ["👤 Profil", "ℹ️ Yordam"]
+    assert 8 not in j.session.reply_keyboards
     await j.text("/profile", user=8)
     assert "yoqilmagan" in j.last.text.lower()
     assert j.last.reply_markup is None or not j.last.reply_markup.inline_keyboard

@@ -4,11 +4,11 @@ import pytest
 from sqlalchemy import select
 
 from namoz_bot.application.capabilities.registry import build_capability_registry
-from namoz_bot.application.roles.registry import build_role_registry
 from namoz_bot.application.workforce.access import AccessService
 from namoz_bot.domain.workforce.profiles import AccessDenied, ProfileConflict
 from namoz_bot.infrastructure.orm import FinanceEntryRecord, ProfileRecord
 from namoz_bot.infrastructure.workforce.profiles import SqlAlchemyProfileRepository
+from tests.helpers.roles import build_role_registry
 from tests.integration.test_agent_sessions import NOW, finance_request
 from tests.integration.test_agent_sessions import store as store
 
@@ -17,6 +17,9 @@ from tests.integration.test_agent_sessions import store as store
 async def access_setup(store):
     _, factory, user, other = store
     roles = build_role_registry(build_capability_registry())
+    from tests.helpers.roles import seed_roles
+
+    await seed_roles(factory, roles)
     profiles = SqlAlchemyProfileRepository(factory, roles, admin_telegram_ids=frozenset({7}))
     return profiles, AccessService(profiles, roles), user, other
 

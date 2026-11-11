@@ -210,13 +210,11 @@ async def test_voice_keeps_main_menu_during_preview_edit_and_finish(
         button.text for row in voice_journey.session.reply_keyboards[7].keyboard for button in row
     ]
     assert labels == [
-        "🕌 Namoz vaqti",
-        "📖 Nasihat",
-        "🔔 Eslatmalar",
-        "💰 Kirim-chiqim",
-        "⚙️ Sozlamalar",
-        "👤 Profil",
-        "ℹ️ Yordam",
+        "📅 Taqvimchi",
+        "🔔 Rejalashtiruvchi",
+        "💰 Hisobchi",
+        "📖 Nasihatgo‘y",
+        "🤖 Sozlovchi",
     ]
 
 

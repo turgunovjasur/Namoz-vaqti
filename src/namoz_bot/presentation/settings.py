@@ -8,6 +8,7 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMar
 
 from namoz_bot.domain.daily_schedule import DailySchedulePreference
 from namoz_bot.domain.reminders import TASHKENT, parse_time
+from namoz_bot.presentation.agent_menu_context import menu_allows
 from namoz_bot.presentation.handlers import HandlerServices
 from namoz_bot.presentation.keyboards import (
     DAILY_SCHEDULE_LABEL,
@@ -29,6 +30,8 @@ class DailySettingsStates(StatesGroup):
 
 
 def daily_keyboard() -> InlineKeyboardMarkup:
+    if not menu_allows("settings.set_daily"):
+        return InlineKeyboardMarkup(inline_keyboard=[])
     buttons = [
         InlineKeyboardButton(text=value, callback_data=f"daily:set:{value}")
         for value in ("06:00", "08:00", "12:00", "18:00", "21:00", "22:00")
@@ -76,7 +79,7 @@ async def choose_daily(
         await callback.answer()
         return
     if (await state.get_data()).get(DAILY_PANEL_ID) != callback.message.message_id:
-        await callback.answer("Bu menyu eskirgan. 📅 Kunlik jadval bo‘limini qayta oching.")
+        await callback.answer(f"Bu menyu eskirgan. {DAILY_SCHEDULE_LABEL} bo‘limini qayta oching.")
         return
     if callback.data == "daily:custom":
         await state.set_state(DailySettingsStates.custom_time)

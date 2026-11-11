@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 from namoz_bot.application.profiles.service import ProfileService
+from namoz_bot.application.roles.base import configured_instruction
 from namoz_bot.application.roles.manager import REVIEW_INSTRUCTION
 from namoz_bot.application.view_context import ordinal_target, page_parameters
 from namoz_bot.application.workforce.access import AccessService
@@ -93,7 +94,7 @@ class Manager:
             raise AccessDenied(
                 "Sizga hali imkoniyatlar yoqilmagan. Administratorga murojaat qiling."
             )
-        models = {r: await self.profiles.model(r) for r in ("assistant", "manager")}
+        models = {"assistant": await self.profiles.model("assistant")}
         displayed = await self.tasks.displayed_view(context)
         if displayed and displayed.service_result:
             result = displayed.service_result
@@ -104,6 +105,7 @@ class Manager:
                     "action": result.action,
                     "page": result.data.get("page", 0),
                     "today": result.data.get("today", False),
+                    "month": str(result.data["month"])[:7] if result.data.get("month") else None,
                     "ids": [r["id"] for r in entries if isinstance(r, dict)]
                     if isinstance(entries, list)
                     else [],
@@ -230,7 +232,7 @@ class Manager:
             transcript=text,
             expires_at=self.clock() + timedelta(minutes=15),
             question=selected.question,
-            review_instruction=self.access.roles.get("assistant").common_rules
+            review_instruction=configured_instruction(self.access.roles.get("assistant"))
             + "\n"
             + REVIEW_INSTRUCTION,
             parent_revision=pending.plan.revision if followup and pending else None,

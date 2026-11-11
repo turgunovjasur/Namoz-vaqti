@@ -51,7 +51,7 @@ async def current_grant(
     if await session.scalar(select(AgentRoleRecord.id).limit(1)) is not None:
         role = await session.get(AgentRoleRecord, role_id)
         link = await session.get(AgentRoleSkillRecord, (role_id, capability_id))
-        if role is None or not role.enabled or link is None:
+        if role is None or role.archived or not role.enabled or link is None:
             return None
     row = await session.get(RoleAssignmentRecord, (user_id, role_id))
     cap = await session.get(RoleCapabilityRecord, (user_id, role_id, capability_id))
@@ -174,7 +174,11 @@ class SqlAlchemyProfileRepository:
             raise ValueError("Har bir rolni faqat bir marta yuboring.")
         for change in changes:
             role = self.roles.get(change.role_id)
-            if role.system_role or not change.capability_ids.issubset(role.capability_ids):
+            if (
+                role.archived
+                or role.system_role
+                or not change.capability_ids.issubset(role.capability_ids)
+            ):
                 raise ValueError("Invalid role capabilities")
         async with self.factory.begin() as session:
             from namoz_bot.infrastructure.roles.locks import lock_catalog
@@ -193,6 +197,7 @@ class SqlAlchemyProfileRepository:
                     )
                     if (
                         role_row is None
+                        or role_row.archived
                         or role_row.system_role
                         or (change.enabled and not role_row.enabled)
                         or not change.capability_ids.issubset(links)

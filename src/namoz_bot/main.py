@@ -87,6 +87,7 @@ from namoz_bot.infrastructure.workforce.tasks import SqlAlchemyTaskStore
 from namoz_bot.logging import configure_logging
 from namoz_bot.presentation.accounting import build_accounting_router
 from namoz_bot.presentation.admin_web.router import AdminWebEntry, build_admin_web_router
+from namoz_bot.presentation.agent_menu_router import build_agent_menu_router
 from namoz_bot.presentation.handlers import build_prayer_router
 from namoz_bot.presentation.main_agent import build_main_agent_router
 from namoz_bot.presentation.middleware import ErrorHandlingMiddleware, ServicesMiddleware
@@ -255,7 +256,7 @@ def create_application(settings: Settings) -> ApplicationResources:
             )
             executor = service_adapters
         capabilities = build_runtime_capabilities(service_adapters, http=http_client)
-        executor = CapabilityDispatcher(build_role_registry(capabilities), capabilities, access)
+        executor = CapabilityDispatcher(role_registry, capabilities, access)
         main_agent = MainAgent(
             extractor,
             SqlAlchemyAgentStore(
@@ -287,6 +288,7 @@ def create_application(settings: Settings) -> ApplicationResources:
         daily_settings=daily_settings,
         main_agent=main_agent,
         access=access,
+        qori_enabled=settings.qori_enabled,
     )
     dispatcher.message.outer_middleware(ErrorHandlingMiddleware())
     dispatcher.message.outer_middleware(middleware)
@@ -295,8 +297,15 @@ def create_application(settings: Settings) -> ApplicationResources:
     web_auth = AdminAuth(session_factory, settings.admin_telegram_ids)
     web_entry = AdminWebEntry(web_auth, settings.admin_web_url)
     dispatcher["admin_web_auth"] = web_auth
+    if settings.qori_enabled:
+        from namoz_bot.qori.router import build_qori_router
+        from namoz_bot.qori.selection import SurahSelection
+
+        dispatcher["surah_selection"] = SurahSelection(session_factory)
+        dispatcher.include_router(build_qori_router())
     dispatcher.include_router(build_admin_web_router(web_entry))
     dispatcher.include_router(build_profile_router(profile_service, web_entry=web_entry))
+    dispatcher.include_router(build_agent_menu_router())
     workforce_worker = None
     workforce_outbox = None
     if settings.main_agent_version == 3 and main_agent is not None and transport is not None:
@@ -321,7 +330,7 @@ def create_application(settings: Settings) -> ApplicationResources:
             TaskExecutionService(tasks, access, capabilities),
             ReviewService(GeminiResultReviewer(transport), render_result),
         )
-        workforce_worker = Worker(queue, runner)
+        workforce_worker = Worker(queue, runner, max_concurrency=settings.workforce_max_concurrency)
         dispatcher["assistant_service"] = assistant
         dispatcher["task_store"] = tasks
         dispatcher.include_router(build_workforce_router(assistant, main_agent))
@@ -343,8 +352,10 @@ def create_application(settings: Settings) -> ApplicationResources:
 
         async def process_workforce() -> None:
             assert workforce_worker is not None and workforce_outbox is not None
-            await workforce_outbox.send_due(sender)
-            await workforce_worker.run_once(datetime.now(UTC))
+            await workforce_worker.dispatch(datetime.now(UTC))
+
+        async def deliver_workforce() -> None:
+            assert workforce_outbox is not None
             await workforce_outbox.send_due(sender)
 
         scheduler.add_job(
@@ -352,6 +363,15 @@ def create_application(settings: Settings) -> ApplicationResources:
             trigger="interval",
             seconds=1,
             id="workforce",
+            replace_existing=True,
+            coalesce=True,
+            max_instances=1,
+        )
+        scheduler.add_job(
+            deliver_workforce,
+            trigger="interval",
+            seconds=1,
+            id="workforce-delivery",
             replace_existing=True,
             coalesce=True,
             max_instances=1,

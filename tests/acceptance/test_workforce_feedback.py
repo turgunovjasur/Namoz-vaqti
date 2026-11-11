@@ -16,6 +16,7 @@ from tests.acceptance.test_workforce_journey import (
 from tests.acceptance.test_workforce_journey import (
     workforce_route as workforce_route,
 )
+from tests.helpers.workforce import drain_workforce
 
 
 async def test_negative_result_then_voice_correction_needs_approval_and_replaces_once(
@@ -24,7 +25,7 @@ async def test_negative_result_then_voice_correction_needs_approval_and_replaces
     j = workforce_journey
     await j.voice()
     await j.click("✅ Ha")
-    await j.app.scheduler.get_job("workforce").func()
+    await drain_workforce(j.app)
     old_yes = j.button("✅ Ha")
     await j.click("❌ Yo‘q")
     assert "Nima xato" in j.last.text
@@ -51,13 +52,14 @@ async def test_negative_result_then_voice_correction_needs_approval_and_replaces
     async with factory() as session:
         assert len(list(await session.scalars(select(FinanceEntryRecord)))) == 1
     await j.click("✅ Ha")
-    await j.app.scheduler.get_job("workforce").func()
+    await drain_workforce(j.app)
     assert "150 000" in j.last.text and "Siz kutgan natijami?" in j.last.text
     new_yes = j.button("✅ Ha")
     await j.click(data=old_yes)
     assert "eskirgan" in j.last.text.lower()
+    before = set(j.session.messages)
     await j.click(data=new_yes)
-    assert "yakunlandi" in j.last.text.lower()
+    assert set(j.session.messages) == before
     async with factory() as session:
         entries = list(
             await session.scalars(select(FinanceEntryRecord).order_by(FinanceEntryRecord.id))
@@ -77,7 +79,7 @@ async def test_unrelated_request_after_no_starts_different_task(workforce_journe
     j = workforce_journey
     await j.voice()
     await j.click("✅ Ha")
-    await j.app.scheduler.get_job("workforce").func()
+    await drain_workforce(j.app)
     await j.click("❌ Yo‘q")
     mock_replies(
         workforce_route,
@@ -103,7 +105,7 @@ async def test_revoked_correction_does_not_replace_original(workforce_journey, w
     j = workforce_journey
     await j.voice()
     await j.click("✅ Ha")
-    await j.app.scheduler.get_job("workforce").func()
+    await drain_workforce(j.app)
     await j.click("❌ Yo‘q")
     mock_replies(
         workforce_route,
@@ -127,7 +129,7 @@ async def test_revoked_correction_does_not_replace_original(workforce_journey, w
         )
     await j.click(data=yes)
     assert "o‘chirilgan" in j.last.text
-    await j.app.scheduler.get_job("workforce").func()
+    await drain_workforce(j.app)
     async with async_sessionmaker(j.app.db_engine)() as session:
         entries = list(await session.scalars(select(FinanceEntryRecord)))
         assert len(entries) == 1 and entries[0].cancelled_at is None
@@ -139,7 +141,7 @@ async def test_report_correction_filters_without_changing_ledger(
     j = workforce_journey
     await j.voice()
     await j.click("✅ Ha")
-    await j.app.scheduler.get_job("workforce").func()
+    await drain_workforce(j.app)
     mock_replies(
         workforce_route,
         [
@@ -162,14 +164,15 @@ async def test_report_correction_filters_without_changing_ledger(
     )
     await j.text("Shu oy qancha xarajat qildim?")
     await j.click("✅ Ha")
-    await j.app.scheduler.get_job("workforce").func()
+    await drain_workforce(j.app)
     assert "120 000" in j.last.text
     await j.click("❌ Yo‘q")
     await j.text("Faqat oziq ovqat bo‘yicha")
     await j.click("✅ Ha")
-    await j.app.scheduler.get_job("workforce").func()
+    await drain_workforce(j.app)
     assert "Xarajat: 0 so‘m" in j.last.text
-    assert "Hisobning haqiqiy balansi: -120 000" in j.last.text
+    assert "Xarajat: 0 so‘m" in j.last.text
+    assert "-120 000" not in j.last.text
     async with async_sessionmaker(j.app.db_engine)() as session:
         entries = list(await session.scalars(select(FinanceEntryRecord)))
         assert len(entries) == 1 and entries[0].cancelled_at is None
@@ -201,11 +204,11 @@ async def test_relative_offset_correction_replaces_delta_instead_of_adding_again
     )
     await j.text("Shomga 4 daqiqa qo‘sh")
     await j.click("✅ Ha")
-    await j.app.scheduler.get_job("workforce").func()
+    await drain_workforce(j.app)
     assert "+4 daqiqa" in j.last.text
     await j.click("❌ Yo‘q")
     await j.text("4 emas 6 bo‘lsin")
     assert "Tushundim:" in j.last.text
     await j.click("✅ Ha")
-    await j.app.scheduler.get_job("workforce").func()
+    await drain_workforce(j.app)
     assert "+6 daqiqa" in j.last.text

@@ -1,8 +1,8 @@
-import os
 import subprocess
 
 import pytest
 
+from namoz_bot import local
 from namoz_bot.local import LocalSettings, run_cli
 
 
@@ -49,14 +49,19 @@ def test_local_runner_migrates_and_polls_with_same_test_environment(tmp_path, mo
         captured.append((command, env))
         assert check
 
-    def execute(executable, args, env):
-        captured.append((args, env))
+    def services(env, *, on_started):
+        on_started()
+        captured.append((None, env))
+        return 0
 
     monkeypatch.setattr(subprocess, "run", migrate)
-    monkeypatch.setattr(os, "execvpe", execute)
-    run_cli()
+    monkeypatch.setattr(local, "stop_existing_services", lambda project: None)
+    monkeypatch.setattr(local, "run_services", services)
+    with pytest.raises(SystemExit) as error:
+        run_cli()
+    assert error.value.code == 0
     assert captured[0][0][1:] == ["-m", "alembic", "upgrade", "head"]
-    assert captured[1][0][1:] == ["-m", "namoz_bot.main"]
+    assert len(captured) == 2
     for _, env in captured:
         assert env["TELEGRAM_BOT_TOKEN"] == "test-token"
         assert env["DATABASE_URL"] == "postgresql+asyncpg:///namoz_test"
@@ -74,7 +79,8 @@ def test_migration_failure_prevents_polling(tmp_path, monkeypatch):
         pytest.fail("Must not start polling after failed migration")
 
     monkeypatch.setattr(subprocess, "run", fail)
-    monkeypatch.setattr(os, "execvpe", unexpected_poll)
+    monkeypatch.setattr(local, "stop_existing_services", lambda project: None)
+    monkeypatch.setattr(local, "run_services", unexpected_poll)
     with pytest.raises(SystemExit) as error:
         run_cli()
     assert error.value.code == 2

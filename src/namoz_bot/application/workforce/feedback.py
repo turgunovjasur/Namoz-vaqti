@@ -21,7 +21,7 @@ class FeedbackService:
     ) -> TaskMessage:
         await self.tasks.rate(context, task_id, revision, accepted, request_id)
         return TaskMessage(
-            text="✅ Vazifa yakunlandi."
+            text=""
             if accepted
             else "Nima xato bo‘ldi yoki nimani boshqacha kutgandingiz? Matn yoki ovoz bilan ayting."
         )

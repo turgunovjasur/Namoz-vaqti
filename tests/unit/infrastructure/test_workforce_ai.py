@@ -4,11 +4,11 @@ import httpx
 from pydantic import SecretStr
 
 from namoz_bot.application.capabilities.registry import build_capability_registry
-from namoz_bot.application.roles.registry import build_role_registry
 from namoz_bot.domain.agent_protocol import AgentContext
 from namoz_bot.infrastructure.ai.gemini_client import GeminiClient
 from namoz_bot.infrastructure.ai.role_interpreter import GeminiRoleInterpreter
 from namoz_bot.infrastructure.ai.transcription import GeminiTranscriber
+from tests.helpers.roles import build_role_registry
 from tests.integration.test_agent_sessions import NOW
 
 
@@ -53,7 +53,14 @@ async def test_transcription_is_separate_from_routing_and_strict_identity_free_s
         transcript = await GeminiTranscriber(transport).transcribe(
             b"OggS-test", "audio/ogg", model="assistant-model"
         )
-        ai = GeminiRoleInterpreter(transport)
+        coordinator = roles.get("assistant").model_copy(
+            update={
+                "name": "Kotib",
+                "instruction": "Vazifalarni mos agentga yubor.",
+                "common_rules": "Qisqa savol ber.",
+            }
+        )
+        ai = GeminiRoleInterpreter(transport, coordinator=lambda: coordinator)
         role = roles.get("accounting").model_copy(update={"capability_ids": ("finance.report",)})
         assert (
             await ai.route(
@@ -71,6 +78,10 @@ async def test_transcription_is_separate_from_routing_and_strict_identity_free_s
         )
         assert selection.capability_id == "finance.report"
     assert "inlineData" in bodies[0]["contents"][0]["parts"][0]
+    instruction = bodies[1]["systemInstruction"]["parts"][0]["text"]
+    assert "Kotib" in instruction
+    assert "Vazifalarni mos agentga yubor." in instruction
+    assert "Qisqa savol ber." in instruction
     assert all("inlineData" not in str(body["contents"]) for body in bodies[1:])
     assert "finance.expense" not in str(bodies[2]["generationConfig"]["responseSchema"])
     assert "user_id" not in str(bodies[2]["generationConfig"]["responseSchema"])

@@ -135,9 +135,9 @@ export function RoleEditor({
           ) : (
             <>
               <p className="muted intro">
-                Har rol o‘z vazifasi, Gemini modeli va skilllari bilan alohida
-                agent bo‘ladi. Yangi rol foydalanuvchilarga avtomatik
-                biriktirilmaydi.
+                {role?.id === "assistant"
+                  ? "Yagona yordamchi barcha foydalanuvchilarning xabarlarini qabul qiladi, agentlarga topshiriq beradi va natijani yetkazadi."
+                  : "Har rol o‘z vazifasi, Gemini modeli va skilllari bilan alohida agent bo‘ladi. Yangi rol foydalanuvchilarga avtomatik biriktirilmaydi."}
               </p>
               <label className="form-field">
                 Rol nomi
@@ -145,7 +145,9 @@ export function RoleEditor({
                   required
                   maxLength={100}
                   value={name}
-                  disabled={busy || role?.system_role}
+                  disabled={
+                    busy || (role?.system_role && role.id !== "assistant")
+                  }
                   onChange={(e) => setName(e.target.value)}
                 />
               </label>
@@ -156,7 +158,9 @@ export function RoleEditor({
                   maxLength={2000}
                   rows={4}
                   value={description}
-                  disabled={busy || role?.system_role}
+                  disabled={
+                    busy || (role?.system_role && role.id !== "assistant")
+                  }
                   onChange={(e) => setDescription(e.target.value)}
                 />
               </label>
@@ -214,7 +218,9 @@ export function RoleEditor({
                 </label>
               ) : (
                 <p className="muted">
-                  Tizim rolining nomi, vazifasi va skilllari himoyalangan.
+                  {role.id === "assistant"
+                    ? "Yordamchi doim faol. Uni o‘chirib yoki nofaol qilib bo‘lmaydi. Nomi, vazifasi, modeli va umumiy qoidalarini tahrirlashingiz mumkin."
+                    : "Tizim rolining nomi, vazifasi va skilllari himoyalangan."}
                 </p>
               )}
               {!role?.system_role ? (

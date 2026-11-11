@@ -13,12 +13,13 @@ async def test_settings_menu_daily_time_custom_validation_and_return(settings_jo
     journey = settings_journey
     await journey.text("/start")
     labels = [b.text for row in journey.session.reply_keyboards[7].keyboard for b in row]
-    assert "⚙️ Sozlamalar" in labels
-    await journey.text("⚙️ Sozlamalar")
+    assert "⚙️ Sozlamalar" not in labels
+    assert "ℹ️ Yordam" not in labels
+    await journey.text("🕌 Namoz vaqti")
     labels = [b.text for row in journey.session.reply_keyboards[7].keyboard for b in row]
     assert "⚙️ Nasihat intervali" not in labels
-    assert "📅 Kunlik jadval" in labels
-    await journey.text("📅 Kunlik jadval")
+    assert "⚙️ Sozlash" in labels
+    await journey.text("⚙️ Sozlash")
     assert "21:00" in journey.last.text
     assert "ertangi" in journey.last.text.lower()
     await journey.click(data="daily:set:18:00")
@@ -44,8 +45,8 @@ async def test_settings_menu_daily_time_custom_validation_and_return(settings_jo
 async def test_retired_daily_callback_does_not_interrupt_personal_reminders(settings_journey):
     journey = settings_journey
     await journey.text("/start")
-    await journey.text("⚙️ Sozlamalar")
-    await journey.text("📅 Kunlik jadval")
+    await journey.text("🕌 Namoz vaqti")
+    await journey.text("⚙️ Sozlash")
     old_custom = journey.button("✍️ Boshqa vaqt")
     await journey.text("⬅️ Asosiy menyu")
     await journey.text("🔔 Eslatmalar")
@@ -60,7 +61,7 @@ async def test_retired_daily_callback_does_not_interrupt_personal_reminders(sett
 async def test_nasihat_navigation_exits_custom_settings_input(settings_journey, custom):
     journey = settings_journey
     await journey.text("/start")
-    await journey.text("📅 Kunlik jadval" if custom == "daily" else "⚙️ Nasihat intervali")
+    await journey.text("⚙️ Sozlash" if custom == "daily" else "⚙️ Nasihat intervali")
     await journey.click(data="daily:custom" if custom == "daily" else "nasihat:custom")
     await journey.text("📖 Nasihat")
     labels = [b.text for row in journey.session.reply_keyboards[7].keyboard for b in row]

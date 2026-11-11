@@ -31,7 +31,8 @@ class AccessService:
 
     def validate(self, role_id: str, capability_id: str) -> None:
         if (
-            not self.roles.get(role_id).enabled
+            self.roles.get(role_id).archived
+            or not self.roles.get(role_id).enabled
             or capability_id not in self.roles.get(role_id).capability_ids
         ):
             raise AccessDenied("Capability outside role")
@@ -73,7 +74,11 @@ class AccessService:
     async def available_roles(self, user_id: int) -> tuple[RoleDefinition, ...]:
         async with self.role_scope():
             profile = await self.repository.get_profile(user_id)
-            available = {r.id: r for r in self.roles.all() if r.enabled and not r.system_role}
+            available = {
+                r.id: r
+                for r in self.roles.all()
+                if r.enabled and not r.archived and not r.system_role
+            }
             result = []
             for assignment in profile.roles:
                 role = available.get(assignment.role_id)
@@ -87,11 +92,12 @@ class AccessService:
     async def require_in(
         self, transaction: PermissionTransaction, user_id: int, role_id: str, capability_id: str
     ) -> PermissionSnapshot:
-        self.validate(role_id, capability_id)
-        grant = await transaction.current_grant(user_id, role_id, capability_id)
-        if grant is None:
-            raise AccessDenied("Bu imkoniyat siz uchun o‘chirilgan.")
-        return grant
+        async with self.role_scope():
+            self.validate(role_id, capability_id)
+            grant = await transaction.current_grant(user_id, role_id, capability_id)
+            if grant is None:
+                raise AccessDenied("Bu imkoniyat siz uchun o‘chirilgan.")
+            return grant
 
     @asynccontextmanager
     async def effect_scope(

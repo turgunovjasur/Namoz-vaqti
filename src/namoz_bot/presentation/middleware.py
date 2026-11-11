@@ -26,12 +26,20 @@ from namoz_bot.domain.models import UserSubscription
 from namoz_bot.domain.workforce.profiles import AccessDenied
 from namoz_bot.infrastructure.reminders import SqlAlchemyReminderRepository
 from namoz_bot.infrastructure.repositories import SqlAlchemySubscriptionRepository
+from namoz_bot.presentation.agent_menu_context import (
+    ROLE_KEY,
+    action_labels,
+    agent_label,
+    agent_menu_scope,
+    is_agent_navigation,
+)
 from namoz_bot.presentation.handlers import RELIGIOUS_COOLDOWN_ID, HandlerServices
 from namoz_bot.presentation.keyboards import (
     DAILY_SCHEDULE_LABEL,
     HELP_LABEL,
     OFFSETS_LABEL,
     PROFILE_LABEL,
+    QORI_LABEL,
     REGION_LABEL,
     RELIGIOUS_INTERVAL_LABEL,
     RELIGIOUS_REMINDER_LABEL,
@@ -93,6 +101,7 @@ class ServicesMiddleware(BaseMiddleware):
         daily_settings: DailyScheduleSettingsService | None = None,
         main_agent: MainAgent | None = None,
         access: AccessService | None = None,
+        qori_enabled: bool = False,
     ) -> None:
         self._session_factory = session_factory
         self._schedule_service = schedule_service
@@ -102,6 +111,7 @@ class ServicesMiddleware(BaseMiddleware):
         self._daily_settings = daily_settings
         self._main_agent = main_agent
         self._access = access
+        self._qori_enabled = qori_enabled
 
     async def __call__(
         self,
@@ -145,25 +155,71 @@ class ServicesMiddleware(BaseMiddleware):
             from namoz_bot.infrastructure.admin_web.queries import sync_identity
 
             await sync_identity(self._session_factory, user.id, sender.full_name, sender.username)
-            with access_context(self._access, user_id=user.id, telegram_user_id=sender.id):
-                capability = manual_capability(event)
-                if capability:
-                    await require_operation(capability)
-                roles = await self._access.available_roles(user.id)
-                visible = {r.id for r in roles}
-                visible.update(
-                    route.domain
-                    for r in roles
-                    for c in r.capability_ids
-                    for route in self._access.roles.capabilities.get(c).spec.routes
+            roles = await self._access.available_roles(user.id)
+            state = data.get("state")
+            saved = await state.get_data() if isinstance(state, FSMContext) else {}
+            selected = saved.get(ROLE_KEY)
+            if isinstance(event, Message):
+                chosen = next((r for r in roles if event.text in {agent_label(r), r.name}), None)
+                if chosen:
+                    selected = chosen.id
+                elif event.text in {
+                    "/start",
+                    "/menu",
+                    "⬅️ Asosiy menyu",
+                    PROFILE_LABEL,
+                    QORI_LABEL,
+                    "/qori",
+                }:
+                    selected = None
+            with agent_menu_scope(
+                roles, self._access.roles.capabilities, selected, qori_enabled=self._qori_enabled
+            ):
+                manual = isinstance(event, CallbackQuery) and not (event.data or "").startswith(
+                    ("ag:", "wf:", "wff:", "pf:")
                 )
-                if "finance" in visible:
-                    visible.add("accounting")
-                with menu_visibility(frozenset(visible)):
-                    result = await self._handle(handler, event, data)
-                if capability:
-                    await require_operation(capability)
-                return result
+                manual = manual or (
+                    isinstance(event, Message)
+                    and (
+                        is_agent_navigation(event.text)
+                        or legacy_menu_input(event, data.get("raw_state"))
+                    )
+                )
+                bound_role = selected if manual else None
+                if bound_role and not any(r.id == bound_role for r in roles):
+                    raise AccessDenied(
+                        "Bu agent o‘chirilgan yoki sizga biriktirilmagan. /menu ni oching."
+                    )
+                with access_context(
+                    self._access, user_id=user.id, telegram_user_id=sender.id, role_id=bound_role
+                ):
+                    capability = manual_capability(event)
+                    # Dynamic action handlers authorize their own selected capability.
+                    if isinstance(event, Message) and event.text in action_labels():
+                        capability = None
+                    if capability:
+                        from namoz_bot.presentation.agent_menu_context import menu_allows
+
+                        alternate = {
+                            "preferences.region_view": "prayer.set_region",
+                            "preferences.offsets_view": "prayer.set_offset",
+                        }.get(capability)
+                        if alternate and not menu_allows(capability) and menu_allows(alternate):
+                            capability = alternate
+                        await require_operation(capability)
+                    visible = {r.id for r in roles}
+                    with menu_visibility(frozenset(visible)):
+                        result = await self._handle(handler, event, data)
+                    if capability:
+                        await require_operation(capability)
+                    if bound_role and isinstance(state, FSMContext):
+                        # Home/start and free conversation deliberately clear the selected agent.
+                        home = isinstance(event, CallbackQuery) and (event.data or "").split(":")[
+                            2:3
+                        ] == ["home"]
+                        if not home:
+                            await state.update_data({ROLE_KEY: bound_role})
+                    return result
         return await self._handle(handler, event, data)
 
     async def _handle(
@@ -184,7 +240,9 @@ class ServicesMiddleware(BaseMiddleware):
             or (isinstance(event, Message) and legacy_menu_input(event, data.get("raw_state")))
         )
         if self._main_agent is not None and not self._main_agent.voice_first:
-            navigation = isinstance(event, Message) and event.text in NAVIGATION - {PROFILE_LABEL}
+            navigation = isinstance(event, Message) and (
+                event.text in NAVIGATION - {PROFILE_LABEL} or is_agent_navigation(event.text)
+            )
             callback_navigation = (
                 isinstance(event, CallbackQuery)
                 and event.data is not None
@@ -227,7 +285,6 @@ class ServicesMiddleware(BaseMiddleware):
                 in {
                     TODAY_LABEL,
                     PROFILE_LABEL,
-                    menu_visibility,
                     REGION_LABEL,
                     OFFSETS_LABEL,
                     HELP_LABEL,

@@ -170,7 +170,7 @@ class ProfileController:
                 buttons = [
                     (r.name, {"type": "assignment", "user": target.user_id, "role": r.id})
                     for r in self.service.roles.all()
-                    if not r.system_role
+                    if not r.system_role and not r.archived
                 ]
                 await self._card(
                     message, state, profile_text(target, self.service.roles), buttons, owner=actor
@@ -210,7 +210,11 @@ class ProfileController:
                     message,
                     state,
                     "Rolni tanlang:",
-                    [(r.name, {"type": "role", "role": r.id}) for r in self.service.roles.all()],
+                    [
+                        (r.name, {"type": "role", "role": r.id})
+                        for r in self.service.roles.all()
+                        if not r.archived
+                    ],
                     owner=actor,
                 )
             elif kind == "role":

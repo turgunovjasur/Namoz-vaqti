@@ -3,6 +3,7 @@
 import json
 from collections.abc import Callable
 
+from namoz_bot.application.roles.base import configured_instruction
 from namoz_bot.application.roles.manager import ROUTING_INSTRUCTION
 from namoz_bot.domain.agent_protocol import AgentContext
 from namoz_bot.domain.workforce.capabilities import CapabilitySelection, CapabilitySpec
@@ -43,7 +44,9 @@ class GeminiRoleInterpreter:
         ]
         payload = await self.transport.generate_json(
             model=model,
-            instruction=(self.coordinator().common_rules + "\n" if self.coordinator else "")
+            instruction=(
+                configured_instruction(self.coordinator()) + "\n" if self.coordinator else ""
+            )
             + ROUTING_INSTRUCTION,
             schema={
                 "type": "OBJECT",

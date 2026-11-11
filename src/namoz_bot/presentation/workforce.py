@@ -36,8 +36,12 @@ class WorkforceController:
         await state.update_data(
             {KEEP_MAIN_MENU: True, APPEND_RESULTS: True, "hidden_menu_mode": True}
         )
-        await message.answer("Yordamchi", reply_markup=build_main_menu(), parse_mode=None)
-        await message.answer(reply.text, reply_markup=task_markup(reply), parse_mode=None)
+        if reply.text:
+            await message.answer(
+                "🤖 " + reply.text.removeprefix("🤖 "),
+                reply_markup=task_markup(reply) or build_main_menu(),
+                parse_mode=None,
+            )
 
     async def start(
         self, message: Message, state: FSMContext, handler_services: HandlerServices
@@ -194,6 +198,20 @@ class WorkforceController:
                 parts[3] == "y",
             )
         await callback.answer()
+        if reply.dismiss_source:
+            try:
+                await callback.message.delete()
+            except TelegramAPIError:
+                # Expired/deleted cards must not prevent accepted work from running.
+                try:
+                    await callback.message.edit_reply_markup(reply_markup=None)
+                except TelegramAPIError:
+                    pass
+        elif parts[0] == "wff" and not reply.text:
+            try:
+                await callback.message.edit_reply_markup(reply_markup=None)
+            except TelegramAPIError:
+                pass
         await self._send(callback.message, state, reply)
 
 

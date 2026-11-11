@@ -8,16 +8,30 @@ from aiogram import F, Router
 from aiogram.exceptions import TelegramAPIError
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
+from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
 
 from namoz_bot.application.accounting import LedgerService
 from namoz_bot.application.voice_reminders import MAX_VOICE_BYTES, MAX_VOICE_SECONDS
 from namoz_bot.application.workforce.access import AccessService
 from namoz_bot.application.workforce.authorization import selected_operation
-from namoz_bot.domain.accounting import CATEGORY_LABELS, LedgerEntry, LedgerSummary, format_money
+from namoz_bot.domain.accounting import CATEGORY_LABELS, LedgerSummary, format_money
 from namoz_bot.domain.errors import ExternalServiceError
-from namoz_bot.domain.reminders import TASHKENT
 from namoz_bot.domain.workforce.profiles import AccessDenied
+from namoz_bot.presentation.accounting_menu import (
+    MONTH_KEY,
+    current_month,
+    month_picker,
+)
+from namoz_bot.presentation.accounting_menu import (
+    button as _button,
+)
+from namoz_bot.presentation.accounting_menu import (
+    keyboard as _keyboard,
+)
+from namoz_bot.presentation.accounting_menu import (
+    month_label as _month_label,
+)
+from namoz_bot.presentation.agent_menu_context import menu_allows, selected_role
 from namoz_bot.presentation.handlers import HandlerServices
 from namoz_bot.presentation.keyboards import (
     ACCOUNTING_LABEL,
@@ -37,7 +51,6 @@ from namoz_bot.presentation.keyboards import (
     TODAY_LABEL,
     TODAY_REMINDERS_LABEL,
 )
-from namoz_bot.presentation.reminder_keyboards import MONTHS
 from namoz_bot.presentation.reminder_panel import (
     KEEP_MAIN_MENU,
     PANEL_ID,
@@ -50,31 +63,7 @@ from namoz_bot.presentation.reminder_panel import (
 
 class AccountingStates(StatesGroup):
     active = State()
-
-
-def _month_label(month: date) -> str:
-    return f"{MONTHS[month.month - 1]} {month.year}"
-
-
-def _button(owner: int, text: str, action: str, value: str = "-") -> InlineKeyboardButton:
-    return InlineKeyboardButton(text=text, callback_data=f"acct:{owner}:{action}:{value}")
-
-
-def _keyboard(owner: int, entry: LedgerEntry | None = None) -> InlineKeyboardMarkup:
-    rows = []
-    if entry is not None and not entry.cancelled:
-        rows.append([_button(owner, "↩️ Yozuvni bekor qilish", "undo", str(entry.id))])
-    rows.extend(
-        [
-            [
-                _button(owner, "💳 Balans", "balance"),
-                _button(owner, "📊 Shu oy hisoboti", "summary"),
-            ],
-            [_button(owner, "📒 Tarix", "history", "0")],
-            [_button(owner, "⬅️ Asosiy menyu", "home")],
-        ]
-    )
-    return InlineKeyboardMarkup(inline_keyboard=rows)
+    entry = State()
 
 
 def _summary_text(summary: LedgerSummary, report_type: str = "summary") -> str:
@@ -87,12 +76,11 @@ def _summary_text(summary: LedgerSummary, report_type: str = "summary") -> str:
         }[report_type]
         return f"{title}\n\n{label}: {format_money(amount)}"
     return (
-        f"{title}\n\nOldingi oylar qoldig‘i: {format_money(summary.opening_balance)}\n"
+        f"{title}\n\n"
         f"Jami kirim: {format_money(summary.income)}\n"
         f"Oylik tushumi: {format_money(summary.salary)}\n"
         f"Jami chiqim: {format_money(summary.expense)}\n"
-        f"Oy farqi: {format_money(summary.income - summary.expense)}\n"
-        f"Oy yakunidagi qoldiq: {format_money(summary.closing_balance)}"
+        f"Oy farqi: {format_money(summary.income - summary.expense)}"
     )
 
 
@@ -112,21 +100,28 @@ async def open_accounting(
     owner = await _owner(handler_services, message.from_user.id, message.chat.id)
     await discard_panel(message, state)
     await state.clear()
-    await state.update_data({KEEP_MAIN_MENU: True})
+    await state.update_data({KEEP_MAIN_MENU: True, MONTH_KEY: ledger_service_month().isoformat()})
     await state.set_state(AccountingStates.active)
-    try:
-        balance_text = f"Joriy balans: {format_money(await ledger_service.balance(owner))}\n\n"
-    except AccessDenied:
-        balance_text = ""
-    await render_panel(
-        message,
-        state,
-        "💰 Kirim-chiqim\n\n" + balance_text + "Ovoz yoki matn bilan bitta kirim/chiqimni ayting:\n"
-        "«Oktyabrda 10 million oylik tushdi»\n«120 mingga kiyim oldim»\n\n"
-        "Hisobot: «Oktyabrda qancha sarfladim?» yoki «Balansim qancha?»\n"
-        "Valyuta: so‘m. Aniq yozuv darhol saqlanadi, bekor qilish mumkin.",
-        _keyboard(message.from_user.id),
+    await show_month(message, state, ledger_service, owner)
+
+
+async def show_month(
+    message: Message, state: FSMContext, service: LedgerService, owner: int
+) -> None:
+    assert message.from_user is not None
+    month = date.fromisoformat(
+        (await state.get_data()).get(MONTH_KEY, ledger_service_month().isoformat())
     )
+    role = selected_role()
+    title = role.name if role else "Hisobchi"
+    text = f"💰 {title} · {_month_label(month)}\n\n"
+    if menu_allows("finance.report"):
+        try:
+            text += _summary_text(await service.summary(owner, month)) + "\n\n"
+        except AccessDenied:
+            pass
+    text += "Amalni tanlang yoki kirim/chiqimni yozing. Sana aytilmasa bugungi sana olinadi."
+    await render_panel(message, state, text, _keyboard(message.from_user.id, month=month))
 
 
 async def _show_history(
@@ -137,8 +132,11 @@ async def _show_history(
     telegram_id: int,
     page: int,
 ) -> None:
-    entries, more = await service.history(owner, page)
-    text = "📒 Kirim-chiqim tarixi\n\n"
+    month = date.fromisoformat(
+        (await state.get_data()).get(MONTH_KEY, ledger_service_month().isoformat())
+    )
+    entries, more = await service.history(owner, page, month=month)
+    text = f"📒 Yozuvlar tarixi · {_month_label(month)}\n\n"
     if not entries:
         text += "Hozircha yozuvlar yo‘q."
     rows = []
@@ -155,7 +153,7 @@ async def _show_history(
             + (" · Bekor qilingan" if entry.cancelled else "")
             + "\n\n"
         )
-        if not entry.cancelled:
+        if not entry.cancelled and menu_allows("finance.undo"):
             rows.append(
                 [_button(telegram_id, f"↩️ #{entry.id} ni bekor qilish", "undo", str(entry.id))]
             )
@@ -166,7 +164,7 @@ async def _show_history(
         navigation.append(_button(telegram_id, "Keyingi ➡️", "history", str(page + 1)))
     if navigation:
         rows.append(navigation)
-    rows.extend(_keyboard(telegram_id).inline_keyboard)
+    rows.extend(_keyboard(telegram_id, month=month).inline_keyboard)
     await render_panel(
         message, state, text, InlineKeyboardMarkup(inline_keyboard=rows), append_result=True
     )
@@ -253,7 +251,7 @@ async def receive_accounting(
                         f"telegram:{message.chat.id}:{message.message_id}",
                         message.date,
                     )
-                    balance = await tx.ledger.balance(owner)
+                    balance = await tx.ledger.balance(owner, month=entry.period)
             if entry.cancelled:
                 text = "Bu xabardagi yozuv avval bekor qilingan. Qayta hisobga qo‘shilmadi."
             else:
@@ -267,21 +265,30 @@ async def receive_accounting(
                     f"✅ {title}\n\n{format_money(entry.amount)}\n"
                     f"{entry.description} · {CATEGORY_LABELS[entry.category]}\n📅 {stamp}"
                 )
-            text += f"\n\nJoriy balans: {format_money(balance)}"
+            await state.update_data({MONTH_KEY: entry.period.isoformat()})
+            text += f"\n\nOy farqi ({_month_label(entry.period)}): {format_money(balance)}"
         elif request.intent == "report":
+            await state.update_data({MONTH_KEY: request.period(message.date).isoformat()})
             text = _summary_text(
                 await ledger_service.summary(owner, request.period(message.date)),
                 request.report_type or "summary",
             )
         elif request.intent == "history":
+            await state.update_data({MONTH_KEY: request.period(message.date).isoformat()})
             await _show_history(message, state, ledger_service, owner, telegram_id, 0)
             return
         else:
-            text = f"💳 Joriy balans: {format_money(await ledger_service.balance(owner))}"
+            text = f"💳 Umumiy balans: {format_money(await ledger_service.balance(owner))}"
     except ValueError as exc:
         await render_panel(message, state, str(exc), _keyboard(telegram_id))
         return
-    await render_panel(message, state, text, _keyboard(telegram_id, entry), append_result=True)
+    month = date.fromisoformat(
+        (await state.get_data()).get(MONTH_KEY, ledger_service_month().isoformat())
+    )
+    await state.set_state(AccountingStates.active)
+    await render_panel(
+        message, state, text, _keyboard(telegram_id, entry, month), append_result=True
+    )
 
 
 async def accounting_callback(
@@ -303,49 +310,104 @@ async def accounting_callback(
         await callback.answer("Bu yozuv sizga tegishli emas.", show_alert=True)
         return
     action, value = parts[2], parts[3]
-    active = await state.get_state() == AccountingStates.active.state
+    active = await state.get_state() in {
+        AccountingStates.active.state,
+        AccountingStates.entry.state,
+    }
     data = await state.get_data()
     if action != "undo" and (not active or data.get(PANEL_ID) != message.message_id):
         await callback.answer("Kirim-chiqim bo‘limini qayta oching.", show_alert=True)
         return
     owner = await _owner(handler_services, callback.from_user.id, message.chat.id)
+    month = date.fromisoformat(data.get(MONTH_KEY, ledger_service_month().isoformat()))
     try:
+        required = {
+            "income": "finance.income",
+            "expense": "finance.expense",
+            "summary": "finance.report",
+            "history": "finance.history",
+            "balance": "finance.balance",
+            "undo": "finance.undo",
+        }.get(action)
+        if required and not menu_allows(required):
+            raise AccessDenied("Bu agent uchun amal yoqilmagan.")
+        if action in {"month", "year"} and not (
+            menu_allows("finance.report") or menu_allows("finance.history")
+        ):
+            raise AccessDenied("Oylarni ko‘rish ruxsati yo‘q.")
         if action == "undo":
             if not value.isdigit():
                 raise ValueError("Yozuv raqami noto‘g‘ri.")
             grant = await access_service.require_any(owner, "finance.undo")
             with selected_operation(grant.role_id, "finance.undo"):
                 async with access_service.effect_scope(owner, grant.role_id, "finance.undo") as tx:
+                    original = await tx.ledger.get(owner, int(value))
                     cancelled = await tx.ledger.cancel(owner, int(value))
-                    balance = await tx.ledger.balance(owner)
+                    receipt_month = original.period if original else month
+                    balance = await tx.ledger.balance(owner, month=receipt_month)
             text = (
                 "↩️ Yozuv bekor qilindi."
                 if cancelled
                 else "Bu yozuv topilmadi yoki avval bekor qilingan."
             )
-            text += f"\n\nJoriy balans: {format_money(balance)}"
+            text += f"\n\nOy farqi ({_month_label(receipt_month)}): {format_money(balance)}"
             if active:
                 await render_panel(
-                    message, state, text, _keyboard(callback.from_user.id), append_result=True
+                    message,
+                    state,
+                    text,
+                    _keyboard(callback.from_user.id, month=month),
+                    append_result=True,
                 )
             else:
                 await message.answer(text, parse_mode=None)
         elif action == "home":
             await show_main_menu(message, state)
+        elif action in {"income", "expense"}:
+            await state.set_state(AccountingStates.entry)
+            await state.update_data(accounting_intent=action)
+            label = "Kirimni" if action == "income" else "Xarajatni"
+            await render_panel(
+                message,
+                state,
+                f"{label} summa va izohi bilan yozing. "
+                "Masalan: «Bugun 120 mingga kiyim oldim». Sana aytilmasa bugun hisoblanadi.",
+                _keyboard(callback.from_user.id, month=month),
+            )
+        elif action == "year":
+            await render_panel(
+                message,
+                state,
+                f"📅 Oyni tanlang · {int(value)}",
+                month_picker(callback.from_user.id, int(value)),
+            )
+        elif action == "month":
+            chosen = date.fromisoformat(value)
+            if chosen.day != 1 or chosen > ledger_service_month():
+                raise ValueError("Oy noto‘g‘ri")
+            await state.update_data({MONTH_KEY: chosen.isoformat()})
+            source = message.model_copy(update={"from_user": callback.from_user})
+            if menu_allows("finance.report"):
+                await show_month(source, state, ledger_service, owner)
+            else:
+                await _show_history(source, state, ledger_service, owner, callback.from_user.id, 0)
         elif action == "history":
             await _show_history(
                 message, state, ledger_service, owner, callback.from_user.id, int(value)
             )
         else:
             if action == "summary":
-                month = ledger_service_month()
                 text = _summary_text(await ledger_service.summary(owner, month))
             elif action == "balance":
-                text = f"💳 Joriy balans: {format_money(await ledger_service.balance(owner))}"
+                text = f"💳 Umumiy balans: {format_money(await ledger_service.balance(owner))}"
             else:
                 raise ValueError("Amal noto‘g‘ri.")
             await render_panel(
-                message, state, text, _keyboard(callback.from_user.id), append_result=True
+                message,
+                state,
+                text,
+                _keyboard(callback.from_user.id, month=month),
+                append_result=True,
             )
     except (ValueError, OverflowError):
         await callback.answer("Amal yoki yozuv raqami noto‘g‘ri.", show_alert=True)
@@ -354,9 +416,7 @@ async def accounting_callback(
 
 
 def ledger_service_month() -> date:
-    from datetime import datetime
-
-    return datetime.now(TASHKENT).date().replace(day=1)
+    return current_month()
 
 
 def build_accounting_router() -> Router:
@@ -382,6 +442,13 @@ def build_accounting_router() -> Router:
         LIST_LABEL,
         TODAY_REMINDERS_LABEL,
     }
+    router.message.register(
+        receive_accounting,
+        AccountingStates.entry,
+        F.text | F.voice,
+        ~F.text.startswith("/"),
+        ~F.text.in_(navigation),
+    )
     router.message.register(
         receive_accounting,
         AccountingStates.active,

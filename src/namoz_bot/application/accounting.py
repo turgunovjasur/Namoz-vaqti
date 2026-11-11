@@ -23,11 +23,13 @@ class LedgerRepository(Protocol):
     async def find_for_user(self, user_id: int, text: str | None) -> list[LedgerEntry]: ...
     async def get_for_user(self, user_id: int, entry_id: int) -> LedgerEntry | None: ...
     async def create(self, user_id: int, spec: LedgerSpec, source_key: str) -> LedgerEntry: ...
-    async def balance(self, user_id: int) -> int: ...
+    async def balance(self, user_id: int, *, month: date | None = None) -> int: ...
     async def summary(
         self, user_id: int, month: date, *, category: Category | None = None
     ) -> LedgerSummary: ...
-    async def history(self, user_id: int, *, offset: int, limit: int) -> list[LedgerEntry]: ...
+    async def history(
+        self, user_id: int, *, offset: int, limit: int, month: date | None = None
+    ) -> list[LedgerEntry]: ...
     async def cancel(self, user_id: int, entry_id: int) -> bool: ...
 
 
@@ -64,8 +66,10 @@ class LedgerService:
         return await self._repository.create(user_id, request.transaction(now), source_key)
 
     @authorized("finance.balance")
-    async def balance(self, user_id: int) -> int:
-        return await self._repository.balance(user_id)
+    async def balance(self, user_id: int, *, month: date | None = None) -> int:
+        return await self._repository.balance(
+            user_id, **({"month": month.replace(day=1)} if month else {})
+        )
 
     @authorized("finance.report")
     async def summary(
@@ -76,10 +80,17 @@ class LedgerService:
         )
 
     @authorized("finance.history")
-    async def history(self, user_id: int, page: int) -> tuple[list[LedgerEntry], bool]:
+    async def history(
+        self, user_id: int, page: int, *, month: date | None = None
+    ) -> tuple[list[LedgerEntry], bool]:
         if not 0 <= page <= 100000:
             raise ValueError("Tarix sahifasi noto‘g‘ri.")
-        entries = await self._repository.history(user_id, offset=page * 5, limit=6)
+        entries = await self._repository.history(
+            user_id,
+            offset=page * 5,
+            limit=6,
+            **({"month": month.replace(day=1)} if month else {}),
+        )
         return entries[:5], len(entries) > 5
 
     @authorized("finance.undo")

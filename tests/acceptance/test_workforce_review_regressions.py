@@ -10,6 +10,7 @@ from namoz_bot.infrastructure.reminders import SqlAlchemyReminderRepository
 from tests.acceptance.test_workforce_feedback import mock_replies
 from tests.acceptance.test_workforce_journey import workforce_journey as workforce_journey
 from tests.acceptance.test_workforce_journey import workforce_route as workforce_route
+from tests.helpers.workforce import drain_workforce
 from tests.integration.test_agent_sessions import NOW
 
 
@@ -40,7 +41,7 @@ async def test_correction_clarification_keeps_target_and_task(
     if kind == "finance_spoof":
         change.update(target_id=999, expected_record_revision=999, intent="income")
     await j.click("✅ Ha")
-    await j.app.scheduler.get_job("workforce").func()
+    await drain_workforce(j.app)
     assert "Siz kutgan natijami" in j.last.text, j.last.text
     await j.click("❌ Yo‘q")
     mock_replies(
@@ -70,7 +71,7 @@ async def test_correction_clarification_keeps_target_and_task(
     if kind == "reminder":
         assert "09:00" in j.last.text and "10:00" in j.last.text
     await j.click("✅ Ha")
-    await j.app.scheduler.get_job("workforce").func()
+    await drain_workforce(j.app)
     async with async_sessionmaker(j.app.db_engine)() as session:
         tasks = list(await session.scalars(select(WorkforceTaskRecord)))
         assert len(tasks) == 1 and tasks[0].revision == 3
@@ -116,11 +117,11 @@ async def test_v3_list_next_page_and_ordinal_delete_use_delivered_owned_view(
     for text in ("Eslatmalarim", "Keyingi sahifa"):
         await j.text(text)
         await j.click("✅ Ha")
-        await j.app.scheduler.get_job("workforce").func()
+        await drain_workforce(j.app)
     assert "Kitob 5" in j.last.text and "Kitob 0" not in j.last.text
     await j.text("Birinchisini o‘chir")
     await j.click("✅ Ha")
-    await j.app.scheduler.get_job("workforce").func()
+    await drain_workforce(j.app)
     assert await repo.get_for_user(1, rows[3].id) is None
     assert await repo.get_for_user(1, rows[0].id) is not None
 
@@ -153,7 +154,7 @@ async def test_independent_report_during_correction_question_starts_new_task(
     )
     await j.text("Hisobot ber")
     await j.click("✅ Ha")
-    await j.app.scheduler.get_job("workforce").func()
+    await drain_workforce(j.app)
     await j.click("❌ Yo‘q")
     await j.text("Oy xato")
     await j.text("Boshqa ish: sentyabr hisobotini ber")

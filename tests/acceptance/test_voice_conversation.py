@@ -25,13 +25,11 @@ routes = _routes_fixture
 def assert_voice_ui(journey):
     labels = [b.text for row in journey.session.reply_keyboards[7].keyboard for b in row]
     assert labels == [
-        "🕌 Namoz vaqti",
-        "📖 Nasihat",
-        "🔔 Eslatmalar",
-        "💰 Kirim-chiqim",
-        "⚙️ Sozlamalar",
-        "👤 Profil",
-        "ℹ️ Yordam",
+        "📅 Taqvimchi",
+        "🔔 Rejalashtiruvchi",
+        "💰 Hisobchi",
+        "📖 Nasihatgo‘y",
+        "🤖 Sozlovchi",
     ]
 
 
@@ -151,7 +149,7 @@ async def test_helpers_receive_text_only_and_no_other_domain_view(conversation, 
 @pytest.mark.parametrize(
     "domain,action,parameters,route_index,expected",
     [
-        ("accounting", "balance", {}, 1, "Balans"),
+        ("accounting", "balance", {}, 1, "Umumiy balans"),
         ("accounting", "report", {"report_type": "expense"}, 1, "Xarajat"),
         ("accounting", "history", {}, 1, "tarixi"),
         ("reminder", "list", {"today": True}, 3, "Eslatmalar"),
@@ -210,4 +208,6 @@ async def test_replayed_finance_receipt_shows_current_cancelled_state(conversati
     await conversation.approved_voice()
     await conversation.app.dispatcher.feed_update(conversation.app.bot, update)
     assert "bekor qilingan" in conversation.last.text
+    assert any(line.startswith("Oy farqi") and line.endswith(": 0 so‘m")
+               for line in conversation.last.text.splitlines())
     assert_voice_ui(conversation)

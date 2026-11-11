@@ -12,20 +12,14 @@ def build_profile_service(
 ) -> ProfileService:
     role_registry = profiles.roles
     base_role_model = settings.gemini_main_agent_model or settings.gemini_voice_model
-    defaults = {r.id: base_role_model for r in role_registry.all()}
-    defaults.update(
-        {
-            r: m
-            for r, m in {
-                "prayer": settings.gemini_prayer_agent_model,
-                "nasihat": settings.gemini_nasihat_agent_model,
-                "reminder": settings.gemini_reminder_agent_model,
-                "accounting": settings.gemini_accounting_agent_model,
-                "settings": settings.gemini_settings_agent_model,
-            }.items()
-            if m
-        }
-    )
+    # Older deployments may have per-domain environment defaults. These are
+    # fallbacks only; persisted admin model choices always take precedence.
+    defaults = {"assistant": base_role_model}
+    for field in type(settings).model_fields:
+        if field.startswith("gemini_") and field.endswith("_agent_model"):
+            value = getattr(settings, field)
+            if value:
+                defaults[field.removeprefix("gemini_").removesuffix("_agent_model")] = value
     catalog = ModelCatalog(
         transport, tuple(dict.fromkeys((*settings.gemini_allowed_models, *defaults.values())))
     )

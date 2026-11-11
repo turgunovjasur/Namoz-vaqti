@@ -11,7 +11,6 @@ from pydantic import SecretStr
 
 from namoz_bot.application.roles.base import COMMON_INSTRUCTION as COMMON_INSTRUCTION
 from namoz_bot.application.roles.manager import LEGACY_ROUTER_INSTRUCTION as ROUTER_INSTRUCTION
-from namoz_bot.application.roles.registry import specialist_instructions
 from namoz_bot.application.voice_reminders import MAX_VOICE_BYTES
 from namoz_bot.domain.agent_protocol import (
     ACTION_MODELS,
@@ -25,6 +24,7 @@ from namoz_bot.domain.agent_protocol import (
 )
 from namoz_bot.domain.errors import ExternalServiceError
 from namoz_bot.domain.reminders import TASHKENT
+from namoz_bot.infrastructure.ai.legacy_instructions import specialist_instructions
 from namoz_bot.infrastructure.gemini_main_agent import RESPONSE_SCHEMA, GeminiMainAgentClient
 
 ROUTER_SCHEMA: dict[str, Any] = {
